@@ -393,9 +393,9 @@
                 
                 <!-- 角色登录按钮组 -->
                 <div class="role-btns">
-                    <button type="button" class="role-btn customer" data-url="../customer/dashboard.php">顾客登录</button>
-                    <button type="button" class="role-btn employee" data-url="../staff/dashboard.php">员工登录</button>
-                    <button type="button" class="role-btn manager" data-url="../manager/overview.php">经理登录</button>
+                    <button type="button" class="role-btn customer" data-url="../customer/index.php">顾客登录</button>
+                    <button type="button" class="role-btn employee" data-url="../staff/index.php">员工登录</button>
+                    <button type="button" class="role-btn manager" data-url="../manager/index.php">经理登录</button>
                     <button type="button" class="role-btn supplier" data-url="../supplier/index.php">供应商登录</button>
                 </div>
                 
