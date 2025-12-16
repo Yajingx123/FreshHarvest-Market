@@ -2,6 +2,45 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>鲜选生鲜 - 员工端</title>
+    <?php
+    header("Content-Type: text/html; charset=UTF-8");
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    // 检查staff是否已登录
+    if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== true) {
+        header('Location: ../login/login.php');
+        exit();
+    }
+
+    // 数据库配置
+    $servername = "localhost";
+    $username = "root";
+    $password = "NewRootPwd123!";
+    $dbname = "mydb";
+
+    // 连接数据库
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        die("数据库连接失败: " . $conn->connect_error);
+    }
+    $conn->set_charset("utf8mb4");
+
+    // 获取门店名称
+    $branch_id = $_SESSION['staff_branch_id'];
+    $sql_branch = "SELECT branch_name FROM Branch WHERE branch_ID = ?";
+    $stmt_branch = $conn->prepare($sql_branch);
+    $stmt_branch->bind_param("i", $branch_id);
+    $stmt_branch->execute();
+    $result_branch = $stmt_branch->get_result();
+    $branch_name = $result_branch->fetch_assoc()['branch_name'] ?? '未知门店';
+
+    // 获取员工编号（staff_ID）
+    $staff_id = $_SESSION['staff_id'];
+    $employee_code = 'YG' . str_pad($staff_id, 8, '0', STR_PAD_LEFT); // 格式化为YG00000001
+
+    $conn->close();
+    ?>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Microsoft YaHei', Arial, sans-serif; }
         body { background-color: #f8f9fa; color: #333; }
@@ -83,7 +122,7 @@
     <div class="nav-container">
         <div style="display: flex; align-items: center;">
             <a href="dashboard.php" class="logo">鲜选生鲜 - staff</a>
-            <span class="store-info">当前门店：高新店 | 员工编号：YG20240508</span>
+            <span class="store-info">当前门店：<?php echo htmlspecialchars($branch_name); ?> | 员工编号：<?php echo htmlspecialchars($employee_code); ?></span>
         </div>
         <ul class="nav-menu">
             <li class="nav-item"><a href="dashboard.php" class="nav-link">工作概览</a></li>

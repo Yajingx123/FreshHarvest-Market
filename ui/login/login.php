@@ -1,5 +1,143 @@
 <?php
-// 生鲜电商多角色登录界面 - 左右分栏布局版
+session_start();
+// 数据库配置
+$servername = "localhost";
+$username = "root";
+$password = "NewRootPwd123!";
+$dbname = "mydb";
+
+// 处理经理登录
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['role'] === 'CEO') {
+    $input_username = trim($_POST['username']);
+    $input_password = trim($_POST['password']);
+    
+    try {
+        // 使用PDO连接
+        $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+        $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        
+        $sql = "SELECT user_ID, user_name, password_hash FROM User WHERE user_name = ? AND user_type = 'CEO'";
+        $stmt = $conn->prepare($sql);
+        $stmt->execute([$input_username]);
+        
+        if ($stmt->rowCount() > 0) {
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            $hashed_password = md5($input_password);
+            
+            if ($hashed_password === $user['password_hash']) {
+                $_SESSION['manager_logged_in'] = true;
+                $_SESSION['manager_id'] = $user['user_ID'];
+                $_SESSION['manager_username'] = $user['user_name'];
+                $_SESSION['user_role'] = 'CEO';
+                
+                header('Location: ../manager/overview.php');
+                exit();
+            }
+        }
+        $_SESSION['login_error'] = '经理账户验证失败，请检查用户名和密码！';
+        
+    } catch(PDOException $e) {
+        $_SESSION['login_error'] = '数据库连接失败: ' . $e->getMessage();
+    }
+}
+// 处理顾客登录（模仿经理的写法）
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['role'] === 'customer') {
+    $input_username = trim($_POST['username']);
+    $input_password = trim($_POST['password']);
+    
+    try {
+        // 直接连接数据库（不要用函数）
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        if ($conn->connect_error) {
+            die("数据库连接失败: " . $conn->connect_error);
+        }
+        
+        // 查询顾客账户
+        $sql = "SELECT u.*, c.customer_ID 
+                FROM User u 
+                LEFT JOIN Customer c ON u.user_name = c.user_name 
+                WHERE u.user_name = ? AND u.user_type = 'customer'";
+        
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("s", $input_username);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result && $result->num_rows > 0) {
+            $user = $result->fetch_assoc();
+            $hashed_password = md5($input_password);
+            
+            if ($hashed_password === $user['password_hash']) {
+                $_SESSION['customer_logged_in'] = true;
+                $_SESSION['customer_id'] = $user['customer_ID'];
+                $_SESSION['customer_username'] = $user['user_name'];
+                $_SESSION['user_role'] = 'customer';
+                
+                $stmt->close();
+                $conn->close();
+                
+                header('Location: ../customer/header.php');
+                exit();
+            }
+        }
+        
+        $_SESSION['login_error'] = '顾客账户验证失败，请检查用户名和密码！';
+        $conn->close();
+        
+    } catch(Exception $e) {
+        $_SESSION['login_error'] = '登录出错: ' . $e->getMessage();
+    }
+}
+
+// 处理员工(staff)登录（仿照顾客的写法，不修改现有逻辑）
+// 注意：前端按钮 data-role="employee"，所以这里用 employee 作为 role 值
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['role'] === 'employee') {
+    $input_username = trim($_POST['username']);
+    $input_password = trim($_POST['password']);
+
+    try {
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        if ($conn->connect_error) {
+            die("数据库连接失败: " . $conn->connect_error);
+        }
+
+        // 查询员工账户：必须是 User.user_type = 'staff'，并关联 Staff 表拿到 staff_ID 和 branch_ID
+        $sql = "SELECT u.*, s.staff_ID, s.branch_ID 
+                FROM User u 
+                LEFT JOIN Staff s ON u.user_name = s.user_name 
+                WHERE u.user_name = ? AND u.user_type = 'staff'";
+
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("s", $input_username);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($result && $result->num_rows > 0) {
+            $user = $result->fetch_assoc();
+            
+            if ($input_password === $user['password_hash']) {
+                // staff session（不影响其他角色）
+                $_SESSION['staff_logged_in'] = true;
+                $_SESSION['staff_id'] = $user['staff_ID'];
+                $_SESSION['staff_branch_id'] = $user['branch_ID'];
+                $_SESSION['staff_username'] = $user['user_name'];
+                $_SESSION['user_role'] = 'staff';
+
+                $stmt->close();
+                $conn->close();
+
+                header('Location: ../staff/dashboard.php');
+                exit();
+            }
+        }
+
+        $_SESSION['login_error'] = '员工账户验证失败，请检查用户名和密码！';
+        $conn->close();
+
+    } catch (Exception $e) {
+        $_SESSION['login_error'] = '登录出错: ' . $e->getMessage();
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -88,7 +226,7 @@
             position: relative;
             width: 100%;
             max-width: 400px;
-            opacity: 1; /* 初始位置 */
+            opacity: 1; /* 初始透明度 */
             transform: translateY(0); /* 初始位置 */
         }
         .login-title {
@@ -111,7 +249,6 @@
         }
         .form-group {
             margin-bottom: 25px;
-            position: relative;
         }
         .form-label {
             display: block;
@@ -129,19 +266,6 @@
             background: rgba(255, 255, 255, 0.9);
             transition: all 0.3s ease;
         }
-        
-        /* 禁用浏览器原生密码可见性图标 */
-        input[type="password"]::-ms-reveal,
-        input[type="password"]::-ms-clear {
-            display: none;
-        }
-        input[type="password"]::-webkit-eye-button {
-            display: none !important;
-        }
-        .form-control[type="password"] {
-            padding-right: 40px !important;
-        }
-
         .form-control:focus {
             outline: none;
             border-color: #1976d2;
@@ -158,25 +282,6 @@
         }
         .error-tip.show {
             display: block;
-        }
-        
-        /* 密码可见性切换按钮 - 适配图片图标 */
-        .toggle-password {
-            position: absolute;
-            right: 16px;
-            top: 42px;
-            cursor: pointer;
-            color: #666;
-            background: none;
-            border: none;
-            padding: 0;
-            width: 20px;  /* 图标宽度 */
-            height: 20px; /* 图标高度 */
-        }
-        .toggle-password img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
         }
         
         /* 角色按钮组 */
@@ -228,73 +333,6 @@
         }
         .role-btn.supplier {
             background-color: #1976d2;
-        }
-        /* 注册相关样式 */
-        .register-link {
-            text-align: center;
-            margin-top: 20px;
-        }
-        .register-link a {
-            color: #1976d2;
-            text-decoration: none;
-            font-size: 14px;
-            transition: color 0.3s ease;
-        }
-        .register-link a:hover {
-            color: #1565c0;
-            text-decoration: underline;
-        }
-        .register-form {
-            display: none;
-            width: 100%;
-        }
-        .register-btn {
-            width: 100%;
-            padding: 14px 0;
-            border-radius: 8px;
-            border: none;
-            font-size: 15px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            color: #fff;
-            background-color: #43a047;
-            margin-top: 30px;
-            position: relative;
-            overflow: hidden;
-        }
-        .register-btn::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            transition: width 0.6s ease, height 0.6s ease;
-        }
-        .register-btn:hover::after {
-            width: 200px;
-            height: 200px;
-        }
-        .register-btn:active {
-            transform: scale(0.98);
-        }
-        .back-link {
-            text-align: center;
-            margin-top: 15px;
-        }
-        .back-link a {
-            color: #666;
-            text-decoration: none;
-            font-size: 14px;
-            transition: color 0.3s ease;
-        }
-        .back-link a:hover {
-            color: #333;
-            text-decoration: underline;
         }
         /* 加载动画样式 */
         .loading {
@@ -374,61 +412,35 @@
             <h2 class="login-title">鲜选生鲜</h2>
             <p class="login-subtitle">请输入账号信息并选择角色登录</p>
             
-            <form class="login-form" id="loginForm">
+            <!-- 错误消息显示区域 -->
+            <?php if (isset($_SESSION['login_error'])): ?>
+                <div style="background-color: #ffebee; color: #c62828; padding: 10px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #c62828;">
+                    <?php echo $_SESSION['login_error']; unset($_SESSION['login_error']); ?>
+                </div>
+            <?php endif; ?>
+            
+            <form class="login-form" id="loginForm" method="POST">
                 <div class="form-group">
                     <label class="form-label" for="username">用户名</label>
-                    <input type="text" class="form-control" id="username" placeholder="请输入用户名/手机号">
+                    <input type="text" class="form-control" id="username" name="username" placeholder="请输入用户名/手机号" value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>">
                     <div class="error-tip" id="usernameTip">用户名不能为空</div>
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label" for="password">密码</label>
-                    <input type="password" class="form-control" id="password" placeholder="请输入密码">
-                    <!-- 替换为图片图标 -->
-                    <button type="button" class="toggle-password" data-target="password">
-                        <img src="eye-close.png" alt="隐藏密码" class="eye-icon">
-                    </button>
+                    <input type="password" class="form-control" id="password" name="password" placeholder="请输入密码">
                     <div class="error-tip" id="passwordTip">密码不能为空</div>
                 </div>
                 
+                <!-- 隐藏的角色选择字段 -->
+                <input type="hidden" id="selectedRole" name="role" value="">
+                
                 <!-- 角色登录按钮组 -->
                 <div class="role-btns">
-                    <button type="button" class="role-btn customer" data-url="../customer/index.php">顾客登录</button>
-                    <button type="button" class="role-btn employee" data-url="../staff/index.php">员工登录</button>
-                    <button type="button" class="role-btn manager" data-url="../manager/index.php">经理登录</button>
-                    <button type="button" class="role-btn supplier" data-url="../supplier/index.php">供应商登录</button>
-                </div>
-                
-                <!-- 顾客注册链接 -->
-                <div class="register-link">
-                    <a href="javascript:;" id="showRegister">顾客注册</a>
-                </div>
-            </form>
-            
-            <!-- 注册表单 -->
-            <form class="register-form" id="registerForm">
-                <div class="form-group">
-                    <label class="form-label" for="regUsername">用户名</label>
-                    <input type="text" class="form-control" id="regUsername" placeholder="请设置用户名/手机号">
-                    <div class="error-tip" id="regUsernameTip">用户名不能为空</div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label" for="regPassword">密码</label>
-                    <input type="password" class="form-control" id="regPassword" placeholder="请设置密码">
-                    <!-- 替换为图片图标 -->
-                    <button type="button" class="toggle-password" data-target="regPassword">
-                        <img src="eye-close.png" alt="隐藏密码" class="eye-icon">
-                    </button>
-                    <div class="error-tip" id="regPasswordTip">密码不能为空</div>
-                </div>
-                
-                <!-- 注册按钮 -->
-                <button type="button" class="register-btn" id="registerBtn" data-url="../customer/dashboard.php">注册</button>
-                
-                <!-- 返回登录链接 -->
-                <div class="back-link">
-                    <a href="javascript:;" id="showLogin">已有账号？返回登录</a>
+                    <button type="button" class="role-btn customer" data-role="customer" data-url="../customer/dashboard.php">顾客登录</button>
+                    <button type="button" class="role-btn employee" data-role="employee" data-url="../staff/dashboard.php">员工登录</button>
+                    <button type="submit" class="role-btn manager" data-role="manager">经理登录</button>
+                    <button type="button" class="role-btn supplier" data-role="supplier" data-url="../supplier/index.php">供应商登录</button>
                 </div>
             </form>
         </div>
@@ -438,42 +450,11 @@
         // 获取DOM元素
         const username = document.getElementById('username');
         const password = document.getElementById('password');
+        const selectedRole = document.getElementById('selectedRole');
         const usernameTip = document.getElementById('usernameTip');
         const passwordTip = document.getElementById('passwordTip');
         const roleBtns = document.querySelectorAll('.role-btn');
         const loginForm = document.getElementById('loginForm');
-        const registerForm = document.getElementById('registerForm');
-        const showRegister = document.getElementById('showRegister');
-        const showLogin = document.getElementById('showLogin');
-        const regUsername = document.getElementById('regUsername');
-        const regPassword = document.getElementById('regPassword');
-        const regUsernameTip = document.getElementById('regUsernameTip');
-        const regPasswordTip = document.getElementById('regPasswordTip');
-        const registerBtn = document.getElementById('registerBtn');
-        const togglePasswordBtns = document.querySelectorAll('.toggle-password');
-
-        // 密码可见性切换功能（适配图片图标）
-        togglePasswordBtns.forEach(btn => {
-            btn.addEventListener('click', function(e) {
-                e.stopPropagation(); // 阻止事件冒泡
-                const targetId = this.getAttribute('data-target');
-                const passwordInput = document.getElementById(targetId);
-                const eyeIcon = this.querySelector('.eye-icon');
-                
-                // 切换密码可见性
-                const isPassword = passwordInput.getAttribute('type') === 'password';
-                passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
-                
-                // 切换图片图标（请替换为实际的图标路径）
-                if (isPassword) {
-                    eyeIcon.src = 'eye-open.png';
-                    eyeIcon.alt = '显示密码';
-                } else {
-                    eyeIcon.src = 'eye-close.png';
-                    eyeIcon.alt = '隐藏密码';
-                }
-            });
-        });
 
         // 非空校验函数
         function validateForm() {
@@ -502,33 +483,6 @@
             return isValid;
         }
 
-        // 注册表单校验
-        function validateRegisterForm() {
-            let isValid = true;
-            
-            // 注册用户名校验
-            if (!regUsername.value.trim()) {
-                regUsername.classList.add('error');
-                regUsernameTip.classList.add('show');
-                isValid = false;
-            } else {
-                regUsername.classList.remove('error');
-                regUsernameTip.classList.remove('show');
-            }
-            
-            // 注册密码校验
-            if (!regPassword.value.trim()) {
-                regPassword.classList.add('error');
-                regPasswordTip.classList.add('show');
-                isValid = false;
-            } else {
-                regPassword.classList.remove('error');
-                regPasswordTip.classList.remove('show');
-            }
-            
-            return isValid;
-        }
-
         // 输入框实时校验
         username.addEventListener('input', function() {
             if (this.value.trim()) {
@@ -544,74 +498,94 @@
             }
         });
 
-        // 注册输入框实时校验
-        regUsername.addEventListener('input', function() {
-            if (this.value.trim()) {
-                this.classList.remove('error');
-                regUsernameTip.classList.remove('show');
-            }
-        });
-
-        regPassword.addEventListener('input', function() {
-            if (this.value.trim()) {
-                this.classList.remove('error');
-                regPasswordTip.classList.remove('show');
-            }
-        });
-
         // 角色按钮点击事件
         roleBtns.forEach(btn => {
             btn.addEventListener('click', function() {
-                // 禁用按钮防止重复点击
-                this.disabled = true;
-                const originalText = this.innerHTML;
+                if (this.type === 'submit') return; // 经理按钮已经是submit类型
+                
+                const role = this.getAttribute('data-role');
+                selectedRole.value = role;
                 
                 if (validateForm()) {
                     const targetUrl = this.getAttribute('data-url');
                     // 显示登录中状态
+                    const originalText = this.innerHTML;
                     this.innerHTML = '<span class="loading"></span> 登录中...';
+                    this.disabled = true;
+                    
                     // 模拟登录过程
                     setTimeout(() => {
+                        // 对于非经理用户，直接跳转
+                        loginForm.action = ''; // 清除表单action
                         window.location.href = targetUrl;
                     }, 800);
-                } else {
-                    // 校验失败时恢复按钮状态
-                    this.disabled = false;
                 }
             });
         });
+        
 
-        // 注册按钮点击事件
-        registerBtn.addEventListener('click', function() {
-            this.disabled = true;
-            const originalText = this.innerHTML;
-            
-            if (validateRegisterForm()) {
-                const targetUrl = this.getAttribute('data-url');
-                this.innerHTML = '<span class="loading"></span> 注册中...';
-                setTimeout(() => {
-                    window.location.href = targetUrl;
-                }, 800);
-            } else {
-                this.disabled = false;
-            }
-        });
+        // 经理登录按钮特殊处理
+        const managerBtn = document.querySelector('.role-btn.manager');
+        managerBtn.addEventListener('click', function(e) {
+        // 设置角色为manager
+        selectedRole.value = 'manager';
+    
+        if (validateForm()) {
+        // 显示登录中状态
+           const originalText = this.innerHTML;
+           this.innerHTML = '<span class="loading"></span> 登录中...';
+           this.disabled = true;
+        
+           // 直接提交表单，验证在PHP端处理
+            loginForm.action = '';
+            loginForm.submit();
+        } else {
+            e.preventDefault();
+          }
+       });
+       // 在角色按钮点击事件中，为顾客按钮添加类似经理的处理逻辑
+       const customerBtn = document.querySelector('.role-btn.customer');
+       customerBtn.addEventListener('click', function(e) {
+        // 设置角色为customer
+        selectedRole.value = 'customer';
+    
+       if (validateForm()) {
+         // 显示登录中状态
+         const originalText = this.innerHTML;
+         this.innerHTML = '<span class="loading"></span> 登录中...';
+         this.disabled = true;
+        
+         // 提交表单到后端验证
+         loginForm.action = '<?php echo $_SERVER["PHP_SELF"]; ?>';
+         loginForm.submit();
+        } else {
+           e.preventDefault();
+        }
+       });
 
-        // 切换到注册表单
-        showRegister.addEventListener('click', function() {
-            loginForm.style.display = 'none';
-            registerForm.style.display = 'block';
-        });
+       // 为员工按钮添加后端验证逻辑（仿照顾客，不影响其他角色）
+       const employeeBtn = document.querySelector('.role-btn.employee');
+       if (employeeBtn) {
+         employeeBtn.addEventListener('click', function(e) {
+           // 设置角色为employee（后端会按 staff 处理）
+           selectedRole.value = 'employee';
 
-        // 切换到登录表单
-        showLogin.addEventListener('click', function() {
-            registerForm.style.display = 'none';
-            loginForm.style.display = 'block';
-        });
+           if (validateForm()) {
+             const originalText = this.innerHTML;
+             this.innerHTML = '<span class="loading"></span> 登录中...';
+             this.disabled = true;
+
+             // 提交表单到后端验证
+             loginForm.action = '<?php echo $_SERVER["PHP_SELF"]; ?>';
+             loginForm.submit();
+           } else {
+             e.preventDefault();
+           }
+         });
+       }
 
         // 页面载入动画
         window.addEventListener('load', () => {
-            // 初始隐藏
             const bannerImg = document.querySelector('.banner-img');
             const loginContainer = document.querySelector('.login-container');
             
@@ -620,7 +594,6 @@
             loginContainer.style.transform = 'translateY(20px)';
             
             setTimeout(() => {
-                // 渐显动画
                 bannerImg.style.transition = 'opacity 1s ease';
                 bannerImg.style.opacity = '1';
                 
@@ -628,27 +601,6 @@
                 loginContainer.style.opacity = '1';
                 loginContainer.style.transform = 'translateY(0)';
             }, 100);
-        });
-
-        window.addEventListener('beforeunload', function() {
-            // 重置所有角色按钮状态
-            roleBtns.forEach(btn => {
-                btn.disabled = false;
-                // 恢复原始文本
-                const roleText = btn.textContent.trim();
-                if(roleText.includes('登录中')) {
-                    if(btn.classList.contains('customer')) btn.innerHTML = '顾客登录';
-                    if(btn.classList.contains('employee')) btn.innerHTML = '员工登录';
-                    if(btn.classList.contains('manager')) btn.innerHTML = '经理登录';
-                    if(btn.classList.contains('supplier')) btn.innerHTML = '供应商登录';
-                }
-            });
-            
-            // 重置注册按钮状态
-            registerBtn.disabled = false;
-            if(registerBtn.textContent.includes('注册中')) {
-                registerBtn.innerHTML = '注册';
-            }
         });
     </script>
 </body>
