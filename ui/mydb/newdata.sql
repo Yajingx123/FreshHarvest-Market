@@ -95,19 +95,19 @@ VALUES
 INSERT INTO User(user_ID, user_name, password_hash, user_type, user_email, user_telephone, first_name, last_name, is_active)
 VALUES
 -- Staff (每店 1 Manager + 3 Sales + 1 Deliveryman = 15)
-(1,'b1_mgr','hash','staff','b1_mgr@fh.com','13900001001','店长','中南',1),
+(1,'b1_mgr','hash','CEO','b1_mgr@fh.com','13900001001','店长','中南',1),
 (2,'b1_s1','hash','staff','b1_s1@fh.com','13900001002','销售','中南1',1),
 (3,'b1_s2','hash','staff','b1_s2@fh.com','13900001003','销售','中南2',1),
 (4,'b1_s3','hash','staff','b1_s3@fh.com','13900001004','销售','中南3',1),
 (5,'b1_d1','hash','staff','b1_d1@fh.com','13900001005','配送','中南',1),
 
-(6,'b2_mgr','hash','staff','b2_mgr@fh.com','13900002001','店长','麓谷',1),
+(6,'b2_mgr','hash','CEO','b2_mgr@fh.com','13900002001','店长','麓谷',1),
 (7,'b2_s1','hash','staff','b2_s1@fh.com','13900002002','销售','麓谷1',1),
 (8,'b2_s2','hash','staff','b2_s2@fh.com','13900002003','销售','麓谷2',1),
 (9,'b2_s3','hash','staff','b2_s3@fh.com','13900002004','销售','麓谷3',1),
 (10,'b2_d1','hash','staff','b2_d1@fh.com','13900002005','配送','麓谷',1),
 
-(11,'b3_mgr','hash','staff','b3_mgr@fh.com','13900003001','店长','梅溪湖',1),
+(11,'b3_mgr','hash','CEO','b3_mgr@fh.com','13900003001','店长','梅溪湖',1),
 (12,'b3_s1','hash','staff','b3_s1@fh.com','13900003002','销售','梅溪湖1',1),
 (13,'b3_s2','hash','staff','b3_s2@fh.com','13900003003','销售','梅溪湖2',1),
 (14,'b3_s3','hash','staff','b3_s3@fh.com','13900003004','销售','梅溪湖3',1),
