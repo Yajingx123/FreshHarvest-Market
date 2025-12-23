@@ -1,18 +1,5 @@
 <?php
-
-function getDBConnection() {
-    $servername = "localhost";
-    $username = "root";
-    $password = "8049023544Aaa?"; // 你的密码
-    $dbname = "mydb";
-    
-    $conn = new mysqli($servername, $username, $password, $dbname);
-    if ($conn->connect_error) {
-        die("数据库连接失败: " . $conn->connect_error);
-    }
-    $conn->set_charset("utf8mb4");
-    return $conn;
-}
+require_once __DIR__ . '/../../config/db_connect.php';
 
 // 获取当前登录顾客的ID
 $customer_id = $_SESSION['customer_id'] ?? null;

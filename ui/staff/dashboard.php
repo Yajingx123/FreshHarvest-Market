@@ -2,6 +2,7 @@
 ob_start();
 header("Content-Type: text/html; charset=UTF-8");
 session_start();
+require_once __DIR__ . '/../config/db_connect.php';
 // Ensure PHP uses the same timezone as your team (adjust if needed)
 date_default_timezone_set('Asia/Shanghai');
 // 检查staff是否已登录
@@ -10,18 +11,8 @@ if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== tru
     exit();
 }
 
-// 数据库配置
-$servername = "localhost";
-$username = "root";
-$password = "8049023544Aaa?";
-$dbname = "mydb";
-
 // 连接数据库
-$conn = new mysqli($servername, $username, $password, $dbname);
-if ($conn->connect_error) {
-    die("数据库连接失败: " . $conn->connect_error);
-}
-$conn->set_charset("utf8mb4");
+$conn = getDBConnection();
 
 // 获取staff的branch_ID
 $staff_branch_id = $_SESSION['staff_branch_id'];

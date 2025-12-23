@@ -1,10 +1,6 @@
 <?php
 session_start();
-// 数据库配置
-$servername = "localhost";
-$username = "root";
-$password = "8049023544Aaa?";
-$dbname = "mydb";
+require_once __DIR__ . '/../config/db_connect.php';
 
 // 处理经理登录
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['role'] === 'CEO') {
@@ -13,8 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     
     try {
         // 使用PDO连接
-        $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
-        $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $conn = getPDOConnection();
         
         $sql = "SELECT user_ID, user_name, password_hash FROM User WHERE user_name = ? AND user_type = 'CEO'";
         $stmt = $conn->prepare($sql);
@@ -24,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             $hashed_password = md5($input_password);
             
-            if ($hashed_password === $user['password_hash']) {
+            if ($hashed_password === md5($user['password_hash'])) {
                 $_SESSION['manager_logged_in'] = true;
                 $_SESSION['manager_id'] = $user['user_ID'];
                 $_SESSION['manager_username'] = $user['user_name'];
@@ -47,10 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     
     try {
         // 直接连接数据库（不要用函数）
-        $conn = new mysqli($servername, $username, $password, $dbname);
-        if ($conn->connect_error) {
-            die("数据库连接失败: " . $conn->connect_error);
-        }
+        $conn = getDBConnection();
         
         // 查询顾客账户
         $sql = "SELECT u.*, c.customer_ID 
@@ -67,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $user = $result->fetch_assoc();
             $hashed_password = md5($input_password);
             
-            if ($hashed_password === $user['password_hash']) {
+            if ($hashed_password === md5($user['password_hash'])) {
                 $_SESSION['customer_logged_in'] = true;
                 $_SESSION['customer_id'] = $user['customer_ID'];
                 $_SESSION['customer_username'] = $user['user_name'];
@@ -95,10 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     $input_password = trim($_POST['password']);
 
     try {
-        $conn = new mysqli($servername, $username, $password, $dbname);
-        if ($conn->connect_error) {
-            die("数据库连接失败: " . $conn->connect_error);
-        }
+        $conn = getDBConnection();
 
         // 查询员工账户：必须是 User.user_type = 'staff'，并关联 Staff 表拿到 staff_ID 和 branch_ID
         $sql = "SELECT u.*, s.staff_ID, s.branch_ID 
@@ -115,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $user = $result->fetch_assoc();
             $hashed_password = md5($input_password);
             
-            if ($hashed_password === $user['password_hash']) {
+            if ($hashed_password === md5($user['password_hash'])) {
                 $_SESSION['staff_logged_in'] = true;
                 $_SESSION['staff_id'] = $user['staff_ID'];
                 $_SESSION['staff_branch_id'] = $user['branch_ID'];
@@ -143,10 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     
     try {
         // 直接连接数据库（保持和原代码一致的连接方式）
-        $conn = new mysqli($servername, $username, $password, $dbname);
-        if ($conn->connect_error) {
-            die("数据库连接失败: " . $conn->connect_error);
-        }
+        $conn = getDBConnection();
         
         // 查询供应商账户：关联User表和Supplier表，筛选user_type = 'supplier'
         $sql = "SELECT u.*, s.supplier_ID 
