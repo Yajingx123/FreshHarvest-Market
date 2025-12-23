@@ -1,15 +1,10 @@
 <?php
-// 数据库配置
-$host = 'localhost';
-$dbname = 'mydb';
-$username = 'root';
-$password = '8049023544Aaa?';
+require_once __DIR__ . '/../../config/db_connect.php';
 
 // 建立数据库连接
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $username, $password);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch(PDOException $e) {
+    $pdo = getPDOConnection();
+} catch (PDOException $e) {
     die("数据库连接失败: " . $e->getMessage());
 }
 
