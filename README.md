@@ -1,9 +1,6 @@
 # FreshHarvest-Market
 DI31003 Assignment 2 - Database Implementation
 
-<<<<<<< HEAD:ui/README.md
-feature-test
-=======
 ## 仓库使用指南
 ### 目录
 1. 仓库的分支结构
@@ -69,5 +66,4 @@ https://liaoxuefeng.com/books/git/branch/index.html
 > 
 > **12. 若分支已无用，删除分支**   
 >   $ git branch -d feature/readme-optimize   
->   $ git push origin --delete feature/readme-optimize   
->>>>>>> d98860971476cfdb28ad0864476fc5e471d42279:README.md
+>   $ git push origin --delete feature/readme-optimize
