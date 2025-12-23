@@ -1,18 +1,29 @@
 <?php
-// UI/config/db_connect.php
+// config/db_connect.php
 
-$DB_HOST = "127.0.0.1";
-$DB_PORT = "3306";
-$DB_NAME = "mydb";
-$DB_USER = "root";      
-$DB_PASS = "NewRootPwd123!"; 
+// 数据库配置
+define('DB_HOST', 'localhost');
+define('DB_USER', 'root');      // 改成你的MySQL用户名
+define('DB_PASS', '8049023544Aaa?');          // 改成你的MySQL密码
+define('DB_NAME', 'mydb');
 
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-
-try {
-    $conn = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME, (int)$DB_PORT);
+// 创建数据库连接
+function getDBConnection() {
+    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    
+    // 检查连接
+    if ($conn->connect_error) {
+        die("数据库连接失败: " . $conn->connect_error);
+    }
+    
+    // 设置字符集
     $conn->set_charset("utf8mb4");
-} catch (mysqli_sql_exception $e) {
-    http_response_code(500);
-    die("Database connection failed: " . $e->getMessage());
+    
+    return $conn;
 }
+
+// 安全函数：防止SQL注入
+function sanitize($input, $conn) {
+    return $conn->real_escape_string(htmlspecialchars(trim($input)));
+}
+?>

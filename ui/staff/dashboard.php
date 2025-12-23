@@ -13,7 +13,7 @@ if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== tru
 // 数据库配置
 $servername = "localhost";
 $username = "root";
-$password = "NewRootPwd123!";
+$password = "8049023544Aaa?";
 $dbname = "mydb";
 
 // 连接数据库
@@ -164,7 +164,6 @@ for ($i = 0; $i < 7; $i++) {
     $week_revenue[$i] = $revenue_map[$d_full] ?? 0.0;
 }
 
-// 男女比例：由于User表没有性别字段，这里暂时用假数据或假设
 // 假设男7女5
 $male_count = 7;
 $female_count = 5;

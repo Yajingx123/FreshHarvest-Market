@@ -10,7 +10,7 @@ if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== tru
 
 $servername = "localhost";
 $username = "root";
-$password = "NewRootPwd123!";
+$password = "8049023544Aaa?";
 $dbname = "mydb";
 
 $error_message = '';

@@ -3,7 +3,7 @@ session_start();
 // 数据库配置
 $servername = "localhost";
 $username = "root";
-$password = "NewRootPwd123!";
+$password = "8049023544Aaa?";
 $dbname = "mydb";
 
 // 处理经理登录
@@ -89,7 +89,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     }
 }
 
-// 处理员工(staff)登录（仿照顾客的写法，不修改现有逻辑）
 // 注意：前端按钮 data-role="employee"，所以这里用 employee 作为 role 值
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['role'] === 'employee') {
     $input_username = trim($_POST['username']);
@@ -114,9 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
 
         if ($result && $result->num_rows > 0) {
             $user = $result->fetch_assoc();
+            $hashed_password = md5($input_password);
             
-            if ($input_password === $user['password_hash']) {
-                // staff session（不影响其他角色）
+            if ($hashed_password === $user['password_hash']) {
                 $_SESSION['staff_logged_in'] = true;
                 $_SESSION['staff_id'] = $user['staff_ID'];
                 $_SESSION['staff_branch_id'] = $user['branch_ID'];
@@ -135,6 +134,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
         $conn->close();
 
     } catch (Exception $e) {
+        $_SESSION['login_error'] = '登录出错: ' . $e->getMessage();
+    }
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['role'] === 'supplier') {
+    $input_username = trim($_POST['username']);
+    $input_password = trim($_POST['password']);
+    
+    try {
+        // 直接连接数据库（保持和原代码一致的连接方式）
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        if ($conn->connect_error) {
+            die("数据库连接失败: " . $conn->connect_error);
+        }
+        
+        // 查询供应商账户：关联User表和Supplier表，筛选user_type = 'supplier'
+        $sql = "SELECT u.*, s.supplier_ID 
+                FROM User u 
+                LEFT JOIN Supplier s ON u.user_name = s.user_name 
+                WHERE u.user_name = ? AND u.user_type = 'supplier'";
+        
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("s", $input_username); // 绑定用户名参数
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        // 验证用户是否存在
+        if ($result && $result->num_rows > 0) {
+            $user = $result->fetch_assoc();
+            // 原代码使用md5加密密码，保持加密方式一致
+            $hashed_password = md5($input_password);
+            
+            // 验证密码是否匹配
+            if ($hashed_password === $user['password_hash']) {
+                // 初始化供应商会话信息（区分customer的session键名）
+                $_SESSION['supplier_logged_in'] = true;
+                $_SESSION['supplier_id'] = $user['supplier_ID']; // 供应商专属ID
+                $_SESSION['supplier_username'] = $user['user_name'];
+                $_SESSION['user_role'] = 'supplier'; // 统一的角色标识
+                
+                // 关闭语句和连接
+                $stmt->close();
+                $conn->close();
+                
+                // 跳转到供应商专属首页（请替换为实际路径）
+                header('Location: ../supplier/header.php');
+                exit();
+            }
+        }
+        
+        // 登录失败：用户名/密码错误
+        $_SESSION['login_error'] = '供应商账户验证失败，请检查用户名和密码！';
+        $conn->close();
+        
+    } catch(Exception $e) {
+        // 捕获异常并返回错误信息
         $_SESSION['login_error'] = '登录出错: ' . $e->getMessage();
     }
 }
@@ -528,7 +582,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
         const managerBtn = document.querySelector('.role-btn.manager');
         managerBtn.addEventListener('click', function(e) {
         // 设置角色为manager
-        selectedRole.value = 'manager';
+        selectedRole.value = 'CEO';
     
         if (validateForm()) {
         // 显示登录中状态

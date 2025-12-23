@@ -1,7 +1,32 @@
-<?php $pageTitle = "产品选择"; ?>
-<?php include 'header.php'; ?>
+<?php
+require_once 'inc/data.php'; // 确保路径正确
+require_once 'header.php'; // 引入导航栏
 
-<style>
+// 获取分类和商品数据
+$categories = getProductCategories();
+$selectedCategory = $_GET['category'] ?? 'all';
+$searchKeyword = $_GET['search'] ?? '';
+// 使用修复后的函数获取商品
+$products = getProductsByCategoryAndSearch($selectedCategory, $searchKeyword);
+
+// 存储商品详情数据
+$productsWithBranches = [];
+if (!empty($products)) { // 判断$products是否非空
+    foreach ($products as $product) {
+           // 即使getProductBranches返回空，也给branches赋值为空数组
+           $product['branches'] = getProductBranches($product['id']) ?? [];
+           $productsWithBranches[] = $product;
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品列表</title>
+    <style>
     .product-section {
         background-color: #fff;
         border-radius: 10px;
@@ -253,7 +278,7 @@
         color: #666;
         margin-bottom: 15px;
     }
-    .add-to-cart {
+    .add-to-cart-btn {
         width: 100%;
         padding: 10px;
         background-color: #2d884d;
@@ -264,10 +289,10 @@
         cursor: pointer;
         transition: background-color 0.3s;
     }
-    .add-to-cart:hover {
+    .add-to-cart-btn:hover {
         background-color: #236b3c;
     }
-    .add-to-cart:disabled {
+    .add-to-cart-btn:disabled {
         cursor: not-allowed;
         opacity: 0.9;
     }
@@ -401,298 +426,223 @@
         }
     }
 </style>
-
-<!-- 产品选择区 -->
-<section id="products" class="module">
-    <div class="product-section">
+    </style>
+</head>
+<body>
+    <div class="container">
         <!-- 分类侧边栏 -->
         <div class="category-sidebar">
-            <div class="category-header">
-                <h3 class="category-title">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                    产品搜索
-                </h3>
-                <div class="search-container">
-                    <input type="text" class="search-input" id="productSearch" placeholder="搜索产品名称...">
-                    <span class="search-icon">🔍︎</span>
-                </div>
+            <h3 class="category-title">商品分类</h3>
+            
+            <!-- 搜索框 -->
+            <div class="search-container">
+                <input type="text" class="search-input" id="searchInput" placeholder="搜索商品名称..." value="<?php echo htmlspecialchars($searchKeyword); ?>">
+                <span class="search-icon" id="searchIcon">🔍</span>
             </div>
             
-            <div class="sidebar-divider"></div>
-            
-            <h3 class="category-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M3 6h18M3 12h18M3 18h18"></path>
-                </svg>
-                产品分类
-            </h3>
             <ul class="category-list">
-                <li class="category-item"><a class="category-link active" data-category="all">全部商品 <span class="category-count">4</span></a></li>
-                <li class="category-item"><a class="category-link" data-category="vegetables">新鲜蔬菜 <span class="category-count">1</span></a></li>
-                <li class="category-item"><a class="category-link" data-category="fruits">时令水果 <span class="category-count">1</span></a></li>
-                <li class="category-item"><a class="category-link" data-category="meat">肉类生鲜 <span class="category-count">1</span></a></li>
-                <li class="category-item"><a class="category-link" data-category="imported">进口食材 <span class="category-count">1</span></a></li>
+                <li class="category-item">
+                    <a href="products.php?category=all<?php echo $searchKeyword ? '&search=' . urlencode($searchKeyword) : ''; ?>" class="category-link <?php echo $selectedCategory === 'all' ? 'active' : ''; ?>">
+                        全部商品
+                        <span class="category-count">
+                            <?php 
+                            $total = 0;
+                            foreach ($categories as $cat) $total += $cat['count'];
+                            echo $total;
+                            ?>
+                        </span>
+                    </a>
+                </li>
+                <?php foreach ($categories as $category): ?>
+                <li class="category-item">
+                    <a href="products.php?category=<?php echo urlencode($category['name']); ?><?php echo $searchKeyword ? '&search=' . urlencode($searchKeyword) : ''; ?>" 
+                       class="category-link <?php echo $selectedCategory === $category['name'] ? 'active' : ''; ?>">
+                        <?php echo htmlspecialchars($category['name']); ?>
+                        <span class="category-count"><?php echo $category['count']; ?></span>
+                    </a>
+                </li>
+                <?php endforeach; ?>
             </ul>
         </div>
-
-        <!-- 产品内容区（保持不变） -->
+        
+        <!-- 商品内容区 -->
         <div class="product-content">
-            <select class="store-select" id="storeSelect">
-                <option value="1" selected>默认排序</option>
-                <option value="2">按价格从高到低</option>
-                <option value="3">按价格从低到高</option>
-            </select>
+            <h2><?php echo $selectedCategory === 'all' ? '全部商品' : htmlspecialchars($selectedCategory); ?></h2>
+            <?php if ($searchKeyword): ?>
+                <p>搜索关键词：<?php echo htmlspecialchars($searchKeyword); ?>（共<?php echo count($products); ?>个商品）</p>
+            <?php endif; ?>
+            
             <div class="product-grid">
-                <!-- 产品卡片1 - 蔬菜类 -->
-                <div class="product-card all vegetables" 
-                     data-id="1"
-                     data-name="有机生菜（500g）" 
-                     data-price="12.90" 
-                     data-stock="28"
-                     data-unit="500g/份"
-                     data-origin="山东寿光"
-                     data-shelf="7天"
-                     data-desc="有机种植生菜，无农药残留，脆嫩爽口，富含维生素和膳食纤维，适合生食、沙拉、涮锅等多种吃法。">
-                    <div class="product-img">🥬 新鲜生菜</div>
-                    <div class="product-info">
-                        <div class="product-name">有机生菜（500g）</div>
-                        <div class="product-price">¥12.90</div>
-                        <div class="product-stock">剩余：28份</div>
-                        <button class="add-to-cart">加入购物车</button>
+                <?php if (empty($products)): ?>
+                    <p>没有找到相关商品</p>
+                <?php else: ?>
+                    <?php foreach ($products as $product): ?>
+                    <div class="product-card" data-id="<?php echo $product['id']; ?>">
+                        <div class="product-img">📦</div>
+                        <div class="product-info">
+                            <div class="product-name"><?php echo htmlspecialchars($product['name']); ?></div>
+                            <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
+                            <div class="product-stock">
+                                <?php echo $product['stock_status']; ?> (剩余: <?php echo $product['stock_status'] === '无货' ? 0 : $product['stock']; ?>)
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <!-- 产品卡片2 - 水果类 -->
-                <div class="product-card all fruits"
-                     data-id="2"
-                     data-name="红颜草莓（300g）" 
-                     data-price="39.90" 
-                     data-stock="15"
-                     data-unit="300g/盒"
-                     data-origin="辽宁丹东"
-                     data-shelf="3天"
-                     data-desc="丹东九九红颜草莓，果肉饱满，酸甜多汁，果香浓郁，富含维生素C，现摘现发，保证新鲜。">
-                    <div class="product-img">🍓 新鲜草莓</div>
-                    <div class="product-info">
-                        <div class="product-name">红颜草莓（300g）</div>
-                        <div class="product-price">¥39.90</div>
-                        <div class="product-stock">剩余：15份</div>
-                        <button class="add-to-cart">加入购物车</button>
-                    </div>
-                </div>
-                <!-- 产品卡片3 - 肉类 -->
-                <div class="product-card all meat"
-                     data-id="3"
-                     data-name="澳洲和牛牛排（200g）" 
-                     data-price="89.00" 
-                     data-stock="8"
-                     data-unit="200g/片"
-                     data-origin="澳大利亚"
-                     data-shelf="冷冻180天"
-                     data-desc="澳洲进口和牛M7级西冷牛排，纹理清晰，脂肪分布均匀，口感鲜嫩多汁，煎烤后风味浓郁，营养丰富。">
-                    <div class="product-img">🥩 精品牛肉</div>
-                    <div class="product-info">
-                        <div class="product-name">澳洲和牛牛排（200g）</div>
-                        <div class="product-price">¥89.00</div>
-                        <div class="product-stock">剩余：8份</div>
-                        <button class="add-to-cart">加入购物车</button>
-                    </div>
-                </div>
-                <!-- 产品卡片4 - 进口食材 -->
-                <div class="product-card all imported"
-                     data-id="4"
-                     data-name="进口牛油果（2个装）" 
-                     data-price="25.80" 
-                     data-stock="22"
-                     data-unit="2个/份"
-                     data-origin="墨西哥"
-                     data-shelf="5-7天"
-                     data-desc="墨西哥进口牛油果，果肉绵密，口感醇厚，富含不饱和脂肪酸和多种维生素，适合直接食用、制作沙拉或辅食。">
-                    <div class="product-img">🥑 牛油果</div>
-                    <div class="product-info">
-                        <div class="product-name">进口牛油果（2个装）</div>
-                        <div class="product-price">¥25.80</div>
-                        <div class="product-stock">剩余：22份</div>
-                        <button class="add-to-cart">加入购物车</button>
-                    </div>
-                </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>
-</section>
-
-<!-- 产品详情弹窗（保持不变） -->
-<div class="modal-overlay" id="productModal">
-    <div class="product-modal">
-        <span class="close-modal" id="closeModal">×</span>
-        <div class="modal-content">
-            <div class="modal-product-img" id="modalProductImg">🥬</div>
-            <div class="modal-product-info">
-                <h3 class="modal-product-name" id="modalProductName">有机生菜（500g）</h3>
-                <div class="modal-product-price" id="modalProductPrice">¥12.90</div>
-                
-                <div class="product-detail-item">
-                    <label>规格：</label>
-                    <span id="modalProductUnit">500g/份</span>
-                </div>
-                <div class="product-detail-item">
-                    <label>产地：</label>
-                    <span id="modalProductOrigin">山东寿光</span>
-                </div>
-                <div class="product-detail-item">
-                    <label>保质期：</label>
-                    <span id="modalProductShelf">7天</span>
-                </div>
-                <div class="product-detail-item">
-                    <label>库存：</label>
-                    <span id="modalProductStock">28份</span>
-                </div>
-                
-                <div class="product-description">
-                    <h4>产品详情</h4>
-                    <p id="modalProductDesc">有机种植生菜，无农药残留，脆嫩爽口，富含维生素和膳食纤维，适合生食、沙拉、涮锅等多种吃法。</p>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-    // 产品分类筛选（保持不变）
-    document.querySelectorAll('.category-link').forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            // 移除所有分类活跃状态
-            document.querySelectorAll('.category-link').forEach(item => {
-                item.classList.remove('active');
-            });
-            
-            // 添加当前分类活跃状态
-            this.classList.add('active');
-            const category = this.getAttribute('data-category');
-            
-            // 筛选产品
-            document.querySelectorAll('.product-card').forEach(card => {
-                if (category === 'all' || card.classList.contains(category)) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-        });
-    });
-
-    // 搜索功能（保持不变）
-    document.getElementById('productSearch').addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase();
-        document.querySelectorAll('.product-card').forEach(card => {
-            const productName = card.getAttribute('data-name').toLowerCase();
-            if (productName.includes(searchTerm)) {
-                card.style.display = 'block';
-            } else {
-                card.style.display = 'none';
-            }
-        });
-    });
-
-    // 产品详情弹窗功能（保持不变）
-    const modalOverlay = document.getElementById('productModal');
-    const closeModal = document.getElementById('closeModal');
-    const modalProductImg = document.getElementById('modalProductImg');
-    const modalProductName = document.getElementById('modalProductName');
-    const modalProductPrice = document.getElementById('modalProductPrice');
-    const modalProductUnit = document.getElementById('modalProductUnit');
-    const modalProductOrigin = document.getElementById('modalProductOrigin');
-    const modalProductShelf = document.getElementById('modalProductShelf');
-    const modalProductStock = document.getElementById('modalProductStock');
-    const modalProductDesc = document.getElementById('modalProductDesc');
     
-    // 存储当前选中的产品信息
-    let currentProduct = null;
+    <!-- 商品详情弹窗 -->
+    <div class="modal-overlay" id="productModal">
+        <div class="product-modal">
+            <span class="close-modal" id="closeModal">×</span>
+            <div class="modal-content">
+                <div class="modal-img" id="modalImg">📦</div>
+                <div class="modal-details" id="modalDetails">
+                    <!-- 商品详情将通过JS动态填充 -->
+                </div>
+            </div>
+        </div>
+    </div>
 
-    // 点击产品卡片打开弹窗
-    document.querySelectorAll('.product-card').forEach(card => {
-        // 为产品卡片添加点击事件（排除加入购物车按钮）
-        card.addEventListener('click', function(e) {
-            if (e.target.classList.contains('add-to-cart')) {
-                // 如果点击的是加入购物车按钮，执行原有逻辑
-                e.stopPropagation();
-                return;
+    <script>
+        const productDetails = <?php echo json_encode($productsWithBranches); ?>;
+        // 获取DOM元素
+        const modalOverlay = document.getElementById('productModal');
+        const modalDetails = document.getElementById('modalDetails');
+        const closeModal = document.getElementById('closeModal');
+        const searchInput = document.getElementById('searchInput');
+        const searchIcon = document.getElementById('searchIcon');
+        
+        // 点击商品卡片显示详情
+        document.querySelectorAll('.product-card').forEach(card => {
+           card.addEventListener('click', function() {
+           const productId = this.getAttribute('data-id');
+           const product = productDetails.find(p => p.id == productId);
+        
+        if (product) {
+            // 存储产品的门店ID（关键）
+            const storeId = product.store_id || 1; // 兜底为1，防止空值
+            let branchSelect = '<select id="branchSelect" style="margin: 10px 0; padding: 5px; width: 200px;">';
+            if (product.branches && product.branches.length > 0) {
+                product.branches.forEach(branch => {
+                    branchSelect += `<option value="${branch.id}">${branch.name}</option>`;
+                });
+            } else {
+                branchSelect += '<option value="1">默认门店</option>';
             }
+            branchSelect += '</select>';
             
-            // 存储当前产品信息
-            currentProduct = {
-                id: this.getAttribute('data-id'),
-                name: this.getAttribute('data-name'),
-                price: this.getAttribute('data-price'),
-                unit: this.getAttribute('data-unit'),
-                origin: this.getAttribute('data-origin'),
-                shelf: this.getAttribute('data-shelf'),
-                stock: this.getAttribute('data-stock'),
-                desc: this.getAttribute('data-desc'),
-                icon: this.querySelector('.product-img').textContent.trim().charAt(0)
-            };
-            
-            // 更新弹窗内容
-            modalProductImg.textContent = currentProduct.icon;
-            modalProductName.textContent = currentProduct.name;
-            modalProductPrice.textContent = `¥${currentProduct.price}`;
-            modalProductUnit.textContent = currentProduct.unit;
-            modalProductOrigin.textContent = currentProduct.origin;
-            modalProductShelf.textContent = currentProduct.shelf;
-            modalProductStock.textContent = `${currentProduct.stock}份`;
-            modalProductDesc.textContent = currentProduct.desc;
-            
-            // 显示弹窗
+            modalDetails.innerHTML = `
+                <h2>${htmlEscape(product.name)}</h2>
+                <p><strong>价格:</strong> ¥${parseFloat(product.price).toFixed(2)}</p>
+                <p><strong>分类:</strong> ${htmlEscape(product.category)}</p>
+                <p><strong>库存状态:</strong> ${htmlEscape(product.stock_status)}</p>
+                <p><strong>可购数量:</strong> ${product.stock}</p>
+                ${branchSelect} <!-- 插入门店选择下拉框 -->
+                <p><strong>描述:</strong> ${htmlEscape(product.description || '暂无描述')}</p>
+                <!-- 数量控制 -->
+                <div class="quantity-control" style="margin: 15px 0;">
+                    <button class="quantity-btn" onclick="changeQty(-1, ${product.stock})">-</button>
+                    <input type="number" id="buyQty" value="1" min="1" max="${product.stock}" style="width: 50px; text-align: center; margin: 0 5px;">
+                    <button class="quantity-btn" onclick="changeQty(1, ${product.stock})">+</button>
+                </div>
+                <!-- 加入购物车按钮:传递productId、数量、门店ID -->
+                <button class="add-to-cart-btn" style="background: #2d884d; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;"
+                        onclick="addToCart(${productId}, document.getElementById('buyQty').value, ${storeId})">
+                    加入购物车
+                </button>
+            `;
             modalOverlay.classList.add('active');
-            // 禁止背景滚动
+            document.body.classList.add('modal-open');
             document.body.style.overflow = 'hidden';
-        });
+        }
     });
-
-    // 关闭弹窗
-    closeModal.addEventListener('click', function() {
-        modalOverlay.classList.remove('active');
-        document.body.style.overflow = '';
-    });
-
-    // 点击弹窗外部关闭
-    modalOverlay.addEventListener('click', function(e) {
-        if (e.target === modalOverlay) {
-            modalOverlay.classList.remove('active');
-            document.body.style.overflow = '';
+});
+        
+        // 关闭弹窗
+        closeModal.addEventListener('click', closeModalFunc);
+        // 数量控制逻辑
+       modalOverlay.addEventListener('click', function(e) {
+         const quantityInput = document.getElementById('quantity');
+         if (!quantityInput) return;
+    
+        if (e.target.id === 'decreaseQty') {
+          const current = parseInt(quantityInput.value);
+          if (current > 1) {
+            quantityInput.value = current - 1;
+          }
+        } else if (e.target.id === 'increaseQty') {
+           const current = parseInt(quantityInput.value);
+          const max = parseInt(quantityInput.max);
+          if (current < max) {
+            quantityInput.value = current + 1;
+          }
+        } else if (e.target.classList.contains('add-to-cart-btn')) {
+           const productId = e.target.getAttribute('data-id');
+          const quantity = parseInt(document.getElementById('quantity').value);
+           addToCart(productId, quantity);
         }
     });
 
-    // 产品卡片上的加入购物车按钮逻辑（保持不变）
-    document.querySelectorAll('.add-to-cart').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            // 阻止事件冒泡到产品卡片
-            e.stopPropagation(); 
-            // 防止重复点击
-            if (this.disabled) return;
 
-            const productName = this.closest('.product-card').getAttribute('data-name');
-            const originalText = this.textContent;
-            const originalBg = this.style.backgroundColor;
+// 加入购物车函数
+function addToCart(productId, quantity, storeId) {
+    const formData = new FormData();
+    formData.append('action', 'add_to_cart');
+    formData.append('product_id', productId);
+    formData.append('quantity', quantity);
+    formData.append('branch_id', storeId); // 传递门店ID到后端
 
-            // 修改按钮状态和样式
-            this.disabled = true;
-            this.textContent = '已加入购物车√';
-            this.style.backgroundColor = '#52c41a';
-
-            // 1秒后恢复原始状态
-            setTimeout(() => {
-                this.textContent = originalText;
-                this.style.backgroundColor = originalBg;
-                this.disabled = false;
-            }, 1000);
-        });
+    fetch('cart_handler.php', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            closeModalFunc();
+        } else {
+            alert('加入购物车失败：' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('请求错误：', error);
+        alert('加入购物车时发生网络错误');
     });
-</script>
-
-</main>
+}
+        
+        // 搜索功能
+        searchIcon.addEventListener('click', function() {
+            const keyword = searchInput.value.trim();
+            const currentCategory = <?php echo json_encode($selectedCategory); ?>;
+            let url = `products.php?category=${encodeURIComponent(currentCategory)}`;
+            if (keyword) {
+                url += `&search=${encodeURIComponent(keyword)}`;
+            }
+            window.location.href = url;
+        });
+        
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchIcon.click();
+            }
+        });
+        
+        // 辅助函数：关闭弹窗
+        function closeModalFunc() {
+            modalOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        
+        // 辅助函数：防止XSS攻击
+        function htmlEscape(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+    </script>
 </body>
 </html>

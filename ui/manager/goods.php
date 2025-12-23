@@ -1,6 +1,8 @@
 <?php
-require_once __DIR__ . '/inc/data.php';
-require_once __DIR__ . '/inc/header.php';
+// goods.php
+require_once __DIR__ . '/inc/db_connect.php';      // 数据库连接
+require_once __DIR__ . '/inc/data.php';    // 数据逻辑
+require_once __DIR__ . '/inc/header.php';  // 页头
 ?>
 <section class="section">
     <h2 class="section-title">货品信息</h2>
@@ -28,7 +30,7 @@ require_once __DIR__ . '/inc/header.php';
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
         <h2 class="section-title" style="margin:0;">货物流水</h2>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-            <input id="txSearchInput" class="filter-input" placeholder="搜索产品ID/批次/备注">
+            <input id="txSearchInput" class="filter-input" placeholder="搜索产品名称/批次/备注">
             <select id="txTypeSelect" class="filter-select">
                 <option value="">全部类型</option>
                 <option value="in">入库</option>
@@ -42,7 +44,7 @@ require_once __DIR__ . '/inc/header.php';
             <thead>
                 <tr>
                     <th>时间</th>
-                    <th>产品ID</th>
+                    <th>产品名称</th>
                     <th>批次号</th>
                     <th>数量</th>
                     <th>单位</th>
@@ -77,10 +79,10 @@ require_once __DIR__ . '/inc/header.php';
 <?php require_once __DIR__ . '/inc/footer.php'; ?>
 
 <script>
-// 全局数据（深拷贝避免直接修改原始数据）
-let products = JSON.parse(JSON.stringify(<?= json_encode($products, JSON_UNESCAPED_UNICODE) ?>));
+// 全局数据（从PHP传递过来）
+let products = <?= json_encode($products, JSON_UNESCAPED_UNICODE) ?>;
+let transactions = <?= json_encode($transactions, JSON_UNESCAPED_UNICODE) ?>;
 const partnersList = <?= json_encode($partners, JSON_UNESCAPED_UNICODE) ?>;
-const transactions = <?= json_encode($transactions, JSON_UNESCAPED_UNICODE) ?>;
 
 // 当前编辑的产品ID
 let currentEditProductId = null;
@@ -179,7 +181,7 @@ function renderTransactions() {
     }
     if (searchQuery) {
         filteredTx = filteredTx.filter(tx => {
-            const searchStr = `${tx.productId || ''} ${tx.batchId || ''} ${tx.note || ''}`.toLowerCase();
+            const searchStr = `${tx.productName || ''} ${tx.productId || ''} ${tx.batchId || ''} ${tx.note || ''}`.toLowerCase();
             return searchStr.includes(searchQuery);
         });
     }
@@ -198,7 +200,7 @@ function renderTransactions() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${escapeHtml(formatDate(tx.time))}</td>
-            <td>${escapeHtml(tx.productId || '')}</td>
+            <td>${escapeHtml(tx.productName || product.name || tx.productId || '')}</td>
             <td>${escapeHtml(tx.batchId || '')}</td>
             <td>${escapeHtml(String(tx.qty || 0))}</td>
             <td>${escapeHtml(tx.unit || product.unit || '')}</td>
@@ -218,7 +220,7 @@ function applyProductFilter() {
 
     const filteredProducts = products.filter(product => {
         // 搜索筛选（产品ID、名称、描述、规格）
-        const searchStr = `${product.id || ''} ${product.name || ''} ${product.description || ''} ${product.spec || ''}`.toLowerCase();
+        const searchStr = `${product.id || ''} ${product.name || ''} ${product.description || ''} ${product.spec || ''} ${product.sku || ''}`.toLowerCase();
         const matchSearch = !searchQuery || searchStr.includes(searchQuery);
         
         // 状态筛选

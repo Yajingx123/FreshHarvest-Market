@@ -1,5 +1,34 @@
 <?php
-// 供应商端 - 订单管理（带消息红点交互）
+session_start();
+require_once __DIR__ . '/inc/data.php';
+
+// 处理订单状态更新请求（原有逻辑）
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_status') {
+    $orderId = $_POST['order_id'];
+    $status = $_POST['status'];
+    
+    $result = updatePurchaseOrderStatus($orderId, $status);
+    $message = $result ? "订单状态已更新" : "更新失败，请重试";
+}
+
+$statusFilter = isset($_GET['status']) ? trim($_GET['status']) : '';
+$branchFilter = isset($_GET['branch']) ? (int)$_GET['branch'] : 0;
+$searchTerm = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+$statusParam = $statusFilter === '' ? null : $statusFilter;
+$statusbParam = $branchFilter === '' ? null : $branchFilter;
+$statussParam = $searchTerm === '' ? null : $searchTerm;
+
+$orders = getSupplierPurchaseOrders($statusParam, $statusbParam, $statussParam);
+$branches = getBranches();
+$statusSummary = getOrderStatusSummary();
+
+$statusOptions = [
+    'pending' => '待处理',
+    'ordered' => '已下单',
+    'received' => '已收货',
+    'cancelled' => '已取消'
+];
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -17,6 +46,7 @@
         body {
             background-color: #f8f9fa;
             color: #333;
+            margin: 20px;
         }
         .header {
             background-color: #fff;
@@ -106,6 +136,9 @@
             margin-bottom: 20px;
             flex-wrap: wrap;
             align-items: center;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 5px;
         }
         .filter-input {
             padding: 8px 12px;
@@ -189,6 +222,10 @@
             background-color: #fff3e0;
             color: #ff9800;
         }
+        .status-ordered {
+            background-color: #e3f2fd;
+            color: #2196f3;
+        }
         .status-accepted {
             background-color: #e8f5e9;
             color: #43a047;
@@ -196,6 +233,10 @@
         .status-shipped {
             background-color: #e3f2fd;
             color: #1976d2;
+        }
+        .status-received {
+            background-color: #e8f5e9;
+            color: #4caf50;
         }
         .status-completed {
             background-color: #f3e5f5;
@@ -357,6 +398,23 @@
             font-size: 14px;
             color: #999;
         }
+        .status-summary {
+            margin: 20px 0;
+        }
+        .action-btn {
+            padding: 5px 10px;
+            margin: 0 5px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .detail-btn {
+            background: #2196f3;
+            color: white;
+        }
+        .update-form {
+            display: inline;
+        }
         @media (max-width: 768px) {
             .nav-menu {
                 display: none;
@@ -382,313 +440,37 @@
         <section class="section">
             <h2 class="section-title">订单管理</h2>
             
+            <?php if (isset($message)): ?>
+                <div class="message"><?php echo $message; ?></div>
+            <?php endif; ?>
+            
+            <div class="status-summary">
+                <h3>订单状态汇总</h3>
+                <?php foreach ($statusSummary as $status => $count): ?>
+                    <span class="status-tag status-<?php echo $status; ?>">
+                        <?php echo $statusOptions[$status] . ": " . $count; ?>
+                    </span>
+                <?php endforeach; ?>
+            </div>
+            
             <div class="filter-bar">
-                <input type="text" class="filter-input" id="orderSearch" placeholder="搜索订单编号/门店名称">
-                <select class="filter-select" id="statusFilter">
-                    <option value="">全部状态</option>
-                    <option value="pending">待确认</option>
-                    <option value="accepted">已确认</option>
-                    <option value="shipped">已发货</option>
-                    <option value="completed">已完成</option>
-                    <option value="cancelled">已取消</option>
-                </select>
-                <select class="filter-select" id="dateFilter">
-                    <option value="">全部时间</option>
-                    <option value="today">今天</option>
-                    <option value="yesterday">昨天</option>
-                    <option value="week">近7天</option>
-                    <option value="month">本月</option>
-                </select>
-                <button class="btn btn-primary">导出订单</button>
-            </div>
-
-            <table class="order-table">
-                <thead>
-                    <tr>
-                        <th>订单编号</th>
-                        <th>门店名称</th>
-                        <th>下单时间</th>
-                        <th>商品数量</th>
-                        <th>订单金额</th>
-                        <th>状态</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr data-id="ORD20240520001" data-status="pending">
-                        <td>ORD20240520001</td>
-                        <td>鲜选生鲜（高新店）</td>
-                        <td>2024-05-20 08:30:25</td>
-                        <td>8</td>
-                        <td>¥1,256.00</td>
-                        <td><span class="status-tag status-pending">待确认</span></td>
-                        <td>
-                            <button class="btn btn-primary" onclick="viewOrder('ORD20240520001')">查看</button>
-                            <button class="btn btn-success" onclick="acceptOrder('ORD20240520001')">确认</button>
-                            <button class="btn btn-danger" onclick="cancelOrder('ORD20240520001')">拒绝</button>
-                        </td>
-                    </tr>
-                    <!-- 更多订单数据行... -->
-                </tbody>
-            </table>
-        </section>
-    </main>
-
-    <!-- 订单详情弹窗 -->
-    <div class="modal" id="orderModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">订单详情</h3>
-                <span class="modal-close" onclick="closeModal()">&times;</span>
-            </div>
-            <div class="modal-body" id="orderDetailContent">
-                <!-- 订单详情内容将通过JavaScript动态填充 -->
-            </div>
-            <div class="modal-footer" id="orderActionButtons">
-                <!-- 操作按钮将通过JavaScript动态填充 -->
-            </div>
-        </div>
-    </div>
-
-    <footer class="footer">
-        <div class="footer-container">
-            <h3 class="logo" style="color: white; margin-bottom: 20px;">鲜选生鲜 - 供应商管理平台</h3>
-            <div style="display: flex; justify-content: center; gap: 30px; margin-bottom: 20px;">
-                <a href="#" style="color: #ccc; text-decoration: none;">供应商帮助中心</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">合作协议</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">投诉反馈</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">联系平台</a>
-            </div>
-            <div class="copyright">© 2024 鲜选生鲜 版权所有 | 平台客服电话：400-888-XXXX</div>
-        </div>
-    </footer>
-
-    <script>
-        // 页面加载时检查URL参数并自动筛选
-        document.addEventListener('DOMContentLoaded', function() {
-            // 检查URL参数是否有状态筛选
-            const urlParams = new URLSearchParams(window.location.search);
-            const statusParam = urlParams.get('status');
-            if (statusParam) {
-                const statusFilter = document.getElementById('statusFilter');
-                statusFilter.value = statusParam;
-                filterOrders(); // 应用筛选
-            }
-            
-            // 初始化未处理订单数量
-            updateUnhandledOrderCount();
-            
-            // 每30秒刷新一次未处理订单数量
-            setInterval(updateUnhandledOrderCount, 30000);
-        });
-
-        // 计算并更新未处理订单数量（待确认状态）
-        function updateUnhandledOrderCount() {
-            // 筛选所有状态为"待确认"的订单行
-            const pendingOrders = document.querySelectorAll('tr[data-status="pending"]');
-            const count = pendingOrders.length;
-            
-            // 更新红点显示
-            const badge = document.getElementById('unhandledOrderBadge');
-            badge.textContent = count > 0 ? count : '';
-        }
-
-        // 订单筛选功能
-        function filterOrders() {
-            const searchValue = document.getElementById('orderSearch').value.toLowerCase();
-            const statusValue = document.getElementById('statusFilter').value;
-            const rows = document.querySelectorAll('.order-table tbody tr');
-            
-            rows.forEach(row => {
-                const orderId = row.dataset.id.toLowerCase();
-                const status = row.dataset.status;
-                const storeName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-                
-                const matchesSearch = orderId.includes(searchValue) || storeName.includes(searchValue);
-                const matchesStatus = !statusValue || status === statusValue;
-                
-                row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
-            });
-        }
-
-        // 查看订单详情
-        function viewOrder(orderId) {
-            // 实际应用中应通过AJAX从服务器获取订单详情
-            const detailContent = `
-                <div class="order-detail-header">
-                    <div class="detail-row">
-                        <div class="detail-label">订单编号：</div>
-                        <div class="detail-value">ORD20240520001</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">门店名称：</div>
-                        <div class="detail-value">鲜选生鲜（高新店）</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">门店地址：</div>
-                        <div class="detail-value">西安市高新区科技路88号</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">联系人：</div>
-                        <div class="detail-value">张三（13800138000）</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">下单时间：</div>
-                        <div class="detail-value">2024-05-20 08:30:25</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">要求送达时间：</div>
-                        <div class="detail-value">2024-05-20 14:00前</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">订单状态：</div>
-                        <div class="detail-value"><span class="status-tag status-pending">待确认</span></div>
-                    </div>
-                </div>
-
-                <h4 style="margin-bottom: 10px;">商品清单</h4>
-                <table class="product-list">
-                    <thead>
-                        <tr>
-                            <th>商品名称</th>
-                            <th>规格</th>
-                            <th>单价（元）</th>
-                            <th>数量</th>
-                            <th>小计（元）</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>有机生菜</td>
-                            <td>500g/份</td>
-                            <td>3.50</td>
-                            <td>20</td>
-                            <td>70.00</td>
-                        </tr>
-                        <tr>
-                            <td>精品西红柿</td>
-                            <td>500g/份</td>
-                            <td>4.80</td>
-                            <td>15</td>
-                            <td>72.00</td>
-                        </tr>
-                        <!-- 更多商品行... -->
-                    </tbody>
-                </table>
-
-                <div class="order-summary">
-                    <div class="summary-item">
-                        <span class="summary-label">商品总金额：</span>
-                        <span class="summary-value">¥1,156.00</span>
-                    </div>
-                    <div class="summary-item">
-                        <span class="summary-label">配送费：</span>
-                        <span class="summary-value">¥100.00</span>
-                    </div>
-                    <div class="summary-item total-amount">
-                        <span class="summary-label">订单总金额：</span>
-                        <span class="summary-value">¥1,256.00</span>
-                    </div>
-                </div>
-            `;
-            
-            // 待确认状态的订单显示确认和拒绝按钮
-            const actionButtons = `
-                <button class="btn btn-danger" onclick="cancelOrder('${orderId}')">拒绝订单</button>
-                <button class="btn btn-success" onclick="acceptOrder('${orderId}')">确认订单</button>
-            `;
-            
-            document.getElementById('orderDetailContent').innerHTML = detailContent;
-            document.getElementById('orderActionButtons').innerHTML = actionButtons;
-            document.getElementById('orderModal').classList.add('show');
-        }
-
-        // 确认订单
-        function acceptOrder(orderId) {
-            if (confirm('确定要确认此订单吗？')) {
-                // 实际应用中应通过AJAX更新服务器订单状态
-                const row = document.querySelector(`tr[data-id="${orderId}"]`);
-                if (row) {
-                    row.dataset.status = 'accepted';
-                    row.querySelector('.status-tag').className = 'status-tag status-accepted';
-                    row.querySelector('.status-tag').textContent = '已确认';
-                    row.querySelector('td:last-child').innerHTML = `
-                        <button class="btn btn-primary" onclick="viewOrder('${orderId}')">查看</button>
-                        <button class="btn btn-success" onclick="shipOrder('${orderId}')">发货</button>
-                    `;
-                }
-                closeModal();
-                updateUnhandledOrderCount(); // 更新红点数量
-                alert('订单已确认');
-            }
-        }
-
-        // 取消订单
-        function cancelOrder(orderId) {
-            const reason = prompt('请输入拒绝订单的原因：');
-            if (reason) {
-                // 实际应用中应通过AJAX更新服务器订单状态
-                const row = document.querySelector(`tr[data-id="${orderId}"]`);
-                if (row) {
-                    row.dataset.status = 'cancelled';
-                    row.querySelector('.status-tag').className = 'status-tag status-cancelled';
-                    row.querySelector('.status-tag').textContent = '已取消';
-                    row.querySelector('td:last-child').innerHTML = `
-                        <button class="btn btn-primary" onclick="viewOrder('${orderId}')">查看</button>
-                    `;
-                }
-                closeModal();
-                updateUnhandledOrderCount(); // 更新红点数量
-                alert('订单已拒绝');
-            }
-        }
-
-        // 发货订单
-        function shipOrder(orderId) {
-            if (confirm('确定要标记此订单为已发货吗？')) {
-                // 实际应用中应通过AJAX更新服务器订单状态
-                const row = document.querySelector(`tr[data-id="${orderId}"]`);
-                if (row) {
-                    row.dataset.status = 'shipped';
-                    row.querySelector('.status-tag').className = 'status-tag status-shipped';
-                    row.querySelector('.status-tag').textContent = '已发货';
-                    row.querySelector('td:last-child').innerHTML = `
-                        <button class="btn btn-primary" onclick="viewOrder('${orderId}')">查看</button>
-                        <button class="btn btn-success" onclick="completeOrder('${orderId}')">完成</button>
-                    `;
-                }
-                closeModal();
-                alert('订单已标记为已发货');
-            }
-        }
-
-        // 完成订单
-        function completeOrder(orderId) {
-            if (confirm('确定要标记此订单为已完成吗？')) {
-                // 实际应用中应通过AJAX更新服务器订单状态
-                const row = document.querySelector(`tr[data-id="${orderId}"]`);
-                if (row) {
-                    row.dataset.status = 'completed';
-                    row.querySelector('.status-tag').className = 'status-tag status-completed';
-                    row.querySelector('.status-tag').textContent = '已完成';
-                    row.querySelector('td:last-child').innerHTML = `
-                        <button class="btn btn-primary" onclick="viewOrder('${orderId}')">查看</button>
-                    `;
-                }
-                closeModal();
-                alert('订单已标记为已完成');
-            }
-        }
-
-        // 关闭弹窗
-        function closeModal() {
-            document.getElementById('orderModal').classList.remove('show');
-        }
-
-        // 为筛选框添加事件监听
-        document.getElementById('orderSearch').addEventListener('input', filterOrders);
-        document.getElementById('statusFilter').addEventListener('change', filterOrders);
-        document.getElementById('dateFilter').addEventListener('change', filterOrders);
-    </script>
-</body>
-</html>
+                <form method="get">
+                    <input type="text" class="filter-input" id="orderSearch" name="search" placeholder="搜索订单编号/门店名称" value="<?php echo htmlspecialchars($searchTerm); ?>">
+                    
+                    <select class="filter-select" name="branch" id="branchFilter">
+                        <option value="">所有分店</option>
+                        <?php foreach ($branches as $branch): ?>
+                            <option value="<?php echo $branch['branch_ID']; ?>" 
+                                <?php echo $branchFilter == $branch['branch_ID'] ? 'selected' : ''; ?>>
+                                <?php echo $branch['branch_name']; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    
+                    <select class="filter-select" name="status" id="statusFilter">
+    <option value="">全部状态</option>
+    <option value="pending" <?php echo $statusFilter == 'pending' ? 'selected' : ''; ?>>待确认</option>
+    <option value="received" <?php echo $statusFilter == 'received' ? 'selected' : ''; ?>>已收货</option>
+    <option value="ordered" <?php echo $statusFilter == 'ordered' ? 'selected' : ''; ?>>已下单</option>
+    <option value="cancelled" <?php echo $statusFilter == 'cancelled' ? 'selected' : ''; ?>>已取消</option>
+</select>

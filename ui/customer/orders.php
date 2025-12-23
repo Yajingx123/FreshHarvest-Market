@@ -1,6 +1,22 @@
 <?php $pageTitle = "我的订单"; ?>
 <?php include 'header.php'; ?>
 
+<?php
+session_start();
+require_once __DIR__ . '/inc/data.php';    // 包含上面的data.php
+// 这里需要确保$_SESSION['customer_id']已正确设置
+// 检查登录
+if (!isset($_SESSION['customer_logged_in']) || $_SESSION['customer_logged_in'] !== true) {
+    header('Location: ../login/login.php');
+    exit();
+}
+
+$customerId = $_SESSION['customer_id'];
+$orders = getCustomerOrders($customerId);
+$currentOrderId = $_GET['order_id'] ?? 0;
+$currentOrder = $currentOrderId ? getOrderDetails($currentOrderId) : null;
+?>
+
 <style>
     .product-section {
         background-color: #fff;
@@ -141,106 +157,124 @@
 </style>
 
 <!-- 我的订单 -->
-<section id="orders" class="module">
-    <div class="product-section">
-        <h2 class="section-title">我的订单</h2>
-        <div class="tabs">
-            <div class="tab active">全部订单</div>
-            <div class="tab">待支付</div>
-            <div class="tab">配送中</div>
+<main class="order-page">
+    <section class="order-filters">
+        <h2>我的订单</h2>
+        <div class="filter-tabs">
+            <button class="tab active" data-status="all">全部订单</button>
+            <button class="tab" data-status="Pending">待支付</button>
+            <button class="tab" data-status="Completed">已完成</button>
+            <button class="tab" data-status="Cancelled">已取消</button>
         </div>
-        <div class="tab-content">
-            <div class="order-list">
-                <!-- 订单1 -->
-                <div class="order-item" data-order="1">
-                    <div class="order-details">
-                        <h3>订单编号：ORD20240520001</h3>
-                        <p>下单时间：2024-05-20 14:30</p>
-                        <p>商品：有机生菜、草莓、牛油果</p>
-                        <p>金额：¥78.50</p>
+    </section>
+
+    <section class="order-list">
+        <?php if (!empty($orders)): ?>
+            <?php foreach ($orders as $order): ?>
+                <div class="order-item" data-order="<?= $order['id'] ?>" data-status="<?= $order['status'] ?>">
+                    <div class="order-header">
+                        <div class="order-info">
+                            <h3>订单编号：<?= $order['order_number'] ?></h3>
+                            <p>下单时间：<?= $order['order_date'] ?></p>
+                            <p>门店：<?= $order['store_name'] ?></p>
+                            <p>商品：<?= $order['product_details'] ?></p>
+                        </div>
+                        <div class="order-summary">
+                            <p class="total">实付：¥<?= number_format($order['total_amount'], 2) ?></p>
+                            <span class="status status-<?= strtolower($order['status']) ?>">
+                                <?= [
+                                    'Pending' => '待支付',
+                                    'Completed' => '已完成',
+                                    'Cancelled' => '已取消'
+                                ][$order['status']] ?? $order['status'] ?>
+                            </span>
+                            <a href="?order_id=<?= $order['id'] ?>" class="view-detail">查看详情</a>
+                        </div>
                     </div>
-                    <span class="order-status status-delivering">配送中</span>
                 </div>
-                <!-- 订单1详情 -->
-                <div class="order-detail-content" id="detail-1">
-                    <div class="detail-item">
-                        <div class="detail-name">有机生菜（500g）</div>
-                        <div class="detail-price">¥12.90</div>
-                        <div class="detail-quantity">1</div>
-                        <div class="detail-total">¥12.90</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-name">红颜草莓（300g）</div>
-                        <div class="detail-price">¥39.90</div>
-                        <div class="detail-quantity">1</div>
-                        <div class="detail-total">¥39.90</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-name">进口牛油果（2个装）</div>
-                        <div class="detail-price">¥25.80</div>
-                        <div class="detail-quantity">1</div>
-                        <div class="detail-total">¥25.80</div>
-                    </div>
-                    <div class="detail-summary">
-                        合计：¥78.60（含配送费¥5.00）
-                    </div>
+            <?php endforeach; ?>
+        <?php else: ?>
+            <div class="empty-state">
+                <img src="images/empty-orders.png" alt="暂无订单">
+                <p>您暂无订单记录，快去购物吧~</p>
+                <a href="products.php" class="btn-primary">去逛逛</a>
+            </div>
+        <?php endif; ?>
+    </section>
+
+    <?php if ($currentOrder): ?>
+        <section class="order-detail-modal">
+            <div class="modal-content">
+                <h3>订单详情 #<?= $currentOrder['order_number'] ?></h3>
+                <div class="detail-section">
+                    <h4>订单信息</h4>
+                    <p>订单编号：<?= $currentOrder['order_number'] ?></p>
+                    <p>下单时间：<?= $currentOrder['order_date'] ?></p>
+                    <p>门店：<?= $currentOrder['store_name'] ?></p>
+                    <p>收货地址：<?= $currentOrder['shipping_address'] ?></p>
+                    <p>订单状态：<?= [
+                        'Pending' => '待支付',
+                        'Completed' => '已完成',
+                        'Cancelled' => '已取消'
+                    ][$currentOrder['order_status']] ?></p>
                 </div>
 
-                <!-- 订单2 -->
-                <div class="order-item" data-order="2">
-                    <div class="order-details">
-                        <h3>订单编号：ORD20240519003</h3>
-                        <p>下单时间：2024-05-19 09:15</p>
-                        <p>商品：澳洲和牛牛排、生菜</p>
-                        <p>金额：¥101.90</p>
-                    </div>
-                    <span class="order-status status-pending">待支付</span>
+                <div class="detail-section">
+                    <h4>商品明细</h4>
+                    <table class="items-table">
+                        <thead>
+                            <tr>
+                                <th>商品名称</th>
+                                <th>单价</th>
+                                <th>数量</th>
+                                <th>小计</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($currentOrder['items'] as $item): ?>
+                                <tr>
+                                    <td><?= $item['product_name'] ?></td>
+                                    <td>¥<?= number_format($item['unit_price'], 2) ?></td>
+                                    <td><?= $item['quantity'] ?></td>
+                                    <td>¥<?= number_format($item['total'], 2) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
-                <!-- 订单2详情 -->
-                <div class="order-detail-content" id="detail-2">
-                    <div class="detail-item">
-                        <div class="detail-name">澳洲和牛牛排（200g）</div>
-                        <div class="detail-price">¥89.00</div>
-                        <div class="detail-quantity">1</div>
-                        <div class="detail-total">¥89.00</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-name">有机生菜（500g）</div>
-                        <div class="detail-price">¥12.90</div>
-                        <div class="detail-quantity">1</div>
-                        <div class="detail-total">¥12.90</div>
-                    </div>
-                    <div class="detail-summary">
-                        合计：¥101.90（含配送费¥5.00）
-                    </div>
+
+                <div class="detail-section total-section">
+                    <p>原始总金额：¥<?= number_format($currentOrder['total_amount'], 2) ?></p>
+                    <p>折扣后金额：¥<?= number_format($currentOrder['final_amount'], 2) ?></p>
                 </div>
+
+                <button class="close-modal" onclick="window.location='orders.php'">关闭</button>
             </div>
-        </div>
-    </div>
-</section>
+        </section>
+    <?php endif; ?>
+</main>
 
 <script>
-    // 订单标签切换
+    // 订单状态筛选
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', function() {
-            document.querySelectorAll('.tab').forEach(t => {
-                t.classList.remove('active');
-            });
+            const status = this.getAttribute('data-status');
+            
+            // 更新标签状态
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             this.classList.add('active');
-        });
-    });
-
-    // 订单详情展开/折叠 - 支持多订单同时展开
-    document.querySelectorAll('.order-item').forEach(item => {
-        item.addEventListener('click', function() {
-            const orderId = this.getAttribute('data-order');
-            const detail = document.getElementById(`detail-${orderId}`);
-            // 仅切换当前订单的展开状态，不关闭其他订单
-            detail.classList.toggle('active');
+            
+            // 筛选订单
+            document.querySelectorAll('.order-item').forEach(item => {
+                if (status === 'all' || item.getAttribute('data-status') === status) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
         });
     });
 </script>
-
 </main>
 </body>
 </html>

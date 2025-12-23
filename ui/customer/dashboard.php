@@ -1,6 +1,37 @@
 <?php $pageTitle = "我的仪表盘"; ?>
 <?php include 'header.php'; ?>
 
+<?php
+// 获取当前用户ID
+session_start();
+require_once __DIR__ . '/inc/data.php';    // 包含data.php
+$customerId = $_SESSION['customer_id'] ?? null;
+
+
+// 初始化数据
+$cartCount = 0;
+$favoriteProducts = [];
+$recentOrders = [];
+$randomProducts = [];
+
+if ($customerId) {
+    $cartCount = getCartItemCount($customerId);
+    $favoriteProducts = getFavoriteProducts($customerId);
+    $recentOrders = getRecentOrders($customerId);
+}
+
+$randomProducts = getRandomProducts();
+$productsWithDetails = [];
+foreach ($randomProducts as $p) {
+    $product = getProductDetails($p['product_ID']);
+    if ($product) {
+        $product['stock'] = $product['stock'] ?? 0;
+        $product['branches'] = getProductBranches($product['id']);
+        $productsWithDetails[] = $product;
+    }
+}
+?>
+
 <style>
     /* 主容器布局优化 */
     .dashboard-container {
@@ -230,108 +261,213 @@
     }
 </style>
 
-<!-- 仪表盘主内容区 -->
 <div class="dashboard-container">
-    <!-- 左侧主内容 -->
     <div class="main-content">
-        <!-- 数据卡片区域 -->
         <section id="dashboard" class="dashboard">
             <h2 class="section-title">📊 我的仪表盘</h2>
             <div class="dashboard-cards">
                 <div class="card">
                     <div class="card-icon">🛒</div>
                     <div class="card-title">购物车数量</div>
-                    <div class="card-value">3</div>
-                </div>
-                <div class="card">
-                    <div class="card-icon">🚚</div>
-                    <div class="card-title">配送中订单</div>
-                    <div class="card-value">2</div>
+                    <div class="card-value"><?php echo $cartCount; ?></div>
                 </div>
                 <div class="card">
                     <div class="card-icon">😋</div>
                     <div class="card-title">您最喜爱的产品</div>
-                    <div class="card-value">苹果</div>
+                    <div class="card-value">
+                        <?php
+                        if (empty($favoriteProducts)) {
+                            echo '无';
+                        } else {
+                            $names = array_column($favoriteProducts, 'product_name');
+                            echo implode('、', $names);
+                        }
+                        ?>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- 最近订单区域 -->
         <section class="dashboard">
             <h2 class="section-title">📦 最近订单</h2>
             <ul class="order-list">
-                <li class="order-item">
-                    <div class="order-info">
-                        <div class="order-name">新鲜蔬菜组合</div>
-                        <div class="order-date">2023-10-15 14:30</div>
-                    </div>
-                    <span class="order-status">已完成</span>
-                </li>
-                <li class="order-item">
-                    <div class="order-info">
-                        <div class="order-name">进口水果礼盒</div>
-                        <div class="order-date">2023-10-12 09:15</div>
-                    </div>
-                    <span class="order-status">已完成</span>
-                </li>
-                <li class="order-item">
-                    <div class="order-info">
-                        <div class="order-name">有机鸡蛋 + 鲜奶</div>
-                        <div class="order-date">2023-10-10 18:45</div>
-                    </div>
-                    <span class="order-status">已完成</span>
-                </li>
+                <?php if (empty($recentOrders)): ?>
+                    <li class="order-item">
+                        <div class="order-info">
+                            <div class="order-name">暂无订单记录</div>
+                        </div>
+                    </li>
+                <?php else: ?>
+                    <?php foreach ($recentOrders as $order): ?>
+                        <li class="order-item">
+                            <div class="order-info">
+                                <div class="order-name"><?php echo $order['product_details']; ?></div>
+                                <div class="order-date"><?php echo date('Y-m-d H:i', strtotime($order['order_date'])); ?></div>
+                            </div>
+                            <span class="order-status"><?php echo $order['order_status']; ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </ul>
         </section>
     </div>
 
-    <!-- 右侧边栏 -->
-    <div class="sidebar">
-        <!-- 今日推荐 -->
-        <section class="sidebar-section">
-            <h2 class="section-title">🌟 今日推荐</h2>
-            <div class="recommendation-list">
-                <div class="recommendation-item">
-                    <div class="product-img">🥬</div>
-                    <div class="product-info">
-                        <div class="product-name">有机生菜</div>
-                        <div class="product-price">¥5.90/份</div>
-                    </div>
-                    <!-- <button class="add-btn">加入</button> -->
-                </div>
-                <div class="recommendation-item">
-                    <div class="product-img">🍅</div>
-                    <div class="product-info">
-                        <div class="product-name">新鲜番茄</div>
-                        <div class="product-price">¥3.50/斤</div>
-                    </div>
-                    <!-- <button class="add-btn">加入</button> -->
-                </div>
-                <div class="recommendation-item">
-                    <div class="product-img">🥕</div>
-                    <div class="product-info">
-                        <div class="product-name">胡萝卜</div>
-                        <div class="product-price">¥2.80/斤</div>
-                    </div>
-                    <!-- <button class="add-btn">加入</button> -->
-                </div>
+    <div class="sidebar-section">
+    <h3 class="section-title">推荐商品</h3>
+    <div class="recommendation-list">
+        <?php foreach ($productsWithDetails as $product): ?>
+        <!-- 商品项添加data-id，用于弹窗交互 -->
+        <div class="recommendation-item" data-id="<?php echo $product['id']; ?>">
+            <div class="product-img">📦</div>
+            <div class="product-info">
+                <div class="product-name"><?php echo htmlspecialchars($product['name']); ?></div>
+                <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
             </div>
-        </section>
-
-        <!-- 配送信息 -->
-        <section class="sidebar-section">
-            <h2 class="section-title">🚚 配送说明</h2>
-            <p style="line-height: 1.6; color: #666; font-size: 14px; margin-top: 10px;">
-                今日订单截止时间：18:00<br>
-                次日达区域：市区及近郊<br>
-                满59元免配送费<br>
-                客服热线：400-123-4567
-            </p>
-        </section>
+            <button class="quick-add-btn" data-id="<?php echo $product['id']; ?>">快速加入</button>
+        </div>
+        <?php endforeach; ?>
     </div>
+<!-- 正确结构 -->
+<div class="modal-overlay" id="productModal">
+  <div class="product-modal">
+    <span class="close-modal" id="closeModal">×</span>
+    <div class="modal-content">
+      <div class="modal-img" id="modalImg">📦</div>
+      <div class="modal-details" id="modalDetails">
+        <!-- 弹窗内容将通过JS动态填充 -->
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- 页脚 -->
+<!-- 引入商品数据到JS -->
+<script>
+  const productDetails = <?php echo json_encode($productsWithDetails); ?>;
+</script>
+
+<section class="sidebar-section">
+  <h2 class="section-title">🚚 配送说明</h2>
+  <p style="line-height: 1.6; color: #666; font-size: 14px; margin-top: 10px;">
+    今日订单截止时间:18:00<br>
+    次日达区域：市区及近郊<br>
+    满59元免配送费<br>
+    客服热线:400-123-4567
+  </p>
+</section>
+</div> 
+
+<script>
+const modalOverlay = document.getElementById('productModal');
+const modalDetails = document.getElementById('modalDetails');
+const closeModal = document.getElementById('closeModal');
+
+    // 点击商品项显示详情弹窗
+    document.querySelectorAll('.recommendation-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            // 忽略快速加入按钮的点击（避免触发弹窗）
+            if (e.target.classList.contains('quick-add')) return;
+            
+            const productId = this.getAttribute('data-id');
+            const product = productDetails.find(p => p.id == productId);
+            if (!product) return;
+
+            // 填充弹窗内容
+            const storeId = product.store_id || 1;
+            let branchSelect = '<select id="branchSelect" style="margin: 10px 0; padding: 5px; width: 200px;">';
+            if (product.branches && product.branches.length > 0) {
+                product.branches.forEach(branch => {
+                    branchSelect += `<option value="${branch.id}">${branch.name}</option>`;
+                });
+            } else {
+                branchSelect += '<option value="1">默认门店</option>';
+            }
+            branchSelect += '</select>';
+
+            modalDetails.innerHTML = `
+                <h2>${htmlEscape(product.name)}</h2>
+                <p><strong>价格:</strong> ¥${parseFloat(product.price).toFixed(2)}</p>
+                <p><strong>分类:</strong> ${htmlEscape(product.category)}</p>
+                <p><strong>库存状态:</strong> ${htmlEscape(product.stock_status)}</p>
+                <p><strong>可购数量:</strong> ${product.stock}</p>
+                ${branchSelect}
+                <div class="quantity-control">
+                    <button class="quantity-btn" onclick="changeQty(-1, ${product.stock})">-</button>
+                    <input type="number" id="buyQty" value="1" min="1" max="${product.stock}" style="width: 50px; text-align: center;">
+                    <button class="quantity-btn" onclick="changeQty(1, ${product.stock})">+</button>
+                </div>
+                <button class="add-to-cart-btn" 
+                   onclick="addToCart(${product.id}, document.getElementById('buyQty').value, ${storeId})">加入购物车
+                </button>
+            `;
+            modalOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+    });
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.quick-add-btn').forEach(button => {
+       button.addEventListener('click', function(e) {
+          e.stopPropagation();
+          const productId = this.getAttribute('data-id');
+        
+          // 从商品详情数据中找到对应产品的门店ID
+          const product = productsWithDetails.find(p => p.id == productId);
+          if (!product) {
+              alert('未找到商品信息');
+              return;
+          }
+          // 优先使用商品关联的门店ID，没有则使用第一个可用门店
+          let storeId = product.store_id;
+          if (!storeId && product.branches && product.branches.length > 0) {
+              storeId = product.branches[0].id; // 从分店列表取第一个
+          }
+           if (!storeId) {
+              alert('未找到可用门店');
+              return;
+           }
+           // 使用实际获取的门店ID加入购物车
+           addToCart(productId, 1, storeId);
+        });
+      });
+    });
+    closeModal.addEventListener('click', () => {
+        modalOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+    });
+    // 加入购物车函数（复用products.php的逻辑）
+    function addToCart(productId, quantity, storeId) {
+      const formData = new FormData();
+        formData.append('action', 'add_to_cart');
+        formData.append('product_id', productId);
+        formData.append('quantity', quantity);
+        formData.append('branch_id', storeId); // 传递门店ID到后端
+
+       fetch('cart_handler.php', {
+         method: 'POST',
+         body: formData,
+         credentials: 'include'
+       })
+       .then(response => response.json())
+       .then(data => {
+        if (data.success) {
+            alert(data.message);
+            closeModalFunc();
+        } else {
+            alert('加入购物车失败：' + data.message);
+        }
+       })
+       .catch(error => {
+        console.error('请求错误：', error);
+        alert('加入购物车时发生网络错误11');
+       });
+    }
+
+    // XSS防护辅助函数
+    function htmlEscape(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+</script>
+
 <div class="dashboard-footer">
     鲜选生鲜 © 2023 版权所有 | 新鲜直达 品质保证
 </div>
