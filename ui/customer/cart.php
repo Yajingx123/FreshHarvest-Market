@@ -447,6 +447,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         overflow: hidden;
         display: flex;
         flex-direction: column;
+        min-height: 400px; /* 添加最小高度 */
     }
     
     /* 购物车列表区域 */
@@ -455,6 +456,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         overflow-y: auto;
         margin-bottom: 20px;
         padding-right: 10px;
+        min-height: 150px; /* 添加最小高度 */
     }
     
     /* 购物车项目样式优化 */
@@ -555,6 +557,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         margin: 0 -30px;
         margin-top: auto;
         box-shadow: 0 -2px 10px rgba(0,0,0,0.02);
+        /* z-index: 10; */
     }
     
     .total-amount {
@@ -584,6 +587,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         background-color: #236b3c;
         transform: translateY(-1px);
         box-shadow: 0 4px 8px rgba(45, 136, 77, 0.2);
+    }
+    
+    .checkout-btn:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
     }
     
     /* 弹窗样式优化 */
@@ -854,7 +864,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
         </div>
 
-        <!-- 购物车主内容区 -->
+                <!-- 购物车主内容区 -->
         <div class="cart-main">
             <h2 class="section-title">我的购物车</h2>
             
@@ -863,7 +873,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <?php if (!$has_cart_items): // 使用has_cart_items判断 ?>
                     <div style="text-align: center; padding: 50px 0; color: #999;">
                         购物车为空
-                    <div>
+                    </div>
                 <?php else: ?>
                     <?php foreach ($cart_item as $item): ?>
                         <div class="cart-item" data-item-id="<?php echo $item['item_id']; ?>">
@@ -887,7 +897,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <div class="cart-item-price">¥<?php echo number_format($item['unit_price'], 2); ?></div>
                             </div>
                             <div class="cart-item-quantity">
-                                <form method="POST" action="cart.php" style="display: inline;">
+                                <form method="POST" action="cart.php" style="display: flex;">
                                     <input type="hidden" name="item_id" value="<?php echo $item['item_id']; ?>">
                                     <button type="button" class="quantity-btn minus" 
                                             onclick="this.nextElementSibling.value = Math.max(1, parseInt(this.nextElementSibling.value)-1); this.form.quantity.value = this.nextElementSibling.value; this.form.submit();">-</button>
@@ -914,15 +924,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- 结算栏 -->
             <div class="checkout-bar">
-    <div style="text-align: right;">
-        <div>原价：<span style="text-decoration: line-through; color: #999;">¥<?php echo number_format($cart_total_amount, 2); ?></span></div>
-        <?php if ($cart_discount_rate > 0): ?>
-            <div>折扣(<?php echo $cart_discount_rate * 100; ?>%):<span style="color: #ff4d4f;">-¥<?php echo number_format($discount_amount, 2); ?></span></div>
-        <?php endif; ?>
-        <div class="total-amount">实付：<span>¥<?php echo number_format($cart_Final_Amount, 2); ?></span></div>
-    </div>
-    <button class="checkout-btn" <?php echo !$has_cart_items ? 'disabled' : ''; ?>>结算</button>
-</div>
+                <div style="text-align: right;">
+                    <div>原价：<span style="text-decoration: line-through; color: #999;">¥<?php echo number_format($cart_total_amount, 2); ?></span></div>
+                    <?php if ($cart_discount_rate > 0): ?>
+                        <div>折扣(<?php echo $cart_discount_rate * 100; ?>%):<span style="color: #ff4d4f;">-¥<?php echo number_format($discount_amount, 2); ?></span></div>
+                    <?php endif; ?>
+                    <div class="total-amount">实付：<span>¥<?php echo number_format($cart_Final_Amount, 2); ?></span></div>
+                </div>
+                <button class="checkout-btn" <?php echo !$has_cart_items ? 'disabled' : ''; ?>>结算</button>
+            </div>
         </div>
     </div>
 </section>
@@ -977,7 +987,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="success-icon">✓</div>
             <h3 class="modal-title">支付成功</h3>
             <p>您的订单已支付完成，订单号：<span id="success-order-id"></span></p>
-            <p style="margin-top: 15px;">3秒后将自动返回购物车页面</p>
+            <p style="margin-top: 15px;">
+                <span id="countdown">3</span>秒后将自动返回购物车页面
+            </p>
         </div>
     </div>
 </div>
@@ -990,6 +1002,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     const closeButtons = document.querySelectorAll('.modal-close');
     const submitOrderBtn = document.querySelector('.submit-order-btn');
     const paymentOptions = document.querySelectorAll('.payment-option');
+    const countdownElement = document.getElementById('countdown');
 
     // 打开结算弹窗
     checkoutBtn.addEventListener('click', function() {
@@ -1076,13 +1089,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               document.getElementById('success-order-id').textContent = data.order_id || '未知';
               // 显示成功弹窗
               successModal.classList.add('active');
-              // 3秒后刷新页面，确保购物车清空
-              setTimeout(() => {
-                window.location.reload();
-               }, 3000);
-             } else {
+              
+              // 倒计时功能
+              let countdown = 3;
+              countdownElement.textContent = countdown;
+              const countdownInterval = setInterval(() => {
+                  countdown--;
+                  countdownElement.textContent = countdown;
+                  if (countdown <= 0) {
+                      clearInterval(countdownInterval);
+                      window.location.reload();
+                  }
+              }, 1000);
+              
+            } else {
               alert(data.error || '订单提交失败');
-             }
+            }
           } catch (e) {
               console.error('JSON解析失败:', e);
             alert('服务器响应格式错误');
