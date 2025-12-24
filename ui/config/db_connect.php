@@ -4,7 +4,7 @@
 // 数据库配置
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');      // 改成你的MySQL用户名
-define('DB_PASS', 'NewRootPwd123!');          // 改成你的MySQL密码
+define('DB_PASS', '123456');          // 改成你的MySQL密码
 define('DB_NAME', 'mydb');
 
 // 创建数据库连接
