@@ -31,11 +31,16 @@ $customer_info = getCustomerFullInfo();
         padding-left: 10px;
     }
     .account-form-container {
-        flex: 0 0 500px; /* 固定表单容器宽度，保持原有大小 */
+        flex: 1; /* 改为1使左右两部分均匀分布 */
     }
     .account-form {
-        max-width: 500px;
-        padding: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 30px; /* 两列间距 */
+    }
+    .form-column {
+        flex: 1;
+        min-width: 300px;
     }
     .form-group {
         margin-bottom: 20px;
@@ -65,11 +70,10 @@ $customer_info = getCustomerFullInfo();
         border-color: #2d884d;
     }
     .form-actions {
-        margin-top: 30px;
-        text-align: right;
+        margin-bottom: 20px; /* 与其他表单项相同的底部间距，实现与性别栏对齐 */
         display: flex;
         gap: 10px;
-        justify-content: flex-end;
+        justify-content: flex-end; /* 右对齐 */
     }
     .edit-btn, .save-btn, .logout-btn {
         padding: 10px 20px;
@@ -101,31 +105,12 @@ $customer_info = getCustomerFullInfo();
     .logout-btn:hover {
         background-color: #d9363e;
     }
-    /* 新增图片区域样式 */
-    .account-image-container {
-        flex: 1; /* 占据剩余空间 */
-        min-width: 300px; /* 最小宽度，避免过窄 */
-        padding: 20px;
-    }
-    .account-image {
-        width: 100%;
-        height: 100%;
-        border-radius: 8px;
-        object-fit: cover; /* 保持图片比例并填充容器 */
-        max-height: 450px; /* 限制最大高度，与表单高度匹配 */
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
     @media (max-width: 768px) {
         .product-section {
             flex-direction: column; /* 移动端垂直排列 */
         }
-        .account-form-container {
-            width: 100% !important;
-            flex: none;
-        }
-        .account-image-container {
-            min-width: auto;
-            width: 100%;
+        .account-form {
+            flex-direction: column;
         }
     }
 </style>
@@ -142,69 +127,66 @@ $customer_info = getCustomerFullInfo();
             <div class="account-form-container">
                 <h2 class="section-title">个人账户</h2>
                 <form class="account-form" id="accountForm">
-                    <div class="form-group">
-                        <label class="form-label" for="full-name">姓名</label>
-                        <input type="text" id="full-name" class="form-input" 
-                               value="<?php echo htmlspecialchars($customer_info['full_name'] ?? ''); ?>" disabled>
-                    </div>
+                    <div class="form-column">
+                        <div class="form-group">
+                            <label class="form-label" for="full-name">姓名</label>
+                            <input type="text" id="full-name" class="form-input" 
+                                   value="<?php echo htmlspecialchars($customer_info['full_name'] ?? ''); ?>" disabled>
+                        </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="username">用户名</label>
-                        <input type="text" id="username" class="form-input" 
-                               value="<?php echo htmlspecialchars($customer_info['user_name'] ?? ''); ?>" disabled>
-                    </div>
+                        <div class="form-group">
+                            <label class="form-label" for="username">用户名</label>
+                            <input type="text" id="username" class="form-input" 
+                                   value="<?php echo htmlspecialchars($customer_info['user_name'] ?? ''); ?>" disabled>
+                        </div>
 
-                    <div class="form-group">
-                        <label class="form-label" for="loyalty_level">VIP等级</label>
-                        <input type="text" id="loyalty_level" class="form-input" 
-                               value="<?php echo htmlspecialchars($customer_info['loyalty_level'] ?? ''); ?>" disabled>
-                    </div>
+                        <div class="form-group">
+                            <label class="form-label" for="loyalty_level">VIP等级</label>
+                            <input type="text" id="loyalty_level" class="form-input" 
+                                   value="<?php echo htmlspecialchars($customer_info['loyalty_level'] ?? ''); ?>" disabled>
+                        </div>
 
-                    <div class="form-group">
-                         <label class="form-label" for="gender">性别</label>
-                         <select id="gender" class="form-input" disabled>
-                          <option value="Men" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Men' ? 'selected' : ''; ?>>Men</option>
+                        <div class="form-group">
+                             <label class="form-label" for="gender">性别</label>
+                             <select id="gender" class="form-input" disabled>
+                              <option value="Men" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Men' ? 'selected' : ''; ?>>Men</option>
                              <option value="Woman" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Woman' ? 'selected' : ''; ?>>Woman</option>
-                         </select>
+                             </select>
+                        </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label class="form-label" for="phone">手机号码</label>
-                        <input type="tel" id="phone" class="form-input" 
-                               value="<?php echo htmlspecialchars($customer_info['customer_phone'] ?? ''); ?>" disabled>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="email">电子邮箱</label>
-                        <input type="email" id="email" class="form-input" 
-                               value="<?php echo htmlspecialchars($customer_info['email'] ?? ''); ?>" disabled>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label" for="address">默认地址</label>
-                        <input type="text" id="address" class="form-input" 
-                               value="<?php echo htmlspecialchars($customer_info['address'] ?? ''); ?>" disabled>
-                    </div>
-                    
-                    <div class="form-actions">
-                        <button type="button" class="edit-btn">编辑信息</button>
-                        <button type="button" class="save-btn">保存修改</button>
-                        <a href="../login/login.php" class="logout-btn">退出登录</a>
+                    <div class="form-column">
+                        <div class="form-group">
+                            <label class="form-label" for="phone">手机号码</label>
+                            <input type="tel" id="phone" class="form-input" 
+                                   value="<?php echo htmlspecialchars($customer_info['customer_phone'] ?? ''); ?>" disabled>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="email">电子邮箱</label>
+                            <input type="email" id="email" class="form-input" 
+                                   value="<?php echo htmlspecialchars($customer_info['email'] ?? ''); ?>" disabled>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="address">默认地址</label>
+                            <input type="text" id="address" class="form-input" 
+                                   value="<?php echo htmlspecialchars($customer_info['address'] ?? ''); ?>" disabled>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="button" class="edit-btn">编辑信息</button>
+                            <button type="button" class="save-btn">保存修改</button>
+                            <a href="../login/login.php" class="logout-btn">退出登录</a>
+                        </div>
                     </div>
                 </form>
-            </div>
-            
-            <!-- 右侧图片区域 -->
-            <div class="account-image-container">
-                <img src="account.jpg" alt="生鲜产品展示" class="account-image">
             </div>
         </div>
     <?php endif; ?>
 </section>
 
 <script>
-    // 编辑账户信息
-    <!-- 修改保存按钮的点击事件 -->
     // 编辑账户信息
     document.querySelector('.edit-btn')?.addEventListener('click', function() {
        document.querySelectorAll('.form-input:not(#loyalty_level):not(#full-name)').forEach(input => {

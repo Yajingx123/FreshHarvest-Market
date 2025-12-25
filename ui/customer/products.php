@@ -1,4 +1,5 @@
 <?php
+$pageTitle = "产品选择";
 require_once 'inc/data.php'; // 确保路径正确
 require_once 'header.php'; // 引入导航栏
 
@@ -20,13 +21,7 @@ if (!empty($products)) { // 判断$products是否非空
 }
 ?>
 
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>商品列表</title>
-    <style>
+<style>
     .product-section {
         background-color: #fff;
         border-radius: 10px;
@@ -258,6 +253,7 @@ if (!empty($products)) { // 判断$products是否非空
         align-items: center;
         justify-content: center;
         color: #999;
+        font-size: 48px;
     }
     .product-info {
         padding: 15px;
@@ -359,6 +355,7 @@ if (!empty($products)) { // 判断$products是否非空
         justify-content: center;
         font-size: 80px;
         color: #2d884d;
+        border-radius: 8px;
     }
     .modal-product-info {
         flex: 1;
@@ -381,12 +378,18 @@ if (!empty($products)) { // 判断$products是否非空
     .product-detail-item {
         margin-bottom: 15px;
         font-size: 16px;
+        display: flex;
+        align-items: center;
     }
     .product-detail-item label {
         display: inline-block;
         width: 100px;
         color: #666;
         font-weight: 500;
+        flex-shrink: 0;
+    }
+    .product-detail-item span {
+        flex: 1;
     }
     .product-description {
         margin-top: 30px;
@@ -402,6 +405,40 @@ if (!empty($products)) { // 判断$products是否非空
     .product-description p {
         line-height: 1.6;
         color: #666;
+    }
+    
+    .quantity-control {
+        margin: 20px 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .quantity-control input {
+        width: 60px;
+        text-align: center;
+        padding: 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    
+    .quantity-btn {
+        width: 30px;
+        height: 30px;
+        background-color: #f0f7f2;
+        border: 1px solid #2d884d;
+        color: #2d884d;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .quantity-btn:hover {
+        background-color: #2d884d;
+        color: white;
     }
 
     @media (max-width: 768px) {
@@ -424,22 +461,43 @@ if (!empty($products)) { // 判断$products是否非空
             height: 200px;
             font-size: 60px;
         }
+        .product-detail-item {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+        }
+        .product-detail-item label {
+            width: auto;
+        }
     }
 </style>
-    </style>
-</head>
-<body>
-    <div class="container">
+
+<!-- 产品选择区 -->
+<section id="products" class="module">
+    <div class="product-section">
         <!-- 分类侧边栏 -->
         <div class="category-sidebar">
-            <h3 class="category-title">商品分类</h3>
-            
-            <!-- 搜索框 -->
-            <div class="search-container">
-                <input type="text" class="search-input" id="searchInput" placeholder="搜索商品名称..." value="<?php echo htmlspecialchars($searchKeyword); ?>">
-                <span class="search-icon" id="searchIcon">🔍</span>
+            <div class="category-header">
+                <h3 class="category-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    产品搜索
+                </h3>
+                <div class="search-container">
+                    <input type="text" class="search-input" id="searchInput" placeholder="搜索产品名称..." value="<?php echo htmlspecialchars($searchKeyword); ?>">
+                    <span class="search-icon" id="searchIcon">🔍︎</span>
+                </div>
             </div>
             
+            <div class="sidebar-divider"></div>
+            
+            <h3 class="category-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M3 12h18M3 18h18"></path>
+                </svg>
+                产品分类
+            </h3>
             <ul class="category-list">
                 <li class="category-item">
                     <a href="products.php?category=all<?php echo $searchKeyword ? '&search=' . urlencode($searchKeyword) : ''; ?>" class="category-link <?php echo $selectedCategory === 'all' ? 'active' : ''; ?>">
@@ -464,8 +522,8 @@ if (!empty($products)) { // 判断$products是否非空
                 <?php endforeach; ?>
             </ul>
         </div>
-        
-        <!-- 商品内容区 -->
+
+        <!-- 产品内容区 -->
         <div class="product-content">
             <h2><?php echo $selectedCategory === 'all' ? '全部商品' : htmlspecialchars($selectedCategory); ?></h2>
             <?php if ($searchKeyword): ?>
@@ -474,7 +532,7 @@ if (!empty($products)) { // 判断$products是否非空
             
             <div class="product-grid">
                 <?php if (empty($products)): ?>
-                    <p>没有找到相关商品</p>
+                    <p style="grid-column: 1 / -1; text-align: center; color: #666; padding: 40px;">没有找到相关商品</p>
                 <?php else: ?>
                     <?php foreach ($products as $product): ?>
                     <div class="product-card" data-id="<?php echo $product['id']; ?>">
@@ -492,157 +550,182 @@ if (!empty($products)) { // 判断$products是否非空
             </div>
         </div>
     </div>
-    
-    <!-- 商品详情弹窗 -->
-    <div class="modal-overlay" id="productModal">
-        <div class="product-modal">
-            <span class="close-modal" id="closeModal">×</span>
-            <div class="modal-content">
-                <div class="modal-img" id="modalImg">📦</div>
-                <div class="modal-details" id="modalDetails">
-                    <!-- 商品详情将通过JS动态填充 -->
-                </div>
+</section>
+
+<!-- 产品详情弹窗 -->
+<div class="modal-overlay" id="productModal">
+    <div class="product-modal">
+        <span class="close-modal" id="closeModal">×</span>
+        <div class="modal-content">
+            <div class="modal-product-img" id="modalProductImg">📦</div>
+            <div class="modal-product-info" id="modalProductInfo">
+                <!-- 商品详情将通过JS动态填充 -->
             </div>
         </div>
     </div>
+</div>
 
-    <script>
-        const productDetails = <?php echo json_encode($productsWithBranches); ?>;
-        // 获取DOM元素
-        const modalOverlay = document.getElementById('productModal');
-        const modalDetails = document.getElementById('modalDetails');
-        const closeModal = document.getElementById('closeModal');
-        const searchInput = document.getElementById('searchInput');
-        const searchIcon = document.getElementById('searchIcon');
-        
-        // 点击商品卡片显示详情
-        document.querySelectorAll('.product-card').forEach(card => {
-           card.addEventListener('click', function() {
-           const productId = this.getAttribute('data-id');
-           const product = productDetails.find(p => p.id == productId);
-        
-        if (product) {
-            // 存储产品的门店ID（关键）
-            const storeId = product.store_id || 1; // 兜底为1，防止空值
-            let branchSelect = '<select id="branchSelect" style="margin: 10px 0; padding: 5px; width: 200px;">';
-            if (product.branches && product.branches.length > 0) {
-                product.branches.forEach(branch => {
-                    branchSelect += `<option value="${branch.id}">${branch.name}</option>`;
-                });
-            } else {
-                branchSelect += '<option value="1">默认门店</option>';
-            }
-            branchSelect += '</select>';
-            
-            modalDetails.innerHTML = `
-                <h2>${htmlEscape(product.name)}</h2>
-                <p><strong>价格:</strong> ¥${parseFloat(product.price).toFixed(2)}</p>
-                <p><strong>分类:</strong> ${htmlEscape(product.category)}</p>
-                <p><strong>库存状态:</strong> ${htmlEscape(product.stock_status)}</p>
-                <p><strong>可购数量:</strong> ${product.stock}</p>
-                ${branchSelect} <!-- 插入门店选择下拉框 -->
-                <p><strong>描述:</strong> ${htmlEscape(product.description || '暂无描述')}</p>
-                <!-- 数量控制 -->
-                <div class="quantity-control" style="margin: 15px 0;">
-                    <button class="quantity-btn" onclick="changeQty(-1, ${product.stock})">-</button>
-                    <input type="number" id="buyQty" value="1" min="1" max="${product.stock}" style="width: 50px; text-align: center; margin: 0 5px;">
-                    <button class="quantity-btn" onclick="changeQty(1, ${product.stock})">+</button>
-                </div>
-                <!-- 加入购物车按钮:传递productId、数量、门店ID -->
-                <button class="add-to-cart-btn" style="background: #2d884d; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;"
-                        onclick="addToCart(${productId}, document.getElementById('buyQty').value, ${storeId})">
-                    加入购物车
-                </button>
-            `;
-            modalOverlay.classList.add('active');
-            document.body.classList.add('modal-open');
-            document.body.style.overflow = 'hidden';
-        }
-    });
-});
-        
-        // 关闭弹窗
-        closeModal.addEventListener('click', closeModalFunc);
-        // 数量控制逻辑
-       modalOverlay.addEventListener('click', function(e) {
-         const quantityInput = document.getElementById('quantity');
-         if (!quantityInput) return;
+<script>
+    const productDetails = <?php echo json_encode($productsWithBranches); ?>;
+    // 获取DOM元素
+    const modalOverlay = document.getElementById('productModal');
+    const modalProductInfo = document.getElementById('modalProductInfo');
+    const modalProductImg = document.getElementById('modalProductImg');
+    const closeModal = document.getElementById('closeModal');
+    const searchInput = document.getElementById('searchInput');
+    const searchIcon = document.getElementById('searchIcon');
     
-        if (e.target.id === 'decreaseQty') {
-          const current = parseInt(quantityInput.value);
-          if (current > 1) {
-            quantityInput.value = current - 1;
-          }
-        } else if (e.target.id === 'increaseQty') {
-           const current = parseInt(quantityInput.value);
-          const max = parseInt(quantityInput.max);
-          if (current < max) {
-            quantityInput.value = current + 1;
-          }
-        } else if (e.target.classList.contains('add-to-cart-btn')) {
-           const productId = e.target.getAttribute('data-id');
-          const quantity = parseInt(document.getElementById('quantity').value);
-           addToCart(productId, quantity);
+    // 点击商品卡片显示详情
+    document.querySelectorAll('.product-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const productId = this.getAttribute('data-id');
+            const product = productDetails.find(p => p.id == productId);
+            
+            if (product) {
+                // 存储产品的门店ID（关键）
+                const storeId = product.store_id || 1; // 兜底为1，防止空值
+                
+                // 构建门店选择下拉框
+                let branchSelect = '<div class="product-detail-item"><label>选择门店：</label><select id="branchSelect" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 200px;">';
+                if (product.branches && product.branches.length > 0) {
+                    product.branches.forEach(branch => {
+                        branchSelect += `<option value="${branch.id}">${branch.name}</option>`;
+                    });
+                } else {
+                    branchSelect += '<option value="1">默认门店</option>';
+                }
+                branchSelect += '</select></div>';
+                
+                // 构建弹窗内容
+                modalProductImg.textContent = '📦'; // 可以替换为实际的产品图标
+                modalProductInfo.innerHTML = `
+                    <h3 class="modal-product-name">${htmlEscape(product.name)}</h3>
+                    <div class="modal-product-price">¥${parseFloat(product.price).toFixed(2)}</div>
+                    
+                    <div class="product-detail-item">
+                        <label>分类：</label>
+                        <span>${htmlEscape(product.category)}</span>
+                    </div>
+                    <div class="product-detail-item">
+                        <label>库存状态：</label>
+                        <span>${htmlEscape(product.stock_status)}</span>
+                    </div>
+                    <div class="product-detail-item">
+                        <label>可购数量：</label>
+                        <span>${product.stock}</span>
+                    </div>
+                    ${branchSelect}
+                    
+                    <div class="product-description">
+                        <h4>产品详情</h4>
+                        <p>${htmlEscape(product.description || '暂无描述')}</p>
+                    </div>
+                    
+                    <!-- 数量控制 -->
+                    <div class="quantity-control">
+                        <button class="quantity-btn" onclick="changeQuantity(-1, ${product.stock})">-</button>
+                        <input type="number" id="quantity" value="1" min="1" max="${product.stock}" style="width: 60px; text-align: center; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+                        <button class="quantity-btn" onclick="changeQuantity(1, ${product.stock})">+</button>
+                        <span style="margin-left: 10px; color: #666;">最多可购 ${product.stock} 件</span>
+                    </div>
+                    
+                    <!-- 加入购物车按钮 -->
+                    <button class="add-to-cart-btn" onclick="addToCart(${productId}, document.getElementById('quantity').value, ${storeId})" style="margin-top: 15px;">
+                        加入购物车
+                    </button>
+                `;
+                
+                modalOverlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        });
+    });
+    
+    // 数量控制函数
+    function changeQuantity(change, maxStock) {
+        const quantityInput = document.getElementById('quantity');
+        if (!quantityInput) return;
+        
+        let current = parseInt(quantityInput.value);
+        current += change;
+        
+        if (current < 1) current = 1;
+        if (current > maxStock) current = maxStock;
+        
+        quantityInput.value = current;
+    }
+    
+    // 加入购物车函数
+    function addToCart(productId, quantity, storeId) {
+        const branchSelect = document.getElementById('branchSelect');
+        const selectedBranchId = branchSelect ? branchSelect.value : storeId;
+        
+        const formData = new FormData();
+        formData.append('action', 'add_to_cart');
+        formData.append('product_id', productId);
+        formData.append('quantity', quantity);
+        formData.append('branch_id', selectedBranchId); // 传递门店ID到后端
+
+        fetch('cart_handler.php', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                closeModalFunc();
+            } else {
+                alert('加入购物车失败：' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('请求错误：', error);
+            alert('加入购物车时发生网络错误');
+        });
+    }
+    
+    // 搜索功能
+    searchIcon.addEventListener('click', function() {
+        const keyword = searchInput.value.trim();
+        const currentCategory = <?php echo json_encode($selectedCategory); ?>;
+        let url = `products.php?category=${encodeURIComponent(currentCategory)}`;
+        if (keyword) {
+            url += `&search=${encodeURIComponent(keyword)}`;
+        }
+        window.location.href = url;
+    });
+    
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchIcon.click();
         }
     });
-
-
-// 加入购物车函数
-function addToCart(productId, quantity, storeId) {
-    const formData = new FormData();
-    formData.append('action', 'add_to_cart');
-    formData.append('product_id', productId);
-    formData.append('quantity', quantity);
-    formData.append('branch_id', storeId); // 传递门店ID到后端
-
-    fetch('cart_handler.php', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
+    
+    // 辅助函数：关闭弹窗
+    function closeModalFunc() {
+        modalOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+    
+    // 关闭弹窗事件
+    closeModal.addEventListener('click', closeModalFunc);
+    
+    // 点击弹窗外部关闭
+    modalOverlay.addEventListener('click', function(e) {
+        if (e.target === modalOverlay) {
             closeModalFunc();
-        } else {
-            alert('加入购物车失败：' + data.message);
         }
-    })
-    .catch(error => {
-        console.error('请求错误：', error);
-        alert('加入购物车时发生网络错误');
     });
-}
-        
-        // 搜索功能
-        searchIcon.addEventListener('click', function() {
-            const keyword = searchInput.value.trim();
-            const currentCategory = <?php echo json_encode($selectedCategory); ?>;
-            let url = `products.php?category=${encodeURIComponent(currentCategory)}`;
-            if (keyword) {
-                url += `&search=${encodeURIComponent(keyword)}`;
-            }
-            window.location.href = url;
-        });
-        
-        searchInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                searchIcon.click();
-            }
-        });
-        
-        // 辅助函数：关闭弹窗
-        function closeModalFunc() {
-            modalOverlay.classList.remove('active');
-            document.body.style.overflow = '';
-        }
-        
-        // 辅助函数：防止XSS攻击
-        function htmlEscape(str) {
-            if (!str) return '';
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-        }
-    </script>
-</body>
-</html>
+    
+    // 辅助函数：防止XSS攻击
+    function htmlEscape(str) {
+        if (!str) return '';
+        return str.replace(/&/g, '&amp;')
+                 .replace(/</g, '&lt;')
+                 .replace(/>/g, '&gt;')
+                 .replace(/"/g, '&quot;')
+                 .replace(/'/g, '&#039;');
+    }
+</script>
