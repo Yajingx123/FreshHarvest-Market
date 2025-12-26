@@ -218,6 +218,10 @@ if (!empty($products)) { // 判断$products是否非空
         overflow-y: auto;
         padding-right: 10px;
     }
+    .product-content h2 {
+        color: #2d884d;
+        margin-bottom: 25px;
+    }
     .store-select {
         margin-bottom: 20px;
         padding: 10px 15px;
@@ -225,6 +229,28 @@ if (!empty($products)) { // 判断$products是否非空
         border-radius: 6px;
         font-size: 16px;
         width: 300px;
+    }
+    .product-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+    .sort-select {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        background-color: white;
+        color: #333;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        width: 100%;
+    }
+    .sort-select:focus {
+        border-color: #2d884d;
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(45, 136, 77, 0.1);
     }
     .product-grid {
         display: grid;
@@ -268,6 +294,12 @@ if (!empty($products)) { // 判断$products是否非空
         color: #ff4d4f;
         font-weight: bold;
         margin-bottom: 10px;
+    }
+    .original-price {
+        color: #999;
+        font-size: 14px;
+        text-decoration: line-through;
+        margin-left: 8px;
     }
     .product-stock {
         font-size: 14px;
@@ -441,6 +473,23 @@ if (!empty($products)) { // 判断$products是否非空
         color: white;
     }
 
+    .cart-success-message {
+        text-align: center;
+        padding: 40px 0;
+    }
+    
+    .cart-success-icon {
+        font-size: 60px;
+        color: #2d884d;
+        margin-bottom: 20px;
+    }
+    
+    .cart-success-text {
+        font-size: 24px;
+        color: #333;
+        font-weight: 500;
+    }
+
     @media (max-width: 768px) {
         .store-select {
             width: 100%;
@@ -452,6 +501,7 @@ if (!empty($products)) { // 判断$products是否非空
         }
         .product-content {
             height: auto;
+            color: #333;
             max-height: calc(100% - 150px);
         }
         .modal-content {
@@ -488,6 +538,18 @@ if (!empty($products)) { // 判断$products是否非空
                     <input type="text" class="search-input" id="searchInput" placeholder="搜索产品名称..." value="<?php echo htmlspecialchars($searchKeyword); ?>">
                     <span class="search-icon" id="searchIcon">🔍︎</span>
                 </div>
+                
+                <h3 class="category-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    产品排序
+                </h3>
+                <select class="sort-select">
+                    <option value="default">默认排序</option>
+                    <option value="price-asc">价格从低到高</option>
+                    <option value="price-desc">价格从高到低</option>
+                </select>
             </div>
             
             <div class="sidebar-divider"></div>
@@ -525,9 +587,11 @@ if (!empty($products)) { // 判断$products是否非空
 
         <!-- 产品内容区 -->
         <div class="product-content">
-            <h2><?php echo $selectedCategory === 'all' ? '全部商品' : htmlspecialchars($selectedCategory); ?></h2>
+            <div class="product-header">
+                <h2><?php echo $selectedCategory === 'all' ? '全部商品' : htmlspecialchars($selectedCategory); ?></h2>
+            </div>
             <?php if ($searchKeyword): ?>
-                <p>搜索关键词：<?php echo htmlspecialchars($searchKeyword); ?>（共<?php echo count($products); ?>个商品）</p>
+                <p style="margin-top: -10px; margin-bottom: 10px;">搜索关键词：<?php echo htmlspecialchars($searchKeyword); ?>（共<?php echo count($products); ?>个商品）</p>
             <?php endif; ?>
             
             <div class="product-grid">
@@ -539,7 +603,10 @@ if (!empty($products)) { // 判断$products是否非空
                         <div class="product-img">📦</div>
                         <div class="product-info">
                             <div class="product-name"><?php echo htmlspecialchars($product['name']); ?></div>
-                            <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
+                            <div class="product-price">
+                                ¥<?php echo number_format($product['price'], 2); ?>
+                                <span class="original-price">¥<?php echo number_format($product['price'], 2); ?></span>
+                            </div>
                             <div class="product-stock">
                                 <?php echo $product['stock_status']; ?> (剩余: <?php echo $product['stock_status'] === '无货' ? 0 : $product['stock']; ?>)
                             </div>
@@ -600,7 +667,10 @@ if (!empty($products)) { // 判断$products是否非空
                 modalProductImg.textContent = '📦'; // 可以替换为实际的产品图标
                 modalProductInfo.innerHTML = `
                     <h3 class="modal-product-name">${htmlEscape(product.name)}</h3>
-                    <div class="modal-product-price">¥${parseFloat(product.price).toFixed(2)}</div>
+                    <div class="modal-product-price">
+                        ¥${parseFloat(product.price).toFixed(2)}
+                        <span class="original-price">¥${parseFloat(product.price).toFixed(2)}</span>
+                    </div>
                     
                     <div class="product-detail-item">
                         <label>分类：</label>
@@ -674,8 +744,16 @@ if (!empty($products)) { // 判断$products是否非空
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert(data.message);
-                closeModalFunc();
+                // 显示"已加入购物车"信息
+                modalProductInfo.innerHTML = `
+                    <div class="cart-success-message">
+                        <div class="cart-success-icon">✓</div>
+                        <div class="cart-success-text">已加入购物车</div>
+                    </div>
+                `;
+                
+                // 1秒后关闭弹窗
+                setTimeout(closeModalFunc, 1000);
             } else {
                 alert('加入购物车失败：' + data.message);
             }
