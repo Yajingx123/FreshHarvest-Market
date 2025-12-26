@@ -113,6 +113,65 @@ $customer_info = getCustomerFullInfo();
             flex-direction: column;
         }
     }
+
+    /* 成功提示弹窗样式 */
+    .success-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+    .success-modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+    .success-modal {
+        background-color: white;
+        border-radius: 10px;
+        width: 90%;
+        max-width: 500px;
+        padding: 30px;
+        position: relative;
+        transform: translateY(-20px);
+        transition: transform 0.3s ease;
+    }
+    .success-modal-overlay.active .success-modal {
+        transform: translateY(0);
+    }
+    .close-success-modal {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        font-size: 24px;
+        cursor: pointer;
+        color: #999;
+        transition: color 0.3s;
+    }
+    .close-success-modal:hover {
+        color: #ff4d4f;
+    }
+    .success-icon {
+        font-size: 60px;
+        color: #2d884d;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    .success-message {
+        font-size: 20px;
+        color: #333;
+        text-align: center;
+        margin-bottom: 20px;
+        font-weight: 500;
+    }
 </style>
 
 <!-- 个人账户 -->
@@ -186,7 +245,20 @@ $customer_info = getCustomerFullInfo();
     <?php endif; ?>
 </section>
 
+<!-- 成功提示弹窗 -->
+<div class="success-modal-overlay" id="successModal">
+    <div class="success-modal">
+        <span class="close-success-modal" id="closeSuccessModal">×</span>
+        <div class="success-icon">✓</div>
+        <div class="success-message">信息修改成功！</div>
+    </div>
+</div>
+
 <script>
+    // 获取弹窗元素
+    const successModal = document.getElementById('successModal');
+    const closeSuccessModal = document.getElementById('closeSuccessModal');
+
     // 编辑账户信息
     document.querySelector('.edit-btn')?.addEventListener('click', function() {
        document.querySelectorAll('.form-input:not(#loyalty_level):not(#full-name)').forEach(input => {
@@ -198,11 +270,11 @@ $customer_info = getCustomerFullInfo();
 
     // 保存账户信息
     document.querySelector('.save-btn')?.addEventListener('click', async function() {
-    // 1. 手动收集所有输入框的数值（即使是disabled/readonly的输入框，也能获取value）
+    // 1. 手动收集所有输入框的数值
     const formData = {
         // 必传：用户ID（从后端获取，用于定位要修改的用户）
         customerId: <?php echo $customer_info['customer_ID'] ?? 0; ?>,
-        // 收集所有输入框的值（包括不可编辑的）
+        // 收集所有输入框的值
         username: document.getElementById('username').value.trim(),
         gender: document.getElementById('gender').value.trim(),
         phone: document.getElementById('phone').value.trim(),
@@ -216,14 +288,17 @@ $customer_info = getCustomerFullInfo();
         const response = await fetch('update_account.php', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json', // 告诉后端是JSON格式
+                'Content-Type': 'application/json',
             },
-            body: JSON.stringify(formData) // 把数据转成JSON字符串传递
+            body: JSON.stringify(formData)
         });
 
         const result = await response.json();
         if (result.status === 'success') {
-            alert(result.message);
+            // 显示成功弹窗
+            successModal.classList.add('active');
+            document.body.style.overflow = 'hidden'; // 禁止背景滚动
+            
             // 保存后恢复禁用状态
             document.querySelectorAll('.form-input').forEach(input => {
                 if (input.id !== 'full-name' && input.id !== 'loyalty_level') {
@@ -240,6 +315,20 @@ $customer_info = getCustomerFullInfo();
         alert('保存失败，请重试！');
     }
 });
+
+    // 关闭成功弹窗
+    closeSuccessModal.addEventListener('click', function() {
+        successModal.classList.remove('active');
+        document.body.style.overflow = ''; // 恢复背景滚动
+    });
+
+    // 点击弹窗外部关闭
+    successModal.addEventListener('click', function(e) {
+        if (e.target === successModal) {
+            successModal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    });
 </script>
 
 </main>
