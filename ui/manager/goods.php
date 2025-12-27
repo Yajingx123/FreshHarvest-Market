@@ -3,6 +3,9 @@
 require_once __DIR__ . '/inc/db_connect.php';      // 数据库连接
 require_once __DIR__ . '/inc/data.php';    // 数据逻辑
 require_once __DIR__ . '/inc/header.php';  // 页头
+
+$categories=getProductCategories();
+$suppliers = getSuppliersFromDB(); 
 ?>
 <section class="section">
     <h2 class="section-title">货品信息</h2>
@@ -20,8 +23,15 @@ require_once __DIR__ . '/inc/header.php';  // 页头
     </div>
 
     <!-- 横向卡片展示区 -->
-    <div id="productCardsWrap" style="overflow-x:auto;padding-bottom:8px;">
-        <div id="productCards" style="display:flex;gap:12px;min-height:160px;"></div>
+    <div id="productCardsWrap" style="overflow-x:auto;overflow-y:hidden;padding-bottom:12px;-webkit-overflow-scrolling:touch;">
+        <!-- 关键：内层容器设置 min-width: fit-content 以容纳所有卡片 -->
+        <div id="productCards" style="display:flex;gap:12px;min-height:160px;min-width:fit-content;padding:4px 2px;"></div>
+    </div>
+    <!-- changed -->
+
+    <!-- 可选的滚动提示 -->
+    <div style="text-align:center;margin-top:8px;color:#999;font-size:12px;">
+        <span>← 左右滑动查看更多 →</span>
     </div>
 </section>
 
@@ -83,6 +93,8 @@ require_once __DIR__ . '/inc/header.php';  // 页头
 let products = <?= json_encode($products, JSON_UNESCAPED_UNICODE) ?>;
 let transactions = <?= json_encode($transactions, JSON_UNESCAPED_UNICODE) ?>;
 const partnersList = <?= json_encode($partners, JSON_UNESCAPED_UNICODE) ?>;
+const categoriesData = <?= json_encode($categories, JSON_UNESCAPED_UNICODE) ?>;
+const suppliersData = <?= json_encode($suppliers, JSON_UNESCAPED_UNICODE) ?>;
 
 // 当前编辑的产品ID
 let currentEditProductId = null;
@@ -117,13 +129,21 @@ function renderProductCards(filteredProducts) {
     }
 
     filteredProducts.forEach(product => {
-        // 图片处理：优先使用product.image，无则显示占位图
+        // 图片处理
         const productImage = product.image 
             ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" style="width:100%;height:120px;object-fit:cover;border-radius:4px;">`
             : '<div style="width:100%;height:120px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;color:#999;border-radius:4px;">无图片</div>';
 
         const card = document.createElement('div');
-        card.style.width = '220px';
+        
+        // 关键设置：使用 inline-block 而不是 flex-item 以避免压缩
+        card.style.display = 'inline-block';  // 改为 inline-block
+        card.style.width = '220px';           // 固定宽度
+        card.style.height = '320px';          // 固定高度，确保统一
+        card.style.verticalAlign = 'top';     // 顶部对齐
+        card.style.marginRight = '12px';      // 替换 gap 属性
+        
+        // 其他样式保持不变
         card.style.border = '1px solid #eee';
         card.style.borderRadius = '8px';
         card.style.padding = '12px';
@@ -131,24 +151,27 @@ function renderProductCards(filteredProducts) {
         card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
         card.style.cursor = 'pointer';
         card.style.transition = 'box-shadow 0.2s ease';
-        //  hover效果增强可点击提示
+        card.style.boxSizing = 'border-box'; // 重要：确保内边距不影响总宽度
+        
+        // 悬停效果
         card.addEventListener('mouseover', () => {
             card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
         });
         card.addEventListener('mouseout', () => {
             card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
         });
+        
         // 点击卡片打开编辑弹窗
         card.addEventListener('click', () => openEditModal(product.id));
 
         card.innerHTML = `
             ${productImage}
-            <h3 style="margin:10px 0 6px; font-size:16px; font-weight:600;">${escapeHtml(product.name)}</h3>
+            <h3 style="margin:10px 0 6px; font-size:16px; font-weight:600; height:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(product.name)}</h3>
             <p style="margin:0 0 8px; font-size:13px; color:#666; line-height:1.4; height:40px; overflow:hidden;">
                 ${escapeHtml(product.description || '无简介')}
             </p>
             <div style="margin:4px 0; font-size:12px; color:#888;">
-                <span>规格：${escapeHtml(product.spec || '无')}</span>
+                <span>产品类型：${escapeHtml(product.spec || '无')}</span>
             </div>
             <div style="margin:4px 0; font-size:12px; color:#888;">
                 <span>单位：${escapeHtml(product.unit || '无')}</span>
@@ -240,9 +263,31 @@ function openEditModal(productId) {
 
     // 生成编辑表单
     const formHtml = `
-        <div style="display:flex;gap:20px; margin-bottom:20px;">
+        <style>
+            #editModalContent {
+                max-height: 400px; /* 限制弹窗内容最大高度 */
+                overflow-y: auto; /* 添加垂直滚动 */
+                padding-right: 8px; /* 为滚动条留出空间 */
+            }
+            #editModalContent::-webkit-scrollbar {
+                width: 6px;
+            }
+            #editModalContent::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 3px;
+            }
+            #editModalContent::-webkit-scrollbar-thumb {
+                background: #c1c1c1;
+                border-radius: 3px;
+            }
+            #editModalContent::-webkit-scrollbar-thumb:hover {
+                background: #a8a8a8;
+            }
+        </style>
+        
+        <div style="display:flex;gap:15px; margin-bottom:15px;">
             <!-- 图片预览与上传 -->
-            <div style="width:160px; height:160px; border:1px dashed #ddd; border-radius:4px; overflow:hidden; position:relative;">
+            <div style="width:140px; height:140px; border:1px dashed #ddd; border-radius:4px; overflow:hidden; position:relative; flex-shrink:0;">
                 <img id="previewImage" src="${escapeHtml(product.image || '')}" alt="产品图片" 
                      style="width:100%; height:100%; object-fit:cover; display:${product.image ? 'block' : 'none'};">
                 <div id="imagePlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#999; ${product.image ? 'display:none' : ''}">
@@ -252,57 +297,56 @@ function openEditModal(productId) {
                        style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
             </div>
             <div style="flex:1;">
-                <div style="margin-bottom:16px;">
-                    <label style="display:block; margin-bottom:6px; font-weight:500; color:#333;">产品ID</label>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">产品ID</label>
                     <input type="text" id="editProductId" value="${escapeHtml(product.id)}" 
-                           style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;" readonly>
+                           style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px; background:#f9f9f9;" readonly>
                     <small style="color:#666; font-size:11px;">产品ID不可修改</small>
                 </div>
-                <div style="margin-bottom:16px;">
-                    <label style="display:block; margin-bottom:6px; font-weight:500; color:#333;">产品名称 <span style="color:red;">*</span></label>
+                <div style="margin-bottom:12px;">
+                    <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">产品名称 <span style="color:red;">*</span></label>
                     <input type="text" id="editProductName" value="${escapeHtml(product.name || '')}" 
-                           style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;" required>
+                           style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px;" required>
                 </div>
             </div>
         </div>
 
-        <div style="margin-bottom:16px;">
-            <label style="display:block; margin-bottom:6px; font-weight:500; color:#333;">产品描述</label>
-            <textarea id="editProductDesc" rows="3" 
-                      style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px; resize:vertical;">${escapeHtml(product.description || '')}</textarea>
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">产品描述</label>
+            <textarea id="editProductDesc" rows="2" 
+                      style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; resize:vertical; font-size:13px; min-height:60px;">${escapeHtml(product.description || '')}</textarea>
         </div>
 
-        <div style="display:flex; gap:20px; margin-bottom:16px;">
+        <div style="display:flex; gap:15px; margin-bottom:12px;">
             <div style="flex:1;">
-                <label style="display:block; margin-bottom:6px; font-weight:500; color:#333;">规格</label>
+                <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">产品分类</label>
+                <!-- 改为只读显示 -->
                 <input type="text" id="editProductSpec" value="${escapeHtml(product.spec || '')}" 
-                       style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                       style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px; background:#f9f9f9;" readonly>
             </div>
             <div style="flex:1;">
-                <label style="display:block; margin-bottom:6px; font-weight:500; color:#333;">单位 <span style="color:red;">*</span></label>
+                <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">单位 <span style="color:red;">*</span></label>
                 <input type="text" id="editProductUnit" value="${escapeHtml(product.unit || '')}" 
-                       style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;" required>
+                       style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px;" required>
             </div>
         </div>
 
-        <div style="margin-bottom:16px;">
-            <label style="display:block; margin-bottom:6px; font-weight:500; color:#333;">产品状态</label>
-            <select id="editProductStatus" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
-                <option value="已上架" ${product.statusText === '已上架' ? 'selected' : ''}>已上架</option>
-                <option value="已下架" ${product.statusText === '已下架' ? 'selected' : ''}>已下架</option>
-                <option value="库存预警" ${product.statusText === '库存预警' ? 'selected' : ''}>库存预警</option>
-            </select>
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">产品状态</label>
+            <!-- 改为只读显示 -->
+            <input type="text" id="editProductStatus" value="${escapeHtml(product.statusText || '')}" 
+                   style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px; background:#f9f9f9;" readonly>
         </div>
 
-        <div style="margin-bottom:16px;">
-            <label style="display:block; margin-bottom:6px; font-weight:500; color:#333;">单价（可选）</label>
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">单价（可选）</label>
             <input type="number" step="0.01" id="editProductPrice" value="${escapeHtml(product.price ? product.price.replace('¥', '') : '')}" 
-                   style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+                   style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px;">
         </div>
 
-        <div style="margin-bottom:16px;">
-            <label style="display:block; margin-bottom:6px; font-weight:500; color:#333;">供应商（可选）</label>
-            <select id="editProductSupplier" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+        <div style="margin-bottom:12px;">
+            <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">供应商（可选）</label>
+            <select id="editProductSupplier" style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px;">
                 <option value="">-- 选择供应商 --</option>
                 ${partnersList.map(partner => `
                     <option value="${escapeHtml(partner.id)}" ${product.supplier === partner.id ? 'selected' : ''}>
@@ -315,6 +359,14 @@ function openEditModal(productId) {
 
     // 填充表单内容并显示弹窗
     document.getElementById('editModalContent').innerHTML = formHtml;
+    
+    // 修改弹窗容器尺寸（减小弹窗）
+    const modalDialog = document.querySelector('#productEditModal > div');
+    if (modalDialog) {
+        modalDialog.style.width = '500px'; // 减小宽度（从600px改为500px）
+        modalDialog.style.maxHeight = '85vh'; // 限制最大高度为视口的85%
+    }
+    
     document.getElementById('productEditModal').style.display = 'flex';
 
     // 绑定图片上传预览事件
@@ -350,6 +402,7 @@ function bindImageUploadPreview() {
 }
 
 // 保存编辑内容
+// 保存编辑内容
 function saveEditProduct() {
     if (!currentEditProductId) return;
 
@@ -372,17 +425,17 @@ function saveEditProduct() {
         return;
     }
 
-    // 更新产品数据
+    // 更新产品数据（移除statusText和spec的更新）
     const updatedProduct = {
         ...products[productIndex],
         name: productName,
         description: document.getElementById('editProductDesc').value.trim(),
-        spec: document.getElementById('editProductSpec').value.trim(),
+        // spec: document.getElementById('editProductSpec').value.trim(), // 移除这行
         unit: productUnit,
-        statusText: document.getElementById('editProductStatus').value,
+        // statusText: document.getElementById('editProductStatus').value, // 移除这行
         price: document.getElementById('editProductPrice').value ? `¥${Number(document.getElementById('editProductPrice').value).toFixed(2)}` : '',
         supplier: document.getElementById('editProductSupplier').value,
-        // 图片：如果有预览图且不是原始图片，更新为base64（实际项目建议上传服务器，这里简化为base64）
+        // 图片：如果有预览图且不是原始图片，更新为base64
         image: document.getElementById('previewImage').style.display === 'block' 
             ? document.getElementById('previewImage').src 
             : products[productIndex].image
@@ -391,7 +444,7 @@ function saveEditProduct() {
     // 更新全局数据
     products[productIndex] = updatedProduct;
 
-    // 重新渲染卡片和流水表（流水表中产品相关信息会同步更新）
+    // 重新渲染卡片和流水表
     applyProductFilter();
     renderTransactions();
 
@@ -428,71 +481,87 @@ function bindEditModalEvents() {
         }
     });
 
-    // 新增产品按钮（保留原有功能，与编辑功能联动）
-    document.getElementById('productAddBtn').addEventListener('click', async function() {
-        const supplierOptions = partnersList.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)} (${escapeHtml(s.id)})</option>`).join('');
-        const html = `
-            <div style="display:flex;gap:12px;">
-                <div style="width:160px;height:140px;background:#f5f5f5;border:1px dashed #ddd;display:flex;align-items:center;justify-content:center;color:#999;">图片占位</div>
-                <div style="flex:1;">
-                    <div class="form-group"><label class="form-label">产品名称 <span style="color:red;">*</span></label><input id="pf_name" class="form-control" required></div>
-                    <div class="form-row">
-                        <div class="form-col"><label class="form-label">单价</label><input id="pf_price" class="form-control" type="number" step="0.01"></div>
-                        <div class="form-col"><label class="form-label">单位 <span style="color:red;">*</span></label><input id="pf_unit" class="form-control" value="份" required></div>
-                    </div>
-                    <div class="form-group"><label class="form-label">规格</label><input id="pf_spec" class="form-control"></div>
-                    <div class="form-group"><label class="form-label">供应商</label><select id="pf_supplier" class="form-control"><option value="">（未关联）</option>${supplierOptions}</select></div>
-                    <div class="form-group"><label class="form-label">简介</label><textarea id="pf_desc" class="form-control" rows="3"></textarea></div>
+    // 新增产品按钮
+document.getElementById('productAddBtn').addEventListener('click', async function() {
+    const categories = <?= json_encode(getProductCategories(), JSON_UNESCAPED_UNICODE) ?>;
+    
+    const supplierOptions = suppliersData.map(s => 
+        `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)} (${escapeHtml(s.category || '')})</option>`
+    ).join('');
+    
+    const categoryOptions = categories.map(cat => 
+        `<option value="${escapeHtml(cat.category_id)}">${escapeHtml(cat.category_name)}</option>`
+    ).join('');
+
+const html = `
+    <form id="addProductForm" style="display:flex;gap:12px;">
+        <div style="width:160px;height:140px;background:#f5f5f5;border:1px dashed #ddd;display:flex;align-items:center;justify-content:center;color:#999;">图片占位</div>
+        <div style="flex:1;">
+            <div class="form-group">
+                <label class="form-label">产品名称 <span style="color:red;">*</span></label>
+                <input type="text" name="name" id="pf_name" class="form-control" required>
+            </div>
+            <div class="form-row">
+                <div class="form-col">
+                    <label class="form-label">单价</label>
+                    <input type="number" step="0.01" name="price" id="pf_price" class="form-control" value="0">
+                </div>
+                <div class="form-col">
+                    <label class="form-label">单位 <span style="color:red;">*</span></label>
+                    <input type="text" name="unit" id="pf_unit" class="form-control" value="份" required>
                 </div>
             </div>
-        `;
+            <div class="form-group">
+                <label class="form-label">产品类型 <span style="color:red;">*</span></label>
+                <select name="category_id" id="pf_category" class="form-control" required onchange="filterSuppliersByCategory()">
+                    <option value="">-- 请选择 --</option>
+                    ${categoryOptions}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">供应商</label>
+                <select name="supplier" id="pf_supplier" class="form-control" onchange="filterCategoriesBySupplier()">
+                    <option value="">（未关联）</option>
+                    ${supplierOptions}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">简介</label>
+                <textarea name="description" id="pf_desc" class="form-control" rows="3"></textarea>
+            </div>
+        </div>
+    </form>
+`;
 
-        // 假设showAppModal是原有项目中的弹窗函数，如果没有则替换为原生alert或自定义弹窗
-        if (typeof showAppModal === 'function') {
-            const ok = await showAppModal('新增产品', html, { showCancel: true, okText: '添加' });
-            if (!ok) return;
+    if (typeof showAppModal === 'function') {
+        const ok = await showAppModal('新增产品', html, { showCancel: true, okText: '添加' });
+        if (!ok) return;
 
-            const b = document.getElementById('appModalBody');
-            const newP = {
-                id: 'SP' + Date.now().toString().slice(-8),
-                name: (b.querySelector('#pf_name') || {}).value || '未命名',
-                price: (b.querySelector('#pf_price') || {}).value ? `¥${Number((b.querySelector('#pf_price') || {}).value).toFixed(2)}` : '¥0.00',
-                unit: (b.querySelector('#pf_unit') || {}).value || '份',
-                spec: (b.querySelector('#pf_spec') || {}).value || '',
-                supplier: (b.querySelector('#pf_supplier') || {}).value || '',
-                description: (b.querySelector('#pf_desc') || {}).value || '',
-                stock: 0,
-                statusText: '已上架',
-                image: ''
-            };
-
-            // 添加新产品并重新渲染
-            products.unshift(newP);
-            applyProductFilter();
-            await showAppModal('已添加', '<p>产品已添加成功！</p>', { showCancel: false });
-        } else {
-            // 如果没有showAppModal函数，使用原生prompt简化实现（实际项目建议保留原有弹窗逻辑）
-            const productName = prompt('请输入产品名称：');
-            if (!productName) return;
-
-            const newP = {
-                id: 'SP' + Date.now().toString().slice(-8),
-                name: productName,
-                price: '¥0.00',
-                unit: '份',
-                spec: '',
-                supplier: '',
-                description: '',
-                stock: 0,
-                statusText: '已上架',
-                image: ''
-            };
-
-            products.unshift(newP);
-            applyProductFilter();
-            alert('产品已添加成功！');
+        const form = document.getElementById('addProductForm');
+        const formData = new FormData(form);
+        formData.append('action', 'add_product'); // 添加action标识
+        
+        // 使用AJAX提交到后端
+        try {
+            const response = await fetch('add_goods.php', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // 添加成功，重新加载页面或刷新数据
+                alert(result.message + ',SKU:' + result.sku);
+                location.reload(); // 简单刷新页面
+            } else {
+                alert('添加失败：' + result.error);
+            }
+        } catch (error) {
+            alert('网络错误，请重试');
         }
-    });
+    }
+});
 }
 
 // 绑定所有事件
@@ -514,9 +583,153 @@ function bindAllEvents() {
     // 编辑弹窗事件
     bindEditModalEvents();
 }
+// 全局变量
+let allSuppliers = [];
+let allCategories = [];
 
-// 初始渲染和事件绑定
-applyProductFilter();
-renderTransactions();
-bindAllEvents();
+// 初始化供应商数据（需要从PHP获取）
+// 初始化供应商数据
+function initSupplierData() {
+    // 使用专门的供应商数据而不是 partnersList
+    allSuppliers = suppliersData.map(supplier => ({
+        id: supplier.id,
+        name: supplier.name,
+        category: supplier.category || '' // 确保有这个字段
+    }));
+    
+    // 从PHP传入的数据中提取分类信息
+    allCategories = categoriesData.map(cat => ({
+        id: cat.category_id,
+        name: cat.category_name
+    }));
+    
+    console.log('初始化供应商数据:', allSuppliers); // 调试用
+    console.log('初始化分类数据:', allCategories); // 调试用
+}
+
+// 根据产品类型筛选供应商
+function filterSuppliersByCategory() {
+    const categoryId = document.getElementById('pf_category')?.value;
+    const categorySelect = document.getElementById('pf_category');
+    const supplierSelect = document.getElementById('pf_supplier');
+    
+    if (!categorySelect || !supplierSelect) return;
+    
+    if (!categoryId) {
+        // 如果没有选择产品类型，显示所有供应商
+        populateSupplierOptions(allSuppliers, supplierSelect);
+        return;
+    }
+    
+    // 获取选中的分类名称
+    const selectedCategory = allCategories.find(cat => cat.id == categoryId);
+    if (!selectedCategory) return;
+    
+    // 筛选能提供该类型的供应商
+    const filteredSuppliers = allSuppliers.filter(supplier => 
+        supplier.category === selectedCategory.name
+    );
+    
+    populateSupplierOptions(filteredSuppliers, supplierSelect);
+    
+    // 如果当前选择的供应商不符合条件，清空选择
+    const selectedSupplierId = supplierSelect.value;
+    const selectedSupplier = allSuppliers.find(s => s.id == selectedSupplierId);
+    if (selectedSupplier && selectedSupplier.category !== selectedCategory.name) {
+        supplierSelect.value = '';
+    }
+}
+
+// 根据供应商筛选产品类型
+function filterCategoriesBySupplier() {
+    const supplierId = document.getElementById('pf_supplier')?.value;
+    const categorySelect = document.getElementById('pf_category');
+    const supplierSelect = document.getElementById('pf_supplier');
+    
+    if (!categorySelect || !supplierSelect) return;
+    
+    if (!supplierId) {
+        // 如果没有选择供应商，显示所有类型
+        populateCategoryOptions(allCategories, categorySelect);
+        return;
+    }
+    
+    // 获取选中的供应商
+    const selectedSupplier = allSuppliers.find(s => s.id == supplierId);
+    if (!selectedSupplier) return;
+    
+    // 筛选该供应商能提供的产品类型
+    const filteredCategories = allCategories.filter(category => 
+        category.name === selectedSupplier.category
+    );
+    
+    populateCategoryOptions(filteredCategories, categorySelect);
+    
+    // 如果当前选择的产品类型不符合条件，清空选择
+    const selectedCategoryId = categorySelect.value;
+    const selectedCategory = allCategories.find(cat => cat.id == selectedCategoryId);
+    if (selectedCategoryId && selectedCategory.name !== selectedSupplier.category) {
+        categorySelect.value = '';
+    }
+}
+
+// 填充供应商下拉列表
+function populateSupplierOptions(suppliers, selectElement) {
+    const currentValue = selectElement.value;
+    const originalOptions = Array.from(selectElement.options);
+    const defaultOption = originalOptions[0]; // 保留第一个选项（空选项）
+    
+    selectElement.innerHTML = '';
+    selectElement.appendChild(defaultOption);
+    
+    suppliers.forEach(supplier => {
+        const option = document.createElement('option');
+        option.value = supplier.id;
+        option.textContent = supplier.name;
+        selectElement.appendChild(option);
+    });
+    
+    // 保持之前的选择（如果仍然在列表中）
+    if (currentValue) {
+        selectElement.value = currentValue;
+    }
+}
+
+// 填充分类下拉列表
+function populateCategoryOptions(categories, selectElement) {
+    const currentValue = selectElement.value;
+    const originalOptions = Array.from(selectElement.options);
+    const defaultOption = originalOptions[0]; // 保留第一个选项（空选项）
+    
+    selectElement.innerHTML = '';
+    selectElement.appendChild(defaultOption);
+    
+    categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.name;
+        selectElement.appendChild(option);
+    });
+    
+    // 保持之前的选择（如果仍然在列表中）
+    if (currentValue) {
+        selectElement.value = currentValue;
+    }
+}
+
+// 在页面加载完成后初始化
+// 在页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('页面加载完成，开始初始化数据'); // 调试
+    
+    // 初始化供应商数据
+    initSupplierData();
+    
+    // 初始渲染和事件绑定
+    applyProductFilter();
+    renderTransactions();
+    bindAllEvents();
+    
+    console.log('数据初始化完成'); // 调试
+});
 </script>

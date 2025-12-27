@@ -1,5 +1,17 @@
 <?php
 // 供应商端 - 供货商信息（含退出按钮版，带订单红点提示）
+session_start();
+require_once __DIR__ . '/inc/data.php';
+require_once __DIR__ . '/header.php'; 
+
+$supplierInfo = [];
+$pendingCount = 0;
+if (isset($_SESSION['supplier_username'])) {
+    $supplierInfo = getSupplierInfo($_SESSION['supplier_username']);
+    if ($supplierInfo && !empty($supplierInfo['supplier_ID'])) {
+        $pendingCount = getPendingOrderCount($supplierInfo['supplier_ID']);
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -19,11 +31,11 @@
             color: #333;
         }
         .header {
-            background-color: #fff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            position: sticky;
-            top: 0;
-            z-index: 999;
+           background-color: #fff;
+           box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+           position: sticky;  
+           top: 0;
+           z-index: 999;  
         }
         .nav-container {
             width: 90%;
@@ -174,112 +186,54 @@
     </style>
 </head>
 <body>
-    <?php include 'header.php'; ?>
-
-    <main class="main">
-        <section class="section">
-            <h2 class="section-title">供货商信息</h2>
-            
-            <div class="profile-card">
-                <div class="profile-group">
-                    <span class="profile-label">供应商编号</span>
-                    <div class="profile-value">SUPP20240015</div>
-                </div>
-                
-                <div class="profile-group">
-                    <span class="profile-label">供应商名称</span>
-                    <div class="profile-value">绿源农产品有限公司</div>
-                </div>
-                
-                <div class="profile-group">
-                    <span class="profile-label">联系人</span>
-                    <div class="profile-value">李明</div>
-                </div>
-                
-                <div class="profile-group">
-                    <span class="profile-label">联系电话</span>
-                    <div class="profile-value">13900139000</div>
-                </div>
-                
-                <div class="profile-group">
-                    <span class="profile-label">电子邮箱</span>
-                    <div class="profile-value">liming@lvyuan.com</div>
-                </div>
-                
-                <div class="profile-group">
-                    <span class="profile-label">地址</span>
-                    <div class="profile-value">陕西省西安市未央区农产品物流中心B区12号</div>
-                </div>
-                
-                <div class="profile-group">
-                    <span class="profile-label">营业执照编号</span>
-                    <div class="profile-value">91610112XXXXXXXXXX</div>
-                </div>
-                
-                <div class="profile-group">
-                    <span class="profile-label">合作开始日期</span>
-                    <div class="profile-value">2023-03-15</div>
-                </div>
-                
-                <div class="profile-group">
-                    <span class="profile-label">合作状态</span>
-                    <div class="profile-value" style="color: #43a047; font-weight: 500;">正常合作中</div>
-                </div>
-                
-                <div class="action-buttons">
-                    <button class="btn btn-primary">编辑信息</button>
-                    <button class="btn btn-danger" onclick="confirmLogout()">退出登录</button>
-                </div>
+    <div class="profile-container">
+        <h2 class="profile-title">供应商信息</h2>
+        <?php if (!empty($supplierInfo)): ?>
+            <div class="profile-item">
+                <span class="profile-label">用户名：</span>
+                <span><?php echo htmlspecialchars($supplierInfo['user_name']); ?></span>
             </div>
-        </section>
-    </main>
-
-    <footer class="footer">
-        <div class="footer-container">
-            <h3 class="logo" style="color: white; margin-bottom: 20px;">鲜选生鲜 - 供应商管理平台</h3>
-            <div style="display: flex; justify-content: center; gap: 30px; margin-bottom: 20px;">
-                <a href="#" style="color: #ccc; text-decoration: none;">供应商帮助中心</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">合作协议</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">结算规则</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">投诉反馈</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">联系平台</a>
+            <div class="profile-item">
+                <span class="profile-label">姓名：</span>
+                <span><?php echo htmlspecialchars($supplierInfo['first_name'] . ' ' . $supplierInfo['last_name']); ?></span>
             </div>
-            <div class="copyright">© 2024 鲜选生鲜 版权所有 | 平台客服电话：400-888-XXXX</div>
-        </div>
-    </footer>
-
-    <script>
-        // 计算并更新未处理订单数量（待确认状态）
-        function updateUnhandledOrderCount() {
-            // 实际应用中应通过AJAX从服务器获取数据
-            // 此处模拟数据，与订单页保持一致
-            const pendingCount = 2; // 待确认订单数量
-            const badge = document.getElementById('unhandledOrderBadge');
-            badge.textContent = pendingCount > 0 ? pendingCount : '';
-        }
-
-        // 退出登录确认
-        function confirmLogout() {
-            if (confirm('确定要退出登录吗？')) {
-                // 实际应用中这里会处理退出登录逻辑
-                alert('已退出登录');
-                window.location.href = 'login.html';
-            }
-        }
-
-        // 页面加载完成后初始化红点
-        document.addEventListener('DOMContentLoaded', function() {
-            updateUnhandledOrderCount();
-            
-            // 点击红点跳转到订单管理页并筛选待确认订单
-            const badge = document.getElementById('unhandledOrderBadge');
-            if (badge) {
-                badge.parentElement.addEventListener('click', function(e) {
-                    // 跳转到订单页并自动筛选待确认订单
-                    window.location.href = 'orders.php?status=pending';
-                });
-            }
-        });
-    </script>
+            <div class="profile-item">
+                <span class="profile-label">邮箱：</span>
+                <span><?php echo htmlspecialchars($supplierInfo['user_email']); ?></span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">电话：</span>
+                <span><?php echo htmlspecialchars($supplierInfo['user_telephone'] ?? '未设置'); ?></span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">供应商名称：</span>
+                <span><?php echo htmlspecialchars($supplierInfo['user_name'] ?? '未设置'); ?></span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">联系人：</span>
+                <span><?php echo htmlspecialchars($supplierInfo['contact_person'] ?? '未设置'); ?></span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">地址：</span>
+                <span><?php echo htmlspecialchars($supplierInfo['address'] ?? '未设置'); ?></span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">账号状态：</span>
+                <span><?php echo htmlspecialchars($supplierInfo['status'] ?? 'active'); ?></span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">注册时间：</span>
+                <span><?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($supplierInfo['created_at']))); ?></span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">最后登录：</span>
+                <span><?php echo $supplierInfo['last_login'] ? htmlspecialchars(date('Y-m-d H:i', strtotime($supplierInfo['last_login']))) : '从未登录'; ?></span>
+            </div>
+            <button class="logout-btn" onclick="location.href='profile.php?action=logout'">退出登录</button>
+        <?php else: ?>
+            <p>未获取到供应商信息，请先登录</p>
+            <button class="logout-btn" onclick="location.href='login.php'">前往登录</button>
+        <?php endif; ?>
+    </div>
 </body>
 </html>

@@ -1,5 +1,68 @@
 <?php
-// 供应商端 - 数据概览（带订单红点提示）
+session_start();
+// 引入数据库操作函数
+require_once __DIR__.'/inc/data.php';
+
+// 获取当前供应商ID
+$supplierId = getCurrentSupplierId();
+
+// 初始化数据变量
+$todayOrders = 0;
+$cooperativeStores = 0;
+$todaySales = 0;
+$orderStatus = [
+    'pending' => 0,
+    'accepted' => 0,
+    'shipped' => 0,
+    'completed' => 0
+];
+
+// 只有当供应商ID有效时才获取数据
+if ($supplierId > 0) {
+    // 获取数据库连接
+    $conn = getDBConnection();
+    
+    // 1. 获取今日订单数
+    $today = date('Y-m-d');
+    $stmt = $conn->prepare("SELECT COUNT(*) AS count FROM PurchaseOrder 
+                          WHERE supplier_ID = ? AND DATE(date) = ?");
+    $stmt->bind_param("is", $supplierId, $today);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $todayOrders = $row['count'] ?? 0;
+    $stmt->close();
+    
+    // 2. 获取合作门店数
+    $stmt = $conn->prepare("SELECT COUNT(DISTINCT branch_ID) AS count 
+                          FROM PurchaseOrder 
+                          WHERE supplier_ID = ?");
+    $stmt->bind_param("i", $supplierId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $cooperativeStores = $row['count'] ?? 0;
+    $stmt->close();
+    
+    // 3. 获取今日销售额
+    $stmt = $conn->prepare("SELECT SUM(total_amount) AS sum FROM PurchaseOrder 
+                          WHERE supplier_ID = ? AND DATE(date) = ?");
+    $stmt->bind_param("is", $supplierId, $today);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $todaySales = $row['sum'] ?? 0;
+    $stmt->close();
+    
+    // 4. 获取订单状态分布
+    $statusSummary = getOrderStatusSummary();
+    foreach ($orderStatus as $status => $value) {
+        $orderStatus[$status] = $statusSummary[$status] ?? 0;
+    }
+    
+    // 关闭数据库连接
+    $conn->close();
+}
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -231,7 +294,7 @@
                 </div>
                 <div class="card-content">
                     <h3>今日订单数</h3>
-                    <div class="number">28</div>
+                    <div class="number"><?php echo $todayOrders; ?></div>
                 </div>
             </div>
             <div class="card">
@@ -249,7 +312,7 @@
                 </div>
                 <div class="card-content">
                     <h3>今日销售额</h3>
-                    <div class="number">¥18,650</div>
+                    <div class="number"><?php echo '¥' . number_format($todaySales, 2); ?></div>
                 </div>
             </div>
             <div class="card">
@@ -258,7 +321,7 @@
                 </div>
                 <div class="card-content">
                     <h3>合作门店数</h3>
-                    <div class="number">12</div>
+                    <div class="number"><?php echo $cooperativeStores; ?></div>
                 </div>
             </div>
         </div>
@@ -277,28 +340,28 @@
                             <div class="status-dot dot-pending"></div>
                             <span>待确认</span>
                         </div>
-                        <div class="status-value">8</div>
+                        <div class="status-value"><?php echo $orderStatus['pending']; ?></div>
                     </div>
                     <div class="status-item">
                         <div class="status-label">
                             <div class="status-dot dot-accepted"></div>
                             <span>已确认</span>
                         </div>
-                        <div class="status-value">12</div>
+                        <div class="status-value"><?php echo $orderStatus['accepted']; ?></div>
                     </div>
                     <div class="status-item">
                         <div class="status-label">
                             <div class="status-dot dot-shipped"></div>
                             <span>已发货</span>
                         </div>
-                        <div class="status-value">25</div>
+                        <div class="status-value"><?php echo $orderStatus['shipped']; ?></div>
                     </div>
                     <div class="status-item">
                         <div class="status-label">
                             <div class="status-dot dot-completed"></div>
                             <span>已完成</span>
                         </div>
-                        <div class="status-value">47</div>
+                        <div class="status-value"><?php echo $orderStatus['completed']; ?></div>
                     </div>
                 </div>
             </div>
@@ -324,9 +387,11 @@
         function updateUnhandledOrderCount() {
             // 实际应用中应通过AJAX从服务器获取数据
             // 此处模拟数据，与订单页保持一致
-            const pendingCount = 1; // 待确认订单数量
+            const pendingCount = <?php echo $orderStatus['pending']; ?>; // 从PHP获取待确认订单数量
             const badge = document.getElementById('unhandledOrderBadge');
-            badge.textContent = pendingCount > 0 ? pendingCount : '';
+            if (badge) {
+                badge.textContent = pendingCount > 0 ? pendingCount : '';
+            }
         }
 
         // 页面加载完成后初始化红点

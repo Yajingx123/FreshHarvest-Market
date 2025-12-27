@@ -30,7 +30,11 @@ foreach ($randomProducts as $p) {
         $productsWithDetails[] = $product;
     }
 }
+
 ?>
+<script>
+    const productsWithDetails = <?php echo json_encode($productsWithDetails); ?>;
+</script>
 
 <style>
     /* 主容器布局优化 */
@@ -39,11 +43,32 @@ foreach ($randomProducts as $p) {
         grid-template-columns: 1fr;
         gap: 30px;
         margin-bottom: 40px;
+        align-items: start;
     }
 
     @media (min-width: 992px) {
         .dashboard-container {
-            grid-template-columns: 2fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr; /* 保持三列布局 */
+            grid-template-areas:
+                "main main delivery"
+                "main main recommendation";
+            /* 关键修改：缩小配送说明和推荐商品之间的间距 */
+            gap: 30px 30px;
+        }
+        .delivery-section {
+            grid-area: delivery;
+            /* 移除底部外边距，让推荐商品紧贴 */
+            margin-bottom: 0;
+        }
+        .main-content {
+            grid-area: main;
+        }
+        .recommendation-section {
+            grid-area: recommendation;
+            /* 移除顶部外边距，紧贴配送说明 */
+            margin-top: 0;
+            /* 移除底部外边距，保持统一 */
+            margin-bottom: 30px;
         }
     }
 
@@ -137,7 +162,7 @@ foreach ($randomProducts as $p) {
     }
 
     /* 侧边区域样式 */
-    .sidebar-section {
+    .sidebar-section, .delivery-section {
         background-color: #fff;
         border-radius: 10px;
         box-shadow: 0 2px 12px rgba(0,0,0,0.05);
@@ -189,29 +214,47 @@ foreach ($randomProducts as $p) {
         color: #2d884d;
     }
 
-    /* 推荐商品区域 */
+    /* 推荐商品区域 - 关键修改：移除滚动条，紧贴配送说明 */
+    .recommendation-section {
+        /* 移除最大高度限制，让内容自然展开 */
+        max-height: none;
+        /* 移除滚动相关样式 */
+        overflow-y: visible;
+        /* 确保没有滚动条 */
+        overflow: visible;
+    }
+    
+    /* 完全移除滚动条相关样式 */
+    .recommendation-section::-webkit-scrollbar {
+        display: none;
+    }
+
     .recommendation-list {
         display: grid;
         grid-template-columns: 1fr;
         gap: 15px;
     }
 
+    /* 推荐商品项 - 优化样式 */
     .recommendation-item {
         display: flex;
         align-items: center;
         gap: 15px;
-        padding: 10px;
+        padding: 15px;
         border-radius: 8px;
-        transition: background-color 0.2s ease;
+        transition: all 0.2s ease;
+        border: 1px solid #f0f7f2;
+        cursor: pointer;
     }
 
     .recommendation-item:hover {
         background-color: #f9fcfb;
+        border-color: #e6f7ef;
     }
 
     .product-img {
-        width: 60px;
-        height: 60px;
+        width: 70px;
+        height: 70px;
         border-radius: 6px;
         object-fit: cover;
         background-color: #f0f7f2;
@@ -219,15 +262,21 @@ foreach ($randomProducts as $p) {
         align-items: center;
         justify-content: center;
         color: #2d884d;
+        font-size: 24px;
+        flex-shrink: 0;
     }
 
     .product-info {
         flex: 1;
+        min-width: 0;
     }
 
     .product-name {
         font-weight: 500;
         margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .product-price {
@@ -235,19 +284,152 @@ foreach ($randomProducts as $p) {
         font-weight: 600;
     }
 
-    .add-btn {
+    .quick-add-btn {
         background-color: #2d884d;
         color: white;
         border: none;
         border-radius: 4px;
-        padding: 5px 10px;
+        padding: 6px 12px;
         font-size: 14px;
         cursor: pointer;
         transition: background-color 0.2s ease;
+        flex-shrink: 0;
     }
 
-    .add-btn:hover {
+    .quick-add-btn:hover {
         background-color: #236b3d;
+    }
+
+    /* 商品详情展开区域 - 优化排版 */
+    .product-details {
+        grid-column: 1 / -1;
+        padding: 20px;
+        border-radius: 8px;
+        background-color: #f9fcfb;
+        border: 1px solid #e6f7ef;
+        display: none;
+        animation: fadeIn 0.3s ease;
+        margin-bottom: 10px;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .product-details.active {
+        display: block;
+    }
+    
+    .product-details-header {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #e6f7ef;
+    }
+    
+    .product-details h4 {
+        margin: 0 0 5px 0;
+        font-size: 18px;
+        color: #333;
+    }
+    
+    .product-details-content {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .product-info-group {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .product-info-item {
+        margin: 0;
+        font-size: 14px;
+        color: #666;
+    }
+    
+    .product-info-item strong {
+        color: #333;
+    }
+    
+    .product-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-top: 10px;
+    }
+
+    .quantity-control {
+        display: flex;
+        align-items: center;
+        margin: 5px 0;
+    }
+
+    .quantity-btn {
+        width: 30px;
+        height: 30px;
+        border: 1px solid #2d884d;
+        background-color: white;
+        color: #2d884d;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+
+    .quantity-btn:hover {
+        background-color: #f0f7f2;
+    }
+
+    .add-to-cart-btn {
+        background-color: #2d884d;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 10px 15px;
+        font-size: 15px;
+        cursor: pointer;
+        margin-top: 5px;
+        transition: all 0.2s ease;
+    }
+
+    .add-to-cart-btn:hover {
+        background-color: #236b3d;
+        transform: translateY(-2px);
+    }
+    
+    .branch-select-container {
+        margin: 10px 0;
+    }
+    
+    .branch-select-container label {
+        display: block;
+        margin-bottom: 5px;
+        font-size: 14px;
+        color: #666;
+    }
+    
+    .branch-select-container select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    /* 加入成功提示样式 */
+    .success-message {
+        text-align: center;
+        padding: 30px 20px;
+        font-size: 18px;
+        color: #2d884d;
+        display: none;
+    }
+
+    .success-message i {
+        font-size: 48px;
+        margin-bottom: 15px;
+        display: block;
     }
 
     /* 页脚区域 */
@@ -312,160 +494,186 @@ foreach ($randomProducts as $p) {
         </section>
     </div>
 
-    <div class="sidebar-section">
-    <h3 class="section-title">推荐商品</h3>
-    <div class="recommendation-list">
-        <?php foreach ($productsWithDetails as $product): ?>
-        <!-- 商品项添加data-id，用于弹窗交互 -->
-        <div class="recommendation-item" data-id="<?php echo $product['id']; ?>">
-            <div class="product-img">📦</div>
-            <div class="product-info">
-                <div class="product-name"><?php echo htmlspecialchars($product['name']); ?></div>
-                <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
+    <!-- 配送说明模块 - 移至右侧，位于推荐商品上方 -->
+    <div class="delivery-section">
+        <h2 class="section-title">🚚 配送说明</h2>
+        <p style="line-height: 1.6; color: #666; font-size: 14px; margin-top: 10px;">
+            今日订单截止时间:18:00<br>
+            次日达区域：市区及近郊<br>
+            满59元免配送费<br>
+            客服热线:400-123-4567
+        </p>
+    </div>
+
+    <!-- 推荐商品模块 -->
+    <div class="recommendation-section sidebar-section">
+        <h3 class="section-title">推荐商品</h3>
+        <div class="recommendation-list">
+            <?php foreach ($productsWithDetails as $index => $product): ?>
+            <!-- 商品项 -->
+            <div class="recommendation-item" data-id="<?php echo $product['id']; ?>">
+                <div class="product-img">📦</div>
+                <div class="product-info">
+                    <div class="product-name"><?php echo htmlspecialchars($product['name']); ?></div>
+                    <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
+                </div>
+                <button class="quick-add-btn" data-id="<?php echo $product['id']; ?>" data-index="<?php echo $index; ?>">显示详情</button>
             </div>
-            <button class="quick-add-btn" data-id="<?php echo $product['id']; ?>">快速加入</button>
+            
+            <!-- 商品详情展开区域 - 优化排版 -->
+            <div class="product-details" id="details-<?php echo $index; ?>">
+                <!-- 商品详情内容 -->
+                <div class="product-details-content-wrapper">
+                    <div class="product-details-header">
+                        <h4><?php echo htmlspecialchars($product['name']); ?></h4>
+                        <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
+                    </div>
+                    
+                    <div class="product-details-content">
+                        <div class="product-info-group">
+                            <p class="product-info-item"><strong>分类:</strong> <?php echo htmlspecialchars($product['category'] ?? '未分类'); ?></p>
+                            <p class="product-info-item"><strong>库存状态:</strong> <?php echo htmlspecialchars($product['stock_status'] ?? '正常'); ?></p>
+                            <p class="product-info-item"><strong>可购数量:</strong> <?php echo $product['stock']; ?></p>
+                        </div>
+                        
+                        <div class="branch-select-container">
+                            <label for="branchSelect-<?php echo $index; ?>">选择门店</label>
+                            <select id="branchSelect-<?php echo $index; ?>" style="width: 100%;">
+                                <?php if ($product['branches'] && count($product['branches']) > 0): ?>
+                                    <?php foreach ($product['branches'] as $branch): ?>
+                                        <option value="<?php echo $branch['id']; ?>"><?php echo $branch['name']; ?></option>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <option value="1">默认门店</option>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="product-actions">
+                            <div class="quantity-control">
+                                <button class="quantity-btn" onclick="changeQty(-1, <?php echo $product['stock']; ?>, <?php echo $index; ?>)">-</button>
+                                <input type="number" id="buyQty-<?php echo $index; ?>" value="1" min="1" max="<?php echo $product['stock']; ?>" style="width: 50px; text-align: center;">
+                                <button class="quantity-btn" onclick="changeQty(1, <?php echo $product['stock']; ?>, <?php echo $index; ?>)">+</button>
+                            </div>
+                            
+                            <button class="add-to-cart-btn" 
+                               onclick="addToCart(<?php echo $product['id']; ?>, document.getElementById('buyQty-<?php echo $index; ?>').value, document.getElementById('branchSelect-<?php echo $index; ?>').value, <?php echo $index; ?>)">
+                                加入购物车
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 加入成功提示（默认隐藏） -->
+                <div class="success-message">
+                    <i>✓</i>
+                    <div>加入成功！</div>
+                </div>
+            </div>
+            <?php endforeach; ?>
         </div>
-        <?php endforeach; ?>
     </div>
-<!-- 正确结构 -->
-<div class="modal-overlay" id="productModal">
-  <div class="product-modal">
-    <span class="close-modal" id="closeModal">×</span>
-    <div class="modal-content">
-      <div class="modal-img" id="modalImg">📦</div>
-      <div class="modal-details" id="modalDetails">
-        <!-- 弹窗内容将通过JS动态填充 -->
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- 引入商品数据到JS -->
-<script>
-  const productDetails = <?php echo json_encode($productsWithDetails); ?>;
-</script>
-
-<section class="sidebar-section">
-  <h2 class="section-title">🚚 配送说明</h2>
-  <p style="line-height: 1.6; color: #666; font-size: 14px; margin-top: 10px;">
-    今日订单截止时间:18:00<br>
-    次日达区域：市区及近郊<br>
-    满59元免配送费<br>
-    客服热线:400-123-4567
-  </p>
-</section>
 </div> 
 
 <script>
-const modalOverlay = document.getElementById('productModal');
-const modalDetails = document.getElementById('modalDetails');
-const closeModal = document.getElementById('closeModal');
-
-    // 点击商品项显示详情弹窗
-    document.querySelectorAll('.recommendation-item').forEach(item => {
-        item.addEventListener('click', function(e) {
-            // 忽略快速加入按钮的点击（避免触发弹窗）
-            if (e.target.classList.contains('quick-add')) return;
-            
-            const productId = this.getAttribute('data-id');
-            const product = productDetails.find(p => p.id == productId);
-            if (!product) return;
-
-            // 填充弹窗内容
-            const storeId = product.store_id || 1;
-            let branchSelect = '<select id="branchSelect" style="margin: 10px 0; padding: 5px; width: 200px;">';
-            if (product.branches && product.branches.length > 0) {
-                product.branches.forEach(branch => {
-                    branchSelect += `<option value="${branch.id}">${branch.name}</option>`;
-                });
-            } else {
-                branchSelect += '<option value="1">默认门店</option>';
-            }
-            branchSelect += '</select>';
-
-            modalDetails.innerHTML = `
-                <h2>${htmlEscape(product.name)}</h2>
-                <p><strong>价格:</strong> ¥${parseFloat(product.price).toFixed(2)}</p>
-                <p><strong>分类:</strong> ${htmlEscape(product.category)}</p>
-                <p><strong>库存状态:</strong> ${htmlEscape(product.stock_status)}</p>
-                <p><strong>可购数量:</strong> ${product.stock}</p>
-                ${branchSelect}
-                <div class="quantity-control">
-                    <button class="quantity-btn" onclick="changeQty(-1, ${product.stock})">-</button>
-                    <input type="number" id="buyQty" value="1" min="1" max="${product.stock}" style="width: 50px; text-align: center;">
-                    <button class="quantity-btn" onclick="changeQty(1, ${product.stock})">+</button>
-                </div>
-                <button class="add-to-cart-btn" 
-                   onclick="addToCart(${product.id}, document.getElementById('buyQty').value, ${storeId})">加入购物车
-                </button>
-            `;
-            modalOverlay.classList.add('active');
-            document.body.style.overflow = 'hidden';
-        });
-    });
-    document.addEventListener('DOMContentLoaded', function() {
-      document.querySelectorAll('.quick-add-btn').forEach(button => {
-       button.addEventListener('click', function(e) {
-          e.stopPropagation();
-          const productId = this.getAttribute('data-id');
+// 商品详情展开/收起功能
+document.querySelectorAll('.quick-add-btn').forEach(button => {
+    button.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const index = this.getAttribute('data-index');
+        const detailsElement = document.getElementById(`details-${index}`);
+        const isActive = detailsElement.classList.contains('active');
         
-          // 从商品详情数据中找到对应产品的门店ID
-          const product = productsWithDetails.find(p => p.id == productId);
-          if (!product) {
-              alert('未找到商品信息');
-              return;
-          }
-          // 优先使用商品关联的门店ID，没有则使用第一个可用门店
-          let storeId = product.store_id;
-          if (!storeId && product.branches && product.branches.length > 0) {
-              storeId = product.branches[0].id; // 从分店列表取第一个
-          }
-           if (!storeId) {
-              alert('未找到可用门店');
-              return;
-           }
-           // 使用实际获取的门店ID加入购物车
-           addToCart(productId, 1, storeId);
+        // 关闭所有已展开的详情
+        document.querySelectorAll('.product-details').forEach(el => {
+            el.classList.remove('active');
+            // 重置所有详情显示内容
+            const contentWrapper = el.querySelector('.product-details-content-wrapper');
+            const successMsg = el.querySelector('.success-message');
+            if (contentWrapper && successMsg) {
+                contentWrapper.style.display = 'block';
+                successMsg.style.display = 'none';
+            }
         });
-      });
+        
+        // 如果当前是关闭状态，则展开
+        if (!isActive) {
+            detailsElement.classList.add('active');
+            // 滚动到当前详情区域
+            detailsElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     });
-    closeModal.addEventListener('click', () => {
-        modalOverlay.classList.remove('active');
-        document.body.style.overflow = '';
-    });
-    // 加入购物车函数（复用products.php的逻辑）
-    function addToCart(productId, quantity, storeId) {
-      const formData = new FormData();
-        formData.append('action', 'add_to_cart');
-        formData.append('product_id', productId);
-        formData.append('quantity', quantity);
-        formData.append('branch_id', storeId); // 传递门店ID到后端
+});
 
-       fetch('cart_handler.php', {
-         method: 'POST',
-         body: formData,
-         credentials: 'include'
-       })
-       .then(response => response.json())
-       .then(data => {
+// 点击商品项也可以展开详情
+document.querySelectorAll('.recommendation-item').forEach(item => {
+    item.addEventListener('click', function() {
+        const btn = this.querySelector('.quick-add-btn');
+        if (btn) {
+            btn.click();
+        }
+    });
+});
+
+// 数量调整函数
+function changeQty(change, maxStock, index) {
+    const qtyInput = document.getElementById(`buyQty-${index}`);
+    let currentQty = parseInt(qtyInput.value);
+    let newQty = currentQty + change;
+    
+    // 确保数量在有效范围内
+    if (newQty < 1) newQty = 1;
+    if (newQty > maxStock) newQty = maxStock;
+    
+    qtyInput.value = newQty;
+}
+
+// 加入购物车函数
+function addToCart(productId, quantity, storeId, index) {
+    const formData = new FormData();
+    formData.append('action', 'add_to_cart');
+    formData.append('product_id', productId);
+    formData.append('quantity', quantity);
+    formData.append('branch_id', storeId); // 传递门店ID到后端
+
+    fetch('cart_handler.php', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+    })
+    .then(response => response.json())
+    .then(data => {
         if (data.success) {
-            alert(data.message);
-            closeModalFunc();
+            const detailsElement = document.getElementById(`details-${index}`);
+            const contentWrapper = detailsElement.querySelector('.product-details-content-wrapper');
+            const successMsg = detailsElement.querySelector('.success-message');
+            
+            // 隐藏详情内容，显示成功提示
+            contentWrapper.style.display = 'none';
+            successMsg.style.display = 'block';
+            
+            // 1秒后自动收起详情
+            setTimeout(() => {
+                detailsElement.classList.remove('active');
+                // 恢复内容显示，为下次打开做准备
+                contentWrapper.style.display = 'block';
+                successMsg.style.display = 'none';
+            }, 1000);
         } else {
             alert('加入购物车失败：' + data.message);
         }
-       })
-       .catch(error => {
+    })
+    .catch(error => {
         console.error('请求错误：', error);
-        alert('加入购物车时发生网络错误11');
-       });
-    }
+        alert('加入购物车时发生网络错误');
+    });
+}
 
-    // XSS防护辅助函数
-    function htmlEscape(str) {
-        if (!str) return '';
-        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+// XSS防护辅助函数
+function htmlEscape(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 </script>
 
 <div class="dashboard-footer">

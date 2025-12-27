@@ -1,13 +1,15 @@
 <?php
 header("Content-Type: text/html; charset=UTF-8");
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once __DIR__ . '/../config/db_connect.php';
+session_start();
 if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
 }
+
+$servername = "localhost";
+$username = "root";
+$password = "8049023544Aaa?";
+$dbname = "mydb";
 
 $ordersData = [];
 $error_message = '';
@@ -34,10 +36,14 @@ function buildProductBadge($productId, $productName)
     return 'data:image/svg+xml;charset=UTF-8,' . rawurlencode($svg);
 }
 
-$conn = getDBConnection();
-if ($branchId === null) {
+$conn = new mysqli($servername, $username, $password, $dbname);
+if ($conn->connect_error) {
+    $error_message = "数据库连接失败：" . $conn->connect_error;
+} elseif ($branchId === null) {
     $error_message = "无法确定当前门店，请重新登录。";
 } else {
+    $conn->set_charset("utf8mb4");
+
     $sql_orders = "SELECT co.order_ID, co.order_date, co.total_amount, co.status, co.shipping_address,
                           c.customer_ID, c.phone AS customer_phone, c.email AS customer_email, c.loyalty_level,
                           u.first_name, u.last_name

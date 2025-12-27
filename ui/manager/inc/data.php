@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . '/db_connect.php';
-require_once __DIR__ . '/header.php';
 // 获取产品数据（使用v_products_list视图）
 function getProductsViewData() {
     global $conn;
@@ -12,10 +11,14 @@ function getProductsViewData() {
         if ($result && $result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
                 // 翻译状态并处理库存预警
-                $statusText = ($row['status'] == 'active') ? '已上架' : '已下架';
-                $stock = $row['stock'] ?: 0;
-                if ($stock < 10 && $row['status'] == 'active') {
+                $statusText = '';
+                $stock = $row['stock'];
+                if ($stock <= 0) {
+                    $statusText = '已下架';
+                } elseif ($stock < 10) { 
                     $statusText = '库存预警';
+                } else {
+                    $statusText = '已上架';
                 }
                 
                 $products[] = [
@@ -211,8 +214,6 @@ function saveEmployee($data) {
             $stmt->execute();
             $userId = $conn->insert_id;
             
-            // 2. 在 Staff 表中创建员工记录
-// 新增员工时（$data['is_new'] 为 true）
            $branchId = str_replace('BR-', '', $data['branch_id']);
            $statusRaw = '';
            switch ($data['status']) {
@@ -221,17 +222,20 @@ function saveEmployee($data) {
               case '离职': $statusRaw = 'terminated'; break;
               default: $statusRaw = 'active';
             }
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data['start_date'])) {
-                throw new Exception("无效的日期格式,请使用YYYY-MM-DD");
+            $hireDate = $data['start_date'];  // 直接使用输入的日期
+
+           if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hireDate)) {
+               throw new Exception("无效的日期格式,请使用YYYY-MM-DD");
             }
-            $dateParts = explode('-', $data['start_date']);
+
+            $dateParts = explode('-', $hireDate);
             $year = intval($dateParts[0]);
             $month = intval($dateParts[1]);
             $day = intval($dateParts[2]);
-            if (!checkdate($month, $day, $year)) {
+
+           if (!checkdate($month, $day, $year)) {
                throw new Exception("日期不存在，请检查年、月、日是否有效");
             }
-            $hireDate = $data['start_date'];
 
             $staffSql = "INSERT INTO Staff (branch_ID, user_name, position, phone, salary, hire_date, status) 
                VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -282,11 +286,23 @@ function saveEmployee($data) {
                         SET branch_ID = ?, position = ?, phone = ?, salary = ?, hire_date = ?, status = ?
                         WHERE staff_ID = ?";
             $staffStmt = $conn->prepare($staffSql);
-            $hireDate = date('Y-m-d', strtotime($data['start_date']));
-            if ($hireDate === '1970-01-01') {
+
+            $hireDate = $data['start_date'];  // 直接使用输入的日期
+
+           if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hireDate)) {
                throw new Exception("无效的日期格式,请使用YYYY-MM-DD");
             }
-            $staffStmt->bind_param("isssdsi", 
+
+            $dateParts = explode('-', $hireDate);
+            $year = intval($dateParts[0]);
+            $month = intval($dateParts[1]);
+            $day = intval($dateParts[2]);
+
+           if (!checkdate($month, $day, $year)) {
+               throw new Exception("日期不存在，请检查年、月、日是否有效");
+            }
+            
+            $staffStmt->bind_param("isssssi", 
                 $branchId,
                 $data['role'],
                 $data['phone'],
@@ -545,26 +561,58 @@ function getPartnersData() {
                 ];
             }
         }
-        
-        // 门店
-        $sqlBranches = "SELECT branch_ID as id, branch_name as name FROM Branch WHERE status = 'active'";
-        $result = $conn->query($sqlBranches);
-        
-        if ($result && $result->num_rows > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $partners[] = [
-                    'id' => 'BR-' . $row['id'],
-                    'name' => $row['name'],
-                    'type' => 'branch',
-                ];
-            }
-        }
     } catch (Exception $e) {
         error_log("获取合作伙伴数据失败: " . $e->getMessage());
     }
     
     return $partners;
 }
+// 获取供应商数据
+function getSuppliersFromDB() {
+    global $conn;
+    $suppliers = [];
+    
+    try {
+        $sql = "SELECT 
+                    s.supplier_ID as id,
+                    s.company_name as name,
+                    s.supplier_category as category,
+                    s.contact_person,
+                    s.phone,
+                    s.email,
+                    s.address,
+                    s.tax_number,
+                    s.status,
+                    DATE(s.created_at) as created_at
+                FROM Supplier s
+                ORDER BY s.created_at DESC, s.supplier_ID DESC";
+        
+        $result = $conn->query($sql);
+        
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $suppliers[] = [
+                    'id' => $row['id'] ?? 0,
+                    'name' => $row['name'] ?? '',
+                    'category' => $row['category'] ?? '',
+                    'contact_person' => $row['contact_person'] ?? '',
+                    'phone' => $row['phone'] ?? '',
+                    'email' => $row['email'] ?? '',
+                    'address' => $row['address'] ?? '',
+                    'tax_number' => $row['tax_number'] ?? '',
+                    'status' => $row['status'] ?? 'active',
+                    'created_at' => $row['created_at'] ?? '',
+                    'updated_at' => $row['updated_at'] ?? $row['created_at']
+                ];
+            }
+        }
+    } catch (Exception $e) {
+        error_log("获取供应商数据失败: " . $e->getMessage());
+    }
+    
+    return $suppliers;
+}
+
 // 新增门店
 function addBranch($data) {
     global $conn;
@@ -676,6 +724,7 @@ function getBranchOrdersWithDetails($branchId) {
                 -- 从User表拼接客户姓名（first_name + last_name）
                 CONCAT(u.first_name, ' ', u.last_name) AS customer_name,
                 co.order_date,
+                co.final_amount,
                 co.total_amount,
                 co.status AS order_status,  -- 订单状态（CustomerOrder表的status字段）
                 co.branch_ID
@@ -756,9 +805,10 @@ function getAvailableStaff($branchId) {
     global $conn;
     $staff = [];
     $sql = "SELECT s.staff_ID, CONCAT(u.first_name, ' ', u.last_name) AS name, s.position
-            FROM Staff s
-            JOIN User u ON s.user_name = u.user_name
-            WHERE s.branch_ID != ? OR s.branch_ID IS NULL";
+        FROM Staff s
+        JOIN User u ON s.user_name = u.user_name
+        WHERE (s.branch_ID != ? OR s.branch_ID IS NULL)
+        AND s.status != 'terminated'"; 
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("i", $branchId);
     $stmt->execute();
@@ -843,6 +893,328 @@ function getAlertSummary() {
         error_log("获取预警统计失败: " . $e->getMessage());
         return [];
     }
+}
+
+/**
+ * 获取分店销售数据（支持时间筛选和排序）
+ * @param string $timeFilter 时间筛选类型：year、month、day
+ * @param string $timeValue 时间值：2024、2024-01、2024-01-08
+ * @param string $branchFilter 分店筛选（空表示所有分店）
+ * @param string $sortField 排序字段：total_sales、order_count、branch_name
+ * @param string $sortOrder 排序顺序：asc、desc
+ * @return array 分店销售数据
+ */
+function getBranchSalesData($timeFilter = '', $timeValue = '', $branchFilter = '', $sortField = 'total_sales', $sortOrder = 'desc') {
+    global $conn;
+    $salesData = [];
+    
+    try {
+        // 基础查询
+        $sql = "
+            SELECT 
+                b.branch_ID,
+                b.branch_name,
+                COALESCE(SUM(co.final_amount), 0) AS total_sales,
+                COUNT(DISTINCT co.order_ID) AS order_count,
+                COALESCE(AVG(co.final_amount), 0) AS avg_order_value,
+                COUNT(DISTINCT co.customer_ID) AS unique_customers
+            FROM Branch b
+            LEFT JOIN CustomerOrder co ON b.branch_ID = co.branch_ID
+            WHERE co.status = 'Completed'
+        ";
+        
+        $params = [];
+        $types = "";
+        
+        // 时间筛选
+        if (!empty($timeFilter) && !empty($timeValue)) {
+            switch ($timeFilter) {
+                case 'year':
+                    $sql .= " AND YEAR(co.order_date) = ?";
+                    $params[] = $timeValue;
+                    $types .= "s";
+                    break;
+                case 'month':
+                    $sql .= " AND DATE_FORMAT(co.order_date, '%Y-%m') = ?";
+                    $params[] = $timeValue;
+                    $types .= "s";
+                    break;
+                case 'day':
+                    $sql .= " AND DATE(co.order_date) = ?";
+                    $params[] = $timeValue;
+                    $types .= "s";
+                    break;
+            }
+        }
+        
+        // 分店筛选
+        if (!empty($branchFilter)) {
+            $sql .= " AND b.branch_name LIKE ?";
+            $params[] = "%" . $branchFilter . "%";
+            $types .= "s";
+        }
+        
+        // 分组
+        $sql .= " GROUP BY b.branch_ID, b.branch_name";
+        
+        // 排序
+        $validSortFields = ['total_sales', 'order_count', 'avg_order_value', 'unique_customers', 'branch_name'];
+        $validSortOrder = ['asc', 'desc'];
+        
+        if (in_array($sortField, $validSortFields) && in_array($sortOrder, $validSortOrder)) {
+            $sql .= " ORDER BY " . $sortField . " " . $sortOrder;
+        } else {
+            $sql .= " ORDER BY total_sales DESC";
+        }
+        
+        // 准备查询
+        if (!empty($params)) {
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $result = $stmt->get_result();
+        } else {
+            $result = $conn->query($sql);
+        }
+        
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $salesData[] = [
+                    'branch_id' => $row['branch_ID'],
+                    'branch_name' => $row['branch_name'],
+                    'total_sales' => floatval($row['total_sales']),
+                    'order_count' => intval($row['order_count']),
+                    'avg_order_value' => floatval($row['avg_order_value']),
+                    'unique_customers' => intval($row['unique_customers']),
+                    'formatted_sales' => '¥' . number_format($row['total_sales'], 2),
+                    'formatted_avg' => '¥' . number_format($row['avg_order_value'], 2)
+                ];
+            }
+        }
+        
+    } catch (Exception $e) {
+        error_log("获取分店销售数据失败: " . $e->getMessage());
+    }
+    
+    return $salesData;
+}
+
+/**
+ * 获取所有分店名称列表（用于筛选）
+ */
+function getAllBranchNames() {
+    global $conn;
+    $branches = [];
+    
+    try {
+        $sql = "SELECT branch_ID, branch_name FROM Branch WHERE status = 'active' ORDER BY branch_name";
+        $result = $conn->query($sql);
+        
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $branches[] = [
+                    'id' => $row['branch_ID'],
+                    'name' => $row['branch_name']
+                ];
+            }
+        }
+    } catch (Exception $e) {
+        error_log("获取分店列表失败: " . $e->getMessage());
+    }
+    
+    return $branches;
+}
+
+/**
+ * 获取最近几年的年份列表（用于时间筛选）
+ */
+function getRecentYears($limit = 5) {
+    global $conn;
+    $years = [];
+    
+    try {
+        $sql = "SELECT DISTINCT YEAR(order_date) as year 
+                FROM CustomerOrder 
+                WHERE order_date IS NOT NULL 
+                ORDER BY year DESC 
+                LIMIT ?";
+        
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        while ($row = $result->fetch_assoc()) {
+            $years[] = $row['year'];
+        }
+    } catch (Exception $e) {
+        error_log("获取年份列表失败: " . $e->getMessage());
+        // 提供默认年份
+        $currentYear = date('Y');
+        for ($i = 0; $i < $limit; $i++) {
+            $years[] = $currentYear - $i;
+        }
+    }
+    
+    return $years;
+}
+
+function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $category_id) {
+    global $conn;
+    
+    try {
+        // 1. 生成SKU（产品编号）
+        $sku = generateProductSKU($category_id, $name);
+        // 2. 开始事务
+        $conn->begin_transaction();
+        
+        // 3. 插入产品到products表
+        $sql = "INSERT INTO products (sku, product_name, unit_price, unit, description, category_id, status) 
+                VALUES (?, ?, ?, ?, ?, ?, 'active')";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ssdssi", $sku, $name, $price, $unit, $description, $category_id);
+        $stmt->execute();
+        
+        $product_id = $conn->insert_id; // 获取刚插入的产品ID
+        
+        // 4. 如果有规格信息，插入到ProductAttribute表
+        if (!empty($spec)) {
+            $attrSql = "INSERT INTO ProductAttribute (product_id, attr_name, attr_value) 
+                        VALUES (?, 'spec', ?)";
+            $attrStmt = $conn->prepare($attrSql);
+            $attrStmt->bind_param("is", $product_id, $spec);
+            $attrStmt->execute();
+            $attrStmt->close();
+        }
+        
+        // 5. 如果有供应商信息（关联供应商）
+        if (!empty($supplier)) {
+            // 这里可以根据需要将供应商关联到产品
+            // 可能需要创建产品-供应商关联表，或者记录在notes中
+        }
+        
+        // 6. 提交事务
+        $conn->commit();
+        $stmt->close();
+        
+        return [
+            'success' => true,
+            'product_id' => $product_id,
+            'sku' => $sku,
+            'message' => '产品添加成功'
+        ];
+        
+    } catch (Exception $e) {
+        $conn->rollback();
+        return [
+            'success' => false,
+            'error' => '添加产品失败: ' . $e->getMessage()
+        ];
+    }
+}
+
+// 生成SKU的函数
+function generateProductSKU($category_id, $product_name = '') {
+    global $conn;
+    
+    // 根据分类生成前缀
+    $prefixes = [
+        2 => 'FRU', // 果蔬 Fruit & Vegetable
+        3 => 'MEAT', // 肉禽蛋 Meat & Egg
+        4 => 'SEA'  // 水产 Aquatic
+    ];
+    
+    $prefix = $prefixes[$category_id] ?? 'PD';
+    
+    // 生成产品名字的缩写（取前2-3个大写字母）
+    $name_abbr = '';
+    if (!empty($product_name)) {
+        // 1. 移除空格和特殊字符
+        $clean_name = preg_replace('/[^a-zA-Z0-9]/', '', $product_name);
+        
+        // 2. 提取大写字母
+        $uppercase_chars = '';
+        for ($i = 0; $i < strlen($clean_name); $i++) {
+            if (ctype_upper($clean_name[$i])) {
+                $uppercase_chars .= $clean_name[$i];
+            }
+        }
+        
+        // 3. 如果有大写字母，取前3个
+        if (!empty($uppercase_chars)) {
+            $name_abbr = substr($uppercase_chars, 0, 3);
+        } else {
+            // 4. 如果没有大写字母，取前3个字符转大写
+            $name_abbr = strtoupper(substr($clean_name, 0, 3));
+        }
+        
+        // 5. 确保至少2个字符
+        if (strlen($name_abbr) < 2) {
+            $name_abbr = strtoupper(substr($clean_name, 0, 3));
+        }
+    } else {
+        $name_abbr = 'GEN'; // 通用缩写
+    }
+    
+    // 查询该分类下已有产品数量
+    $countSql = "SELECT COUNT(*) as count FROM products WHERE category_id = ?";
+    $countStmt = $conn->prepare($countSql);
+    $countStmt->bind_param("i", $category_id);
+    $countStmt->execute();
+    $result = $countStmt->get_result();
+    $data = $result->fetch_assoc();
+    $countStmt->close();
+    
+    $count = $data['count'] + 1;
+    
+    // 生成SKU：前缀-分类ID-产品缩写-序号（4位数字）
+    $sku = $prefix . '-' . 
+           str_pad($category_id, 2, '0', STR_PAD_LEFT) . '-' .
+           $name_abbr . '-' .
+           str_pad($count, 4, '0', STR_PAD_LEFT);
+    
+    // 确保SKU唯一
+    $checkSql = "SELECT product_ID FROM products WHERE sku = ?";
+    $checkStmt = $conn->prepare($checkSql);
+    $checkStmt->bind_param("s", $sku);
+    $checkStmt->execute();
+    $checkResult = $checkStmt->get_result();
+    
+    if ($checkResult->num_rows > 0) {
+        // 如果重复，添加时间戳后缀
+        $sku = $prefix . '-' . 
+               str_pad($category_id, 2, '0', STR_PAD_LEFT) . '-' .
+               $name_abbr . '-' .
+               str_pad($count, 4, '0', STR_PAD_LEFT) . '-' .
+               date('mdHi');
+    }
+    
+    $checkStmt->close();
+    return $sku;
+}
+
+
+function getProductCategories() {
+    global $conn;
+    $categories = [];
+    
+    try {
+        // 只获取果蔬、肉禽蛋、水产这几个父类
+        $sql = "SELECT category_id, category_name FROM Categories 
+                WHERE category_id IN (2, 3, 4) 
+                ORDER BY category_id";
+        $result = $conn->query($sql);
+        
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $categories[] = $row;
+            }
+        }
+    } catch (Exception $e) {
+        error_log("获取分类失败: " . $e->getMessage());
+    }
+    
+    return $categories;
 }
 
 // 初始化数据

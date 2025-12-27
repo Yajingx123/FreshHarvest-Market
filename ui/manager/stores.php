@@ -200,8 +200,10 @@ function viewBranchStaff(branchId) {
     const branch = branchesData.find(b => b.id == branchId);
     if (!branch) return;
     
-    // 筛选该门店的员工
-    const branchEmployees = employeesData.filter(emp => emp.branch_id == branchId);
+    // 筛选该门店的员工，过滤掉状态为terminated的员工
+     const branchEmployees = employeesData.filter(emp => 
+      emp.branch_id == branchId && emp.status_raw !== 'terminated'
+    );
     
     // 构建员工列表HTML
     let employeesHtml = '';
@@ -231,7 +233,6 @@ function viewBranchStaff(branchId) {
             </tr>
             `;
         });
-        
         employeesHtml += `
             </tbody>
         </table>
@@ -264,7 +265,7 @@ function editBranch(branchId) {
 
 // 查看门店订单
 function viewBranchOrders(branchId) {
-    window.open(`orders.php?branch_id=${branchId}`, '_blank');
+    window.location.href = `orders.php?branch_id=${branchId}`;
 }
 
 // 管理门店员工

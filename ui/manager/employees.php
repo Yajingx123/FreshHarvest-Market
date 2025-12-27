@@ -27,17 +27,17 @@ if (!isset($employees) || !is_array($employees)) {
             <option value="离职">离职</option>
         </select>
         <select id="empBranchFilter" class="filter-select">
-            <option value="">所有门店</option>
-            <?php 
-            // 提取唯一门店列表
-            $branchNames = array_unique(array_column($employees, 'branch_name'));
-            foreach ($branchNames as $branch) {
-                if (!empty($branch)) {
-                    echo "<option value=\"" . htmlspecialchars($branch) . "\">" . htmlspecialchars($branch) . "</option>";
-                }
-            }
-            ?>
-        </select>
+           <option value="">所有门店</option>
+           <option value="未分配">未分配门店</option>  <!-- 添加这个 -->
+           <?php 
+           // 提取唯一门店列表
+           $branchNames = array_unique(array_column($employees, 'branch_name'));
+           foreach ($branchNames as $branch) {
+              $displayName = empty($branch) ? '未分配' : $branch;
+            echo "<option value=\"" . htmlspecialchars($displayName) . "\">" . htmlspecialchars($displayName) . "</option>";
+}
+    ?>
+</select>
         <button id="empSearchBtn" class="btn btn-primary">搜索</button>
         <button id="empAddBtn" class="btn btn-success" style="margin-left:auto;">新增员工</button>
     </div>
@@ -285,7 +285,9 @@ function filterEmployees() {
         const matchSearch = !searchQuery || text.includes(searchQuery);
         const matchRole = !roleFilter || rowRole === roleFilter;
         const matchStatus = !statusFilter || rowStatus === statusFilter;
-        const matchBranch = !branchFilter || rowBranch === branchFilter;
+        const matchBranch = !branchFilter || 
+                   (branchFilter === "未分配" && (rowBranch === "" || rowBranch === "未分配")) || 
+                   (branchFilter !== "未分配" && rowBranch === branchFilter);
         
         row.style.display = (matchSearch && matchRole && matchStatus && matchBranch) ? '' : 'none';
     });

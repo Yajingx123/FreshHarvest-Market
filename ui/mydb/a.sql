@@ -156,6 +156,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`Customer` (
   `email` VARCHAR(100) NULL UNIQUE,
   `gender` VARCHAR(20) NULL,
   `address` VARCHAR(200) NULL,
+  `accu_cost` DECIMAL(10,2) NULL,
   `loyalty_level` ENUM('Regular', 'VIP', 'VVIP') DEFAULT 'Regular',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`customer_ID`),
@@ -178,6 +179,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`Supplier` (
   `user_name` VARCHAR(45),
   `company_name` VARCHAR(100) NOT NULL,
   `contact_person` VARCHAR(100),
+  `supplier_category` ENUM('果蔬', '肉禽蛋', '水产'),
   `phone` VARCHAR(20),
   `email` VARCHAR(100),
   `address` VARCHAR(255),
@@ -202,7 +204,7 @@ ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `mydb`.`Staff` (
   `staff_ID` INT NOT NULL AUTO_INCREMENT,
-  `branch_ID` INT NOT NULL,
+  `branch_ID` INT NULL,
   `user_name` VARCHAR(45), 
   `position` ENUM('Manager', 'Sales', 'Deliveryman') NOT NULL,
   `phone` VARCHAR(20),

@@ -3,7 +3,7 @@ session_start();
 require_once __DIR__ . '/inc/header.php';  // 页头
 require_once __DIR__ . '/inc/db_connect.php'; // 数据库连接文件
 require_once __DIR__ . '/inc/data.php';       // 数据函数文件
-// 第二步：获取数据（调用data.php中的函数）
+
 $salesTrend = getSalesTrend();
 $orderStatusDistribution = getOrderStatusDistribution();
 $branchSalesComparison = getBranchSalesComparison();

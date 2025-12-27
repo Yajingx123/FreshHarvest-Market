@@ -22,7 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $result = saveEmployee($data);
     
     if ($result['success']) {
-        header('Location: employees.php?success=1');
+        echo '<script>
+            alert("保存成功！");
+            window.location.href = "employees.php";
+        </script>';
         exit;
     } else {
         $error = $result['message'];

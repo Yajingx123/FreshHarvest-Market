@@ -132,7 +132,6 @@ LEFT JOIN products p ON si.product_ID = p.product_ID
 ORDER BY sc.date DESC
 LIMIT 100;
 
--- 3. 员工信息视图（整合Staff和User表）
 CREATE OR REPLACE VIEW v_employees AS
 SELECT 
     s.staff_ID AS id,
@@ -143,17 +142,16 @@ SELECT
     s.status AS status_raw,
     u.user_email AS email,
     u.user_telephone AS phone,
-    b.branch_name,
-    b.branch_ID AS branch_id,
+    COALESCE(b.branch_name, '未分配') AS branch_name,  -- 使用 COALESCE
+    COALESCE(b.branch_ID, 0) AS branch_id,           -- 使用 COALESCE
     u.user_name AS username,
     s.created_at,
     s.phone AS staff_phone
 FROM 
     Staff s
 JOIN User u ON s.user_name = u.user_name
-JOIN Branch b ON s.branch_ID = b.branch_ID;
+LEFT JOIN Branch b ON s.branch_ID = b.branch_ID;  -- 改为 LEFT JOIN
 
--- 1. v_ceo_dashboard - 管理者仪表盘
 -- 用途：CEO查看整体业务概览
 CREATE VIEW v_ceo_dashboard AS
 SELECT 

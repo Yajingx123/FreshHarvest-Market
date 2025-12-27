@@ -1,187 +1,432 @@
 <?php
-require_once __DIR__ . '/../../config/db_connect.php';
-
-// 建立数据库连接
-try {
-    $pdo = getPDOConnection();
-} catch (PDOException $e) {
-    die("数据库连接失败: " . $e->getMessage());
+function getDBConnection() {
+    $servername = "localhost";
+    $username = "root";
+    $password = "8049023544Aaa?"; // 你的密码
+    $dbname = "mydb";
+    
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        die("数据库连接失败: " . $conn->connect_error);
+    }
+    $conn->set_charset("utf8mb4");
+    return $conn;
 }
 
-/**
- * 获取当前登录供应商的ID
- * 实际应用中应从登录状态获取
- */
 function getCurrentSupplierId() {
     return isset($_SESSION['supplier_id']) ? (int)$_SESSION['supplier_id'] : 0;
 }
 
 /**
- * 获取供应商的所有采购订单
- * @param string $status 订单状态筛选
- * @param int $branchId 分店ID筛选
- * @return array 订单列表
+ * 获取供应商的采购订单列表
  */
-function getSupplierPurchaseOrders($status = NULL, $branchId = 0, $search = '') {
-    global $pdo;
-    // 确保获取当前供应商ID的函数存在且能正确返回值
-    $supplierId = getCurrentSupplierId();
+function getSupplierPurchaseOrders($status = NULL, $branchId = 0, $supplierId = 0, $search = '') {
+    $conn = getDBConnection();
+    error_log("supplierId: {$supplierId} | branchId: {$branchId} | status: {$status} | search: {$search}");
     
-    // 安全校验：如果没有获取到供应商ID，直接返回空数组
+    // 安全校验
     if (!$supplierId) {
         return [];
     }
-
-    // 基础SQL语句（使用命名参数，避免位置参数混用问题）
+    
+    // 基础SQL语句
     $sql = "SELECT po.*, b.branch_name, b.address as branch_address 
             FROM PurchaseOrder po
             JOIN Branch b ON po.branch_ID = b.branch_ID
-            WHERE po.supplier_ID = :supplier_id";
+            WHERE po.supplier_ID = ?";
     
-    // 初始化参数数组（统一使用命名参数，避免混淆）
-    $params = [':supplier_id' => $supplierId];
+    // 参数数组
+    $params = [$supplierId];
+    $paramTypes = 'i'; // 初始参数类型（supplierId为整数）
     
-    // 1. 状态筛选：仅当status不为空时添加筛选条件
+    // 状态筛选
     if ($status !== null && $status !== '') {
-        $sql .= " AND po.status = :status";
-        $params[':status'] = $status;
-    }
+        $sql .= " AND po.status = ?";
+        $params[] = $status;
+        $paramTypes .= 's';
+    } 
     
-    // 2. 分店筛选：仅当branchId>0时添加筛选条件
+    // 分店筛选
     if ($branchId > 0) {
-        $sql .= " AND po.branch_ID = :branch_id";
-        $params[':branch_id'] = $branchId;
-    }
+        $sql .= " AND po.branch_ID = ?";
+        $params[] = $branchId;
+        $paramTypes .= 'i';
+    } 
     
-    // 3. 搜索功能：支持订单ID/分店名称搜索（可选，和前端搜索框对应）
+    // 搜索功能
     if (!empty(trim($search))) {
-        $sql .= " AND (po.purchase_order_ID LIKE :search OR b.branch_name LIKE :search)";
-        $params[':search'] = '%' . trim($search) . '%';
-    }
+        $sql .= " AND (po.purchase_order_ID LIKE ? OR b.branch_name LIKE ?)";
+        $searchVal = '%' . trim($search) . '%';
+        $params[] = $searchVal;
+        $params[] = $searchVal;
+        $paramTypes .= 'ss';
+    } 
     
-    // 按订单日期倒序排列（最新订单在前）
+    // 排序
     $sql .= " ORDER BY po.date DESC";
 
-    try {
-        // 预处理并执行SQL
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        // 记录错误日志（生产环境），调试时可打印错误
-        error_log("获取供应商订单失败: " . $e->getMessage());
-        // 调试模式下可取消注释查看错误
-        // echo "SQL错误: " . $e->getMessage();
+    // 预处理执行
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        error_log("SQL准备失败: " . $conn->error);
         return [];
     }
+    
+    // 绑定参数
+    $stmt->bind_param($paramTypes, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    $orders = [];
+    while ($row = $result->fetch_assoc()) {
+        $orders[] = $row;
+    }
+    
+    $stmt->close();
+    return $orders;
 }
 
 /**
  * 获取单个采购订单详情
- * @param int $orderId 采购订单ID
- * @return array 订单详情
  */
 function getPurchaseOrderDetail($orderId) {
-    global $pdo;
+    $conn = getDBConnection();
     $supplierId = getCurrentSupplierId();
     
     // 获取订单基本信息
-    $stmt = $pdo->prepare("
+    $stmt = $conn->prepare("
         SELECT po.*, b.branch_name, b.address as branch_address, b.phone as branch_phone
         FROM PurchaseOrder po
         JOIN Branch b ON po.branch_ID = b.branch_ID
-        WHERE po.purchase_order_ID = :order_id AND po.supplier_ID = :supplier_id
+        WHERE po.purchase_order_ID = ? AND po.supplier_ID = ?
     ");
-    $stmt->execute([
-        ':order_id' => $orderId,
-        ':supplier_id' => $supplierId
-    ]);
-    $order = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->bind_param("ii", $orderId, $supplierId);
+    $stmt->execute();
+    $order = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
     
     if (!$order) {
         return null;
     }
     
     // 获取订单商品
-    $stmt = $pdo->prepare("
+    $stmt = $conn->prepare("
         SELECT pi.*, p.product_name, p.sku 
         FROM PurchaseItem pi
         JOIN products p ON pi.product_ID = p.product_ID
-        WHERE pi.purchase_order_ID = :order_id
+        WHERE pi.purchase_order_ID = ?
     ");
-    $stmt->execute([':order_id' => $orderId]);
-    $order['items'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt->bind_param("i", $orderId);
+    $stmt->execute();
+    $order['items'] = [];
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $order['items'][] = $row;
+    }
+    $stmt->close();
     
     return $order;
 }
 
 /**
  * 更新采购订单状态
- * @param int $orderId 订单ID
- * @param string $status 新状态
- * @return bool 操作结果
  */
 function updatePurchaseOrderStatus($orderId, $status) {
-    global $pdo;
+    $conn = getDBConnection();
     $supplierId = getCurrentSupplierId();
     
-    try {
-        $stmt = $pdo->prepare("
-            UPDATE PurchaseOrder 
-            SET status = :status 
-            WHERE purchase_order_ID = :order_id AND supplier_ID = :supplier_id
-        ");
-        return $stmt->execute([
-            ':status' => $status,
-            ':order_id' => $orderId,
-            ':supplier_id' => $supplierId
-        ]);
-    } catch(PDOException $e) {
-        error_log("更新采购订单状态失败: " . $e->getMessage());
-        return false;
-    }
+    $stmt = $conn->prepare("
+        UPDATE PurchaseOrder 
+        SET status = ? 
+        WHERE purchase_order_ID = ? AND supplier_ID = ?
+    ");
+    $stmt->bind_param("sii", $status, $orderId, $supplierId);
+    $result = $stmt->execute();
+    $stmt->close();
+    
+    return $result;
 }
 
 /**
- * 获取所有分店列表（供供应商选择）
- * @return array 分店列表
+ * 获取所有分店列表
  */
 function getBranches() {
-    global $pdo;
-    
-    $stmt = $pdo->query("
+    $conn = getDBConnection();
+    $stmt = $conn->prepare("
         SELECT branch_ID, branch_name, address, phone 
         FROM Branch 
         WHERE status = 'active' 
         ORDER BY branch_name
     ");
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    $branches = [];
+    while ($row = $result->fetch_assoc()) {
+        $branches[] = $row;
+    }
+    
+    $stmt->close();
+    return $branches;
 }
 
 /**
  * 获取订单状态统计
- * @return array 状态统计数据
  */
 function getOrderStatusSummary() {
-    global $pdo;
+    $conn = getDBConnection();
     $supplierId = getCurrentSupplierId();
     
-    $stmt = $pdo->prepare("
+    $stmt = $conn->prepare("
         SELECT status, COUNT(*) as count 
         FROM PurchaseOrder 
-        WHERE supplier_ID = :supplier_id 
+        WHERE supplier_ID = ? 
         GROUP BY status
     ");
-    $stmt->execute([':supplier_id' => $supplierId]);
-    return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    $stmt->bind_param("i", $supplierId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    $summary = [];
+    while ($row = $result->fetch_assoc()) {
+        $summary[$row['status']] = $row['count'];
+    }
+    
+    $stmt->close();
+    return $summary;
 }
 
 /**
  * 格式化金额显示
- * @param float $amount 金额
- * @return string 格式化后的金额
  */
 function formatAmount($amount) {
     return '¥' . number_format($amount, 2);
 }
+function getSupplierBranches($search = '', $area = '') {
+    $conn = getDBConnection();
+    $supplierId = getCurrentSupplierId();
+    
+    if (!$supplierId) {
+        return [];
+    }
+    
+    // 关联Staff表和User表获取联系人姓名
+    $sql = "SELECT DISTINCT b.branch_ID, b.branch_name, b.address, b.phone, b.manager_phone, b.status,
+                   b.manager_ID, 
+                   CONCAT(u.first_name, ' ', u.last_name) as contact_person,  -- 组合姓名
+                   COUNT(DISTINCT po.purchase_order_ID) as order_count,
+                   SUM(po.total_amount) as total_amount
+            FROM Branch b
+            JOIN PurchaseOrder po ON b.branch_ID = po.branch_ID
+            LEFT JOIN Staff s ON b.manager_ID = s.staff_ID  -- 通过manager_id关联Staff表
+            LEFT JOIN User u ON s.user_name = u.user_name    -- 通过username关联User表
+            WHERE po.supplier_ID = ?";
+    
+    $params = [$supplierId];
+    $paramTypes = 'i';
+    
+    // 搜索筛选
+    if (!empty(trim($search))) {
+        $sql .= " AND (b.branch_ID LIKE ? OR b.branch_name LIKE ?)";
+        $searchVal = '%' . trim($search) . '%';
+        $params[] = $searchVal;
+        $params[] = $searchVal;
+        $paramTypes .= 'ss';
+    }
+    
+    $sql .= " GROUP BY b.branch_ID 
+              ORDER BY b.branch_name";
+    
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        error_log("SQL准备失败: " . $conn->error);
+        return [];
+    }
+    
+    $stmt->bind_param($paramTypes, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    $branches = [];
+    while ($row = $result->fetch_assoc()) {
+        $branches[] = $row;
+    }
+    
+    $stmt->close();
+    return $branches;
+}
+
+/**
+ * 获取门店统计数据
+ */
+function getBranchStatistics() {
+    $conn = getDBConnection();
+    $supplierId = getCurrentSupplierId();
+    
+    if (!$supplierId) {
+        return [
+            'total_branches' => 0,
+            'today_order_branches' => 0,
+            'completion_rate' => 0
+        ];
+    }
+    
+    // 总合作门店数
+    $totalStmt = $conn->prepare("
+        SELECT COUNT(DISTINCT branch_ID) as count 
+        FROM PurchaseOrder 
+        WHERE supplier_ID = ?
+    ");
+    $totalStmt->bind_param("i", $supplierId);
+    $totalStmt->execute();
+    $totalResult = $totalStmt->get_result();
+    $totalBranches = $totalResult->fetch_assoc()['count'] ?? 0;
+    $totalStmt->close();
+    
+    // 今日有订单的门店数
+    $today = date('Y-m-d');
+    $todayStmt = $conn->prepare("
+        SELECT COUNT(DISTINCT branch_ID) as count 
+        FROM PurchaseOrder 
+        WHERE supplier_ID = ? AND DATE(date) = ?
+    ");
+    $todayStmt->bind_param("is", $supplierId, $today);
+    $todayStmt->execute();
+    $todayResult = $todayStmt->get_result();
+    $todayBranches = $todayResult->fetch_assoc()['count'] ?? 0;
+    $todayStmt->close();
+    
+    // 订单完成率
+    $completedStmt = $conn->prepare("
+        SELECT 
+            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+            COUNT(*) as total
+        FROM PurchaseOrder 
+        WHERE supplier_ID = ?
+    ");
+    $completedStmt->bind_param("i", $supplierId);
+    $completedStmt->execute();
+    $completedResult = $completedStmt->get_result();
+    $completionData = $completedResult->fetch_assoc();
+    $completionRate = 0;
+    if ($completionData['total'] > 0) {
+        $completionRate = round(($completionData['completed'] / $completionData['total']) * 100);
+    }
+    $completedStmt->close();
+    
+    return [
+        'total_branches' => $totalBranches,
+        'today_order_branches' => $todayBranches,
+        'completion_rate' => $completionRate
+    ];
+}
+
+/**
+ * 获取门店详情
+ */
+function getBranchDetail($branchId) {
+    $conn = getDBConnection();
+    $supplierId = getCurrentSupplierId();
+    
+    // 验证该门店是否与供应商有合作
+    $checkStmt = $conn->prepare("
+        SELECT 1 FROM PurchaseOrder 
+        WHERE branch_ID = ? AND supplier_ID = ? 
+        LIMIT 1
+    ");
+    $checkStmt->bind_param("ii", $branchId, $supplierId);
+    $checkStmt->execute();
+    $checkResult = $checkStmt->get_result();
+    if ($checkResult->num_rows === 0) {
+        return null;
+    }
+    $checkStmt->close();
+    
+    // 获取门店详情（关联Staff和User表）
+    $stmt = $conn->prepare("
+        SELECT b.*, 
+               CONCAT(u.first_name, ' ', u.last_name) as contact_person,  -- 组合姓名
+               (SELECT COUNT(*) FROM PurchaseOrder 
+                WHERE branch_ID = b.branch_ID AND supplier_ID = ?) as total_orders,
+               (SELECT COUNT(*) FROM PurchaseOrder 
+                WHERE branch_ID = b.branch_ID AND supplier_ID = ? AND DATE(date) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as monthly_orders,
+               (SELECT SUM(total_amount) FROM PurchaseOrder 
+                WHERE branch_ID = b.branch_ID AND supplier_ID = ? AND DATE(date) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)) as monthly_amount,
+               (SELECT MIN(date) FROM PurchaseOrder 
+                WHERE branch_ID = b.branch_ID AND supplier_ID = ?) as first_cooperation_date
+        FROM Branch b 
+        LEFT JOIN Staff s ON b.manager_id = s.staff_id  -- 关联Staff表
+        LEFT JOIN User u ON s.user_name = u.user_name    -- 关联User表
+        WHERE b.branch_ID = ?
+    ");
+    $stmt->bind_param("iiiii", $supplierId, $supplierId, $supplierId, $supplierId, $branchId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $branch = $result->fetch_assoc();
+    $stmt->close();
+    
+    return $branch;
+}
+
+/**
+ * 获取供应商信息
+ */
+function getSupplierInfo($username) {
+    $conn = getDBConnection();
+    $stmt = $conn->prepare("SELECT u.user_ID, u.user_name, u.first_name, u.last_name, 
+                            u.user_email, u.user_telephone, u.created_at, u.last_login,
+                            s.supplier_ID, s.user_name, s.address, s.company_name,s.contact_person, 
+                            s.status 
+                            FROM User u
+                            LEFT JOIN Supplier s ON u.user_name = s.user_name
+                            WHERE u.user_name = ? AND u.user_type = 'supplier'");
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    $data = $result->fetch_assoc() ?: false;
+    $stmt->close();
+    return $data;
+}
+
+/**
+ * 获取待处理订单数量
+ */
+function getPendingOrderCount($supplierId) {
+    $conn = getDBConnection();
+    $stmt = $conn->prepare("SELECT COUNT(*) AS count FROM PurchaseOrder 
+                            WHERE supplier_ID = ? AND status = 'pending'");
+    $stmt->bind_param("i", $supplierId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $stmt->close();
+    return $row['count'] ?? 0;
+}
+
+/**
+ * 退出登录处理
+ */
+function logout() {
+    session_start();
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $params = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $params["path"], $params["domain"],
+            $params["secure"], $params["httponly"]
+        );
+    }
+    session_destroy();
+    header("Location: login.php");
+    exit;
+}
+
+// 处理退出请求
+if (isset($_GET['action']) && $_GET['action'] == 'logout') {
+    logout();
+}
+
+// 注意：移除了全局的 $conn->close()，由各函数内部在使用后关闭语句
+// 连接会在脚本结束时自动关闭，避免提前关闭导致后续调用失败
+?>

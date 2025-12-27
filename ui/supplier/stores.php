@@ -1,5 +1,20 @@
 <?php
-// 供应商端 - 合作门店管理（带订单红点提示）
+session_start();
+require_once __DIR__.'/inc/data.php';
+require_once __DIR__.'/header.php';
+// 验证登录状态
+if (!isset($_SESSION['supplier_id'])) {
+    header("Location: login.php");
+    exit;
+}
+
+// 获取筛选参数
+$search = isset($_GET['search']) ? $_GET['search'] : '';
+$area = isset($_GET['area']) ? $_GET['area'] : '';
+
+// 获取门店数据和统计信息
+$branches = getSupplierBranches($search, $area);
+$stats = getBranchStatistics();
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -266,68 +281,73 @@
     </style>
 </head>
 <body>
-    <?php include 'header.php'; ?>
-
     <main class="main">
-        <section class="section">
-            <h2 class="section-title">合作门店管理</h2>
-            <div class="filter-bar">
-                <input type="text" class="filter-input" id="storeSearch" placeholder="搜索门店名称/编号">
-                <select class="filter-select" id="areaFilter">
-                    <option value="">全部区域</option>
-                    <option value="高新区">高新区</option>
-                    <option value="曲江新区">曲江新区</option>
-                    <option value="未央区">未央区</option>
-                    <option value="碑林区">碑林区</option>
-                    <option value="雁塔区">雁塔区</option>
-                </select>
-                <button class="btn btn-primary">导出数据</button>
-            </div>
+    <section class="section">
+        <h2 class="section-title">合作门店管理</h2>
+        <div class="filter-bar">
+            <input type="text" class="filter-input" id="storeSearch" 
+                   placeholder="搜索门店名称/编号" value="<?php echo htmlspecialchars($search); ?>">
+            <button class="btn btn-primary">导出数据</button>
+        </div>
 
-            <div class="store-stat-card">
-                <div class="stat-item">
-                    <div class="stat-value">12</div>
-                    <div class="stat-label">总合作门店数</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">5</div>
-                    <div class="stat-label">今日有订单门店</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">86%</div>
-                    <div class="stat-label">订单完成率</div>
-                </div>
+        <div class="store-stat-card">
+            <div class="stat-item">
+                <div class="stat-value"><?php echo $stats['total_branches']; ?></div>
+                <div class="stat-label">总合作门店数</div>
             </div>
+            <div class="stat-item">
+                <div class="stat-value"><?php echo $stats['today_order_branches']; ?></div>
+                <div class="stat-label">今日有订单门店</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value"><?php echo $stats['completion_rate']; ?>%</div>
+                <div class="stat-label">订单完成率</div>
+            </div>
+        </div>
 
-            <table class="store-table">
-                <thead>
-                    <tr>
-                        <th>门店编号</th>
-                        <th>门店名称</th>
-                        <th>所在区域</th>
-                        <th>联系人</th>
-                        <th>联系电话</th>
-                        <th>合作状态</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>S001</td>
-                        <td>鲜选生鲜（高新店）</td>
-                        <td>高新区</td>
-                        <td>张三</td>
-                        <td>13800138000</td>
-                        <td><span style="color: #43a047;">正常合作</span></td>
-                        <td>
-                            <button class="btn btn-primary" onclick="showStoreDetail('S001')">查看详情</button>
-                        </td>
-                    </tr>
-                    <!-- 更多门店数据行... -->
-                </tbody>
-            </table>
-        </section>
-    </main>
+        <table class="store-table">
+            <thead>
+                <tr>
+                    <th>门店编号</th>
+                    <th>门店名称</th>
+                    <th>联系人</th>
+                    <th>联系电话</th>
+                    <th>合作状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($branches as $branch): ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($branch['branch_ID']); ?></td>
+                    <td><?php echo htmlspecialchars($branch['branch_name']); ?></td>
+                    <td><?php echo htmlspecialchars($branch['contact_person'] ?? ''); ?></td>
+                    <td><?php echo htmlspecialchars($branch['phone']); ?></td>
+                    <td>
+                        <span style="color: <?php echo $branch['status'] === 'active' ? '#43a047' : '#f44336'; ?>">
+                            <?php echo $branch['status'] === 'active' ? '正常合作' : '已终止'; ?>
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-primary" 
+                                onclick="showStoreDetail('<?php echo htmlspecialchars($branch['branch_ID']); ?>')">
+                            查看详情
+                        </button>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                
+                <?php if (empty($branches)): ?>
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 20px;">
+                        暂无合作门店数据
+                    </td>
+                </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </section>
+</main>
 
     <!-- 门店详情弹窗 -->
     <div class="modal" id="storeModal">
@@ -357,79 +377,92 @@
     </footer>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // 计算并更新未处理订单数量（待确认状态）
-            function updateUnhandledOrderCount() {
-                // 实际应用中应通过AJAX从服务器获取数据
-                // 此处模拟数据，与订单页保持一致
-                const pendingCount = 1; // 待确认订单数量
-                const badge = document.getElementById('unhandledOrderBadge');
-                badge.textContent = pendingCount > 0 ? pendingCount : '';
-            }
-
-            // 初始化红点
-            updateUnhandledOrderCount();
-            
-            // 点击红点跳转到订单管理页并筛选待确认订单
-            const badge = document.getElementById('unhandledOrderBadge');
-            if (badge) {
-                badge.parentElement.addEventListener('click', function(e) {
-                    window.location.href = 'orders.php?status=pending';
-                });
-            }
+    document.addEventListener('DOMContentLoaded', function() {
+    // 搜索提交
+    const searchInput = document.getElementById('storeSearch');
+    
+    function handleFilter() {
+        const search = encodeURIComponent(searchInput.value.trim());
+        window.location.href = `stores.php?search=${search}`;
+    }
+    
+    // 回车键触发搜索
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            handleFilter();
+        }
         });
+    });
 
-        // 显示门店详情
+        // 显示门店详情（修改为AJAX获取真实数据）
         function showStoreDetail(storeId) {
-            // 实际应用中应通过AJAX从服务器获取门店详情
-            const detailContent = `
-                <div class="detail-info">
-                    <span class="detail-label">门店编号</span>
-                    <div>S001</div>
-                </div>
-                <div class="detail-info">
-                    <span class="detail-label">门店名称</span>
-                    <div>鲜选生鲜（高新店）</div>
-                </div>
-                <div class="detail-info">
-                    <span class="detail-label">所在区域</span>
-                    <div>高新区</div>
-                </div>
-                <div class="detail-info">
-                    <span class="detail-label">详细地址</span>
-                    <div>西安市高新区科技路88号</div>
-                </div>
-                <div class="detail-info">
-                    <span class="detail-label">联系人</span>
-                    <div>张三</div>
-                </div>
-                <div class="detail-info">
-                    <span class="detail-label">联系电话</span>
-                    <div>13800138000</div>
-                </div>
-                <div class="detail-info">
-                    <span class="detail-label">合作开始时间</span>
-                    <div>2023-05-10</div>
-                </div>
-                <div class="detail-info">
-                    <span class="detail-label">合作状态</span>
-                    <div style="color: #43a047;">正常合作</div>
-                </div>
-                <div class="detail-info">
-                    <span class="detail-label">本月订单数</span>
-                    <div>28单</div>
-                </div>
-                <div class="detail-info">
-                    <span class="detail-label">本月交易额</span>
-                    <div>¥15,680</div>
-                </div>
-            `;
-            
-            document.getElementById('storeDetailContent').innerHTML = detailContent;
-            document.getElementById('storeModal').classList.add('show');
+            // 发送AJAX请求获取门店详情
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', `get_branch_detail.php?branch_id=${encodeURIComponent(storeId)}`, true);
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    const branch = JSON.parse(xhr.responseText);
+                    if (branch) {
+                        const detailContent = `
+                            <div class="detail-info">
+                                <span class="detail-label">门店编号</span>
+                                <div>${htmlspecialchars(branch.branch_ID)}</div>
+                            </div>
+                            <div class="detail-info">
+                                <span class="detail-label">门店名称</span>
+                                <div>${htmlspecialchars(branch.branch_name)}</div>
+                            </div>
+                            <div class="detail-info">
+                                <span class="detail-label">详细地址</span>
+                                <div>${htmlspecialchars(branch.address)}</div>
+                            </div>
+                            <div class="detail-info">
+                                <span class="detail-label">联系人</span>
+                                <div>${htmlspecialchars(branch.contact_person)}</div>
+                            </div>
+                            <div class="detail-info">
+                                <span class="detail-label">联系电话</span>
+                                <div>${htmlspecialchars(branch.phone)}</div>
+                            </div>
+                            <div class="detail-info">
+                                <span class="detail-label">合作开始时间</span>
+                                <div>${htmlspecialchars(branch.first_cooperation_date ? new Date(branch.first_cooperation_date).toLocaleDateString() : '未知')}</div>
+                            </div>
+                            <div class="detail-info">
+                                <span class="detail-label">合作状态</span>
+                                <div style="color: ${branch.status === 'active' ? '#43a047' : '#f44336'}">
+                                    ${branch.status === 'active' ? '正常合作' : '已终止'}
+                                </div>
+                            </div>
+                            <div class="detail-info">
+                                <span class="detail-label">本月订单数</span>
+                                <div>${branch.monthly_orders || 0}单</div>
+                            </div>
+                            <div class="detail-info">
+                                <span class="detail-label">本月交易额</span>
+                                <div>¥${branch.monthly_amount ? parseFloat(branch.monthly_amount).toFixed(2) : '0.00'}</div>
+                            </div>
+                        `;
+                        document.getElementById('storeDetailContent').innerHTML = detailContent;
+                        document.getElementById('storeModal').classList.add('show');
+                    }
+                }
+            };
+            xhr.send();
         }
 
-        // 关闭弹窗
+        // 辅助函数：防止XSS攻击
+        function htmlspecialchars(str) {
+            if (!str) return '';
+            return str.toString()
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // 关闭弹窗函数保持不变
         function closeModal() {
             document.getElementById('storeModal').classList.remove('show');
         }

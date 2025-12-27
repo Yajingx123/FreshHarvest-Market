@@ -1,5 +1,4 @@
 <?php
-// 新架构 header：导航 + 完整公共样式 + 模态框函数 + 渲染逻辑（无冗余）
 ?>
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -110,6 +109,8 @@
             '货品信息' => 'goods.php',
             '员工信息' => 'employees.php',     // 新增
             '顾客信息' => 'customers.php',     // 新增
+            '销售情况' => 'saletrend.php',
+            '供应商信息' => 'sup_Info.php'
         ];
         echo '<ul class="nav-menu">';
         foreach ($navLinks as $label => $url) {

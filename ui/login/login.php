@@ -1,6 +1,107 @@
 <?php
 session_start();
-require_once __DIR__ . '/../config/db_connect.php';
+$servername = "localhost";
+$username = "root";
+$password = "8049023544Aaa?"; // 你的密码
+$dbname = "mydb";
+// 数据库配置
+function getDBConnection() {
+    $servername = "localhost";
+    $username = "root";
+    $password = "8049023544Aaa?"; // 你的密码
+    $dbname = "mydb";
+    
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        die("数据库连接失败: " . $conn->connect_error);
+    }
+    $conn->set_charset("utf8mb4");
+    return $conn;
+}
+
+function updateExpiredInventory() {
+    $conn = getDBConnection();
+    // 获取当天日期
+    $currentDate = date('Y-m-d');
+    
+    // 1. 查询所有已过期的库存批次（date_expired < 当前日期）
+    $query = "SELECT batch_ID, product_ID, branch_ID, quantity_on_hand 
+              FROM Inventory 
+              WHERE date_expired IS NOT NULL 
+                AND date_expired < ?
+                AND quantity_on_hand > 0";
+    
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("s", $currentDate);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    $expiredBatches = [];
+    while ($row = $result->fetch_assoc()) {
+        $expiredBatches[] = $row;
+    }
+    $stmt->close();
+    
+    if (empty($expiredBatches)) {
+        $conn->close();
+        return ['updated' => 0, 'message' => '没有找到过期库存'];
+    }
+    
+    // 2. 开始事务，更新过期库存
+    $conn->autocommit(false);
+    try {
+        $updateQuery = "UPDATE Inventory 
+                        SET quantity_on_hand = 0,
+                            locked_inventory = 0  -- 同时清空锁定库存
+                        WHERE batch_ID = ?";
+        $updateStmt = $conn->prepare($updateQuery);
+        $updatedCount = 0;
+        foreach ($expiredBatches as $batch) {
+            $updateStmt->bind_param("s", $batch['batch_ID']);
+            $updateStmt->execute();
+            $updatedCount += $updateStmt->affected_rows;
+    
+            $certificateQuery = "INSERT INTO StockItemCertificate 
+                        (item_ID, transaction_type, transaction_id, note, date) 
+                        VALUES (?, 'adjustment', ?, ?, NOW())";
+            $certificateStmt = $conn->prepare($certificateQuery);
+
+            $itemQuery = "SELECT item_ID FROM StockItem WHERE batch_ID = ?";
+            $itemStmt = $conn->prepare($itemQuery);
+            $itemStmt->bind_param("s", $batch['batch_ID']);
+            $itemStmt->execute();
+            $itemResult = $itemStmt->get_result();
+    
+            while ($item = $itemResult->fetch_assoc()) {
+               $note = "批次过期清零：批次 " . $batch['batch_ID'] . 
+                  ",产品ID " . $batch['product_ID'] . 
+                  "，清零数量 " . $batch['quantity_on_hand'];
+        
+               $certificateStmt->bind_param("sis", 
+                 $item['item_ID'], 
+                 $batch['batch_ID'],
+                 $note
+              );
+               $certificateStmt->execute();
+            }
+    
+            $itemStmt->close();
+            $certificateStmt->close();
+        }
+    
+        $updateStmt->close();
+        $conn->commit(); 
+        return ['success' => true, 'updated' => $updatedCount];
+        
+    } catch (Exception $e) {
+        $conn->rollback();
+        $conn->close();
+        return [
+            'success' => false,
+            'error' => $e->getMessage()
+        ];
+    }
+}
 
 // 处理经理登录
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['role'] === 'CEO') {
@@ -9,7 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     
     try {
         // 使用PDO连接
-        $conn = getPDOConnection();
+        $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+        $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         
         $sql = "SELECT user_ID, user_name, password_hash FROM User WHERE user_name = ? AND user_type = 'CEO'";
         $stmt = $conn->prepare($sql);
@@ -19,30 +121,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
             $hashed_password = md5($input_password);
             
-            if ($hashed_password === md5($user['password_hash'])) {
+            if ($hashed_password === $user['password_hash']) {
                 $_SESSION['manager_logged_in'] = true;
                 $_SESSION['manager_id'] = $user['user_ID'];
                 $_SESSION['manager_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'CEO';
+
+                updateExpiredInventory();
                 
                 header('Location: ../manager/overview.php');
                 exit();
             }
         }
         $_SESSION['login_error'] = '经理账户验证失败，请检查用户名和密码！';
+        header('Location: login.php');
+        exit();
         
     } catch(PDOException $e) {
         $_SESSION['login_error'] = '数据库连接失败: ' . $e->getMessage();
+        header('Location: login.php');
+        exit();
     }
 }
-// 处理顾客登录（模仿经理的写法）
+
+// 处理顾客登录
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['role'] === 'customer') {
     $input_username = trim($_POST['username']);
     $input_password = trim($_POST['password']);
     
     try {
         // 直接连接数据库（不要用函数）
-        $conn = getDBConnection();
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        if ($conn->connect_error) {
+            die("数据库连接失败: " . $conn->connect_error);
+        }
         
         // 查询顾客账户
         $sql = "SELECT u.*, c.customer_ID 
@@ -59,16 +171,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $user = $result->fetch_assoc();
             $hashed_password = md5($input_password);
             
-            if ($hashed_password === md5($user['password_hash'])) {
+            if ($hashed_password === $user['password_hash']) {
                 $_SESSION['customer_logged_in'] = true;
                 $_SESSION['customer_id'] = $user['customer_ID'];
                 $_SESSION['customer_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'customer';
+
+                updateExpiredInventory();
                 
                 $stmt->close();
                 $conn->close();
                 
-                header('Location: ../customer/header.php');
+                header('Location: ../customer/dashboard.php');
                 exit();
             }
         }
@@ -81,18 +195,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     }
 }
 
-// 注意：前端按钮 data-role="employee"，所以这里用 employee 作为 role 值
+// 处理员工登录
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['role'] === 'employee') {
     $input_username = trim($_POST['username']);
     $input_password = trim($_POST['password']);
 
     try {
-        $conn = getDBConnection();
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        if ($conn->connect_error) {
+            throw new Exception("数据库连接失败: " . $conn->connect_error);
+        }
 
-        // 查询员工账户：必须是 User.user_type = 'staff'，并关联 Staff 表拿到 staff_ID 和 branch_ID
-        $sql = "SELECT u.*, s.staff_ID, s.branch_ID 
+        // 查询员工账户
+        $sql = "SELECT u.user_ID, u.user_name, u.password_hash, s.staff_ID, s.branch_ID 
                 FROM User u 
-                LEFT JOIN Staff s ON u.user_name = s.user_name 
+                JOIN Staff s ON u.user_name = s.user_name 
                 WHERE u.user_name = ? AND u.user_type = 'staff'";
 
         $stmt = $conn->prepare($sql);
@@ -104,12 +221,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $user = $result->fetch_assoc();
             $hashed_password = md5($input_password);
             
-            if ($hashed_password === md5($user['password_hash'])) {
+            if ($hashed_password === $user['password_hash']) {
                 $_SESSION['staff_logged_in'] = true;
                 $_SESSION['staff_id'] = $user['staff_ID'];
                 $_SESSION['staff_branch_id'] = $user['branch_ID'];
                 $_SESSION['staff_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'staff';
+
+                updateExpiredInventory();
 
                 $stmt->close();
                 $conn->close();
@@ -120,62 +239,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
         }
 
         $_SESSION['login_error'] = '员工账户验证失败，请检查用户名和密码！';
+        $stmt->close();
         $conn->close();
+        header('Location: login.php');
+        exit();
 
     } catch (Exception $e) {
         $_SESSION['login_error'] = '登录出错: ' . $e->getMessage();
+        header('Location: login.php');
+        exit();
     }
 }
+
+// 处理供应商登录
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['role'] === 'supplier') {
     $input_username = trim($_POST['username']);
     $input_password = trim($_POST['password']);
     
     try {
-        // 直接连接数据库（保持和原代码一致的连接方式）
-        $conn = getDBConnection();
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        if ($conn->connect_error) {
+            throw new Exception("数据库连接失败: " . $conn->connect_error);
+        }
         
-        // 查询供应商账户：关联User表和Supplier表，筛选user_type = 'supplier'
-        $sql = "SELECT u.*, s.supplier_ID 
+        // 修正查询语句，查询供应商类型用户
+        $sql = "SELECT u.user_ID, u.user_name, u.password_hash, s.supplier_ID 
                 FROM User u 
-                LEFT JOIN Supplier s ON u.user_name = s.user_name 
+                JOIN Supplier s ON u.user_name = s.user_name 
                 WHERE u.user_name = ? AND u.user_type = 'supplier'";
         
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("s", $input_username); // 绑定用户名参数
+        $stmt->bind_param("s", $input_username);
         $stmt->execute();
         $result = $stmt->get_result();
         
-        // 验证用户是否存在
         if ($result && $result->num_rows > 0) {
             $user = $result->fetch_assoc();
-            // 原代码使用md5加密密码，保持加密方式一致
             $hashed_password = md5($input_password);
             
-            // 验证密码是否匹配
             if ($hashed_password === $user['password_hash']) {
-                // 初始化供应商会话信息（区分customer的session键名）
                 $_SESSION['supplier_logged_in'] = true;
-                $_SESSION['supplier_id'] = $user['supplier_ID']; // 供应商专属ID
+                $_SESSION['supplier_id'] = $user['supplier_ID'];
                 $_SESSION['supplier_username'] = $user['user_name'];
-                $_SESSION['user_role'] = 'supplier'; // 统一的角色标识
+                $_SESSION['user_role'] = 'supplier';
+
+                updateExpiredInventory();
                 
-                // 关闭语句和连接
                 $stmt->close();
                 $conn->close();
-                
-                // 跳转到供应商专属首页（请替换为实际路径）
-                header('Location: ../supplier/header.php');
+                header('Location: ../supplier/dashboard.php');
                 exit();
             }
         }
         
-        // 登录失败：用户名/密码错误
         $_SESSION['login_error'] = '供应商账户验证失败，请检查用户名和密码！';
+        $stmt->close();
         $conn->close();
+        header('Location: login.php');
+        exit();
         
     } catch(Exception $e) {
-        // 捕获异常并返回错误信息
         $_SESSION['login_error'] = '登录出错: ' . $e->getMessage();
+        header('Location: login.php');
+        exit();
     }
 }
 ?>
@@ -480,13 +606,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
                     <button type="button" class="role-btn customer" data-role="customer" data-url="../customer/dashboard.php">顾客登录</button>
                     <button type="button" class="role-btn employee" data-role="employee" data-url="../staff/dashboard.php">员工登录</button>
                     <button type="submit" class="role-btn manager" data-role="manager">经理登录</button>
-                    <button type="button" class="role-btn supplier" data-role="supplier" data-url="../supplier/index.php">供应商登录</button>
+                    <button type="button" class="role-btn supplier" data-role="supplier" data-url="../supplier/dashboard.php">供应商登录</button>
                 </div>
             </form>
         </div>
     </div>
 
     <script>
+        // 修改JavaScript部分，确保所有角色都通过表单提交验证
         // 获取DOM元素
         const username = document.getElementById('username');
         const password = document.getElementById('password');
@@ -538,91 +665,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             }
         });
 
-        // 角色按钮点击事件
+        // 角色按钮点击事件 - 统一通过表单提交
         roleBtns.forEach(btn => {
-            btn.addEventListener('click', function() {
-                if (this.type === 'submit') return; // 经理按钮已经是submit类型
+            btn.addEventListener('click', function(e) {
+                e.preventDefault(); // 阻止默认行为
                 
                 const role = this.getAttribute('data-role');
-                selectedRole.value = role;
+                selectedRole.value = role === 'manager' ? 'CEO' : role; // 处理经理角色映射
                 
                 if (validateForm()) {
-                    const targetUrl = this.getAttribute('data-url');
                     // 显示登录中状态
                     const originalText = this.innerHTML;
                     this.innerHTML = '<span class="loading"></span> 登录中...';
                     this.disabled = true;
                     
-                    // 模拟登录过程
+                    // 提交表单进行后端验证
                     setTimeout(() => {
-                        // 对于非经理用户，直接跳转
-                        loginForm.action = ''; // 清除表单action
-                        window.location.href = targetUrl;
-                    }, 800);
+                        loginForm.submit();
+                    }, 500);
                 }
             });
         });
-        
-
-        // 经理登录按钮特殊处理
-        const managerBtn = document.querySelector('.role-btn.manager');
-        managerBtn.addEventListener('click', function(e) {
-        // 设置角色为manager
-        selectedRole.value = 'CEO';
-    
-        if (validateForm()) {
-        // 显示登录中状态
-           const originalText = this.innerHTML;
-           this.innerHTML = '<span class="loading"></span> 登录中...';
-           this.disabled = true;
-        
-           // 直接提交表单，验证在PHP端处理
-            loginForm.action = '';
-            loginForm.submit();
-        } else {
-            e.preventDefault();
-          }
-       });
-       // 在角色按钮点击事件中，为顾客按钮添加类似经理的处理逻辑
-       const customerBtn = document.querySelector('.role-btn.customer');
-       customerBtn.addEventListener('click', function(e) {
-        // 设置角色为customer
-        selectedRole.value = 'customer';
-    
-       if (validateForm()) {
-         // 显示登录中状态
-         const originalText = this.innerHTML;
-         this.innerHTML = '<span class="loading"></span> 登录中...';
-         this.disabled = true;
-        
-         // 提交表单到后端验证
-         loginForm.action = '<?php echo $_SERVER["PHP_SELF"]; ?>';
-         loginForm.submit();
-        } else {
-           e.preventDefault();
-        }
-       });
-
-       // 为员工按钮添加后端验证逻辑（仿照顾客，不影响其他角色）
-       const employeeBtn = document.querySelector('.role-btn.employee');
-       if (employeeBtn) {
-         employeeBtn.addEventListener('click', function(e) {
-           // 设置角色为employee（后端会按 staff 处理）
-           selectedRole.value = 'employee';
-
-           if (validateForm()) {
-             const originalText = this.innerHTML;
-             this.innerHTML = '<span class="loading"></span> 登录中...';
-             this.disabled = true;
-
-             // 提交表单到后端验证
-             loginForm.action = '<?php echo $_SERVER["PHP_SELF"]; ?>';
-             loginForm.submit();
-           } else {
-             e.preventDefault();
-           }
-         });
-       }
 
         // 页面载入动画
         window.addEventListener('load', () => {
