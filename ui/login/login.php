@@ -2,13 +2,13 @@
 session_start();
 $servername = "localhost";
 $username = "root";
-$password = "8049023544Aaa?"; // 你的密码
+$password = "NewRootPwd123!"; // 你的密码
 $dbname = "mydb";
 // 数据库配置
 function getDBConnection() {
     $servername = "localhost";
     $username = "root";
-    $password = "8049023544Aaa?"; // 你的密码
+    $password = "NewRootPwd123!"; // 你的密码
     $dbname = "mydb";
     
     $conn = new mysqli($servername, $username, $password, $dbname);
