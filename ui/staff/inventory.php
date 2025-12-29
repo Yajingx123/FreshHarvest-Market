@@ -249,180 +249,51 @@ if ($branchId === null) {
                 if ($batchId === '' || $newQuantity < 0 || !in_array($reason, $allowedReasons, true)) {
                     $error_message = '请填写正确的调整信息。';
                 } else {
-                    $conn->begin_transaction();
                     try {
-                        $stmtBatch = $conn->prepare('SELECT batch_ID, product_ID, branch_ID, quantity_on_hand, order_ID, date_expired, received_date FROM Inventory WHERE batch_ID = ? AND branch_ID = ? LIMIT 1 FOR UPDATE');
-                        if (!$stmtBatch) {
-                            throw new Exception('准备批次查询失败：' . $conn->error);
-                        }
-                        $stmtBatch->bind_param('si', $batchId, $branchId);
-                        if (!$stmtBatch->execute()) {
-                            throw new Exception('查询批次失败：' . $stmtBatch->error);
-                        }
-                        $batchRow = $stmtBatch->get_result()->fetch_assoc();
-                        $stmtBatch->close();
-
-                        if (!$batchRow) {
-                            throw new Exception('未找到该批次或不属于当前门店。');
+                        $staffId = $_SESSION['staff_id'] ?? null;
+                        if (!$staffId) {
+                            throw new Exception('无法识别当前员工，请重新登录。');
                         }
 
-                        $currentQty = (int)$batchRow['quantity_on_hand'];
-                        if ($originalQuantity !== null && $originalQuantity !== $currentQty) {
-                            $actorInfo = getLastBatchAdjustmentActor($conn, $batchId);
-                            [$actorName, $actionTime] = resolveActorContext($actorInfo);
-                            $reasonText = sprintf(
-                                '库存调整失败：%s%s已将该批次更新为 %d 件（您看到的是 %d 件），请刷新后重试。',
-                                $actorName,
-                                $actionTime,
-                                $currentQty,
-                                $originalQuantity
-                            );
-                            $_SESSION['inventory_error'] = $reasonText;
-                            $conn->rollback();
-                            header('Location: inventory.php');
-                            exit();
+                        $expectedQuantity = $originalQuantity;
+                        $stmtAdjust = $conn->prepare('CALL staff_adjust_inventory(?, ?, ?, ?, ?, ?)');
+                        if (!$stmtAdjust) {
+                            throw new Exception('准备库存调整存储过程失败：' . $conn->error);
                         }
-                        $nextItemIndex = getNextStockItemIndex($conn, $batchId, true);
-                        $delta = $newQuantity - $currentQty;
-                        if ($delta === 0) {
-                            $actorInfo = getLastBatchAdjustmentActor($conn, $batchId);
-                            [$actorName, $actionTime] = resolveActorContext($actorInfo);
-                            $reasonText = sprintf('库存未发生变化：%s%s已将该批次调整为 %d 件，请刷新后重试。', $actorName, $actionTime, $currentQty);
-                            $_SESSION['inventory_error'] = $reasonText;
-                            $conn->commit();
-                            header('Location: inventory.php');
-                            exit();
+                        $stmtAdjust->bind_param('siisii', $batchId, $branchId, $newQuantity, $reason, $staffId, $expectedQuantity);
+                        if (!$stmtAdjust->execute()) {
+                            throw new Exception('执行库存调整存储过程失败：' . $stmtAdjust->error);
+                        }
+                        $stmtAdjust->close();
+                        while ($conn->more_results() && $conn->next_result()) {
+                            $extraResult = $conn->store_result();
+                            if ($extraResult) {
+                                $extraResult->free();
+                            }
                         }
 
-                        $statusMap = [
-                            'return' => 'returned',
-                            'transfer' => 'sold',
-                            'adjustment' => 'damaged'
-                        ];
-                        $productIdParam = (int)$batchRow['product_ID'];
-                        $branchIdParam = (int)$branchId;
-                        $orderIdParam = isset($batchRow['order_ID']) ? (int)$batchRow['order_ID'] : null;
-                        $receivedDateParam = $batchRow['received_date'] ?? date('Y-m-d');
-                        $expiryDateParam = $batchRow['date_expired'] ?? null;
-                        $batchIdParam = $batchId;
-                        $statusInStock = 'in_stock';
-
-                        if ($delta > 0) {
-                            $nextIndex = $nextItemIndex;
-                            $stmtStock = $conn->prepare('INSERT INTO StockItem (item_ID, batch_ID, product_ID, branch_ID, purchase_order_ID, customer_order_ID, received_date, expiry_date, status) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)');
-                            $stmtCert = $conn->prepare('INSERT INTO StockItemCertificate (item_ID, transaction_type, date, transaction_ID) VALUES (?, ?, ?, ?)');
-                            $now = date('Y-m-d H:i:s');
-                            $reasonParam = $reason;
-                            $transactionIdParam = null;
-                            $nowParam = $now;
-                            for ($i = 1; $i <= $delta; $i++) {
-                                $nextIndex++;
-                                $itemIdParam = generateStockItemId($batchId, $nextIndex);
-                                $stmtStock->bind_param(
-                                    'ssiiisss',
-                                    $itemIdParam,
-                                    $batchIdParam,
-                                    $productIdParam,
-                                    $branchIdParam,
-                                    $orderIdParam,
-                                    $receivedDateParam,
-                                    $expiryDateParam,
-                                    $statusInStock
-                                );
-                                if (!$stmtStock->execute()) {
-                                    throw new Exception('新增单件库存失败：' . $stmtStock->error);
-                                }
-                                $stmtCert->bind_param('sssi', $itemIdParam, $reasonParam, $nowParam, $transactionIdParam);
-                                if (!$stmtCert->execute()) {
-                                    throw new Exception('记录库存凭证失败：' . $stmtCert->error);
-                                }
-                            }
-                            $stmtStock->close();
-                            $stmtCert->close();
-                        } else {
-                            $needRemove = abs($delta);
-                            $stmtFetchItems = $conn->prepare("SELECT item_ID FROM StockItem WHERE batch_ID = ? AND status = 'in_stock' ORDER BY item_ID DESC FOR UPDATE");
-                            if (!$stmtFetchItems) {
-                                throw new Exception('准备库存明细查询失败：' . $conn->error);
-                            }
-                            $stmtFetchItems->bind_param('s', $batchId);
-                            if (!$stmtFetchItems->execute()) {
-                                throw new Exception('获取可用库存明细失败：' . $stmtFetchItems->error);
-                            }
-                            $rsItems = $stmtFetchItems->get_result();
-                            $itemsToUpdate = [];
-                            while ($row = $rsItems->fetch_assoc()) {
-                                $itemsToUpdate[] = $row['item_ID'];
-                                if (count($itemsToUpdate) >= $needRemove) {
-                                    break;
-                                }
-                            }
-                            $stmtFetchItems->close();
-                            if (count($itemsToUpdate) < $needRemove) {
-                                $missing = $needRemove - count($itemsToUpdate);
-                                $stmtInsertVirtual = $conn->prepare('INSERT INTO StockItem (item_ID, batch_ID, product_ID, branch_ID, purchase_order_ID, customer_order_ID, received_date, expiry_date, status) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)');
-                                if (!$stmtInsertVirtual) {
-                                    throw new Exception('准备虚拟库存插入失败：' . $conn->error);
-                                }
-                                for ($i = 1; $i <= $missing; $i++) {
-                                    $nextItemIndex++;
-                                    $virtualId = generateStockItemId($batchId, $nextItemIndex);
-                                    $virtualIdParam = $virtualId;
-                                    $stmtInsertVirtual->bind_param(
-                                        'ssiiisss',
-                                        $virtualIdParam,
-                                        $batchIdParam,
-                                        $productIdParam,
-                                        $branchIdParam,
-                                        $orderIdParam,
-                                        $receivedDateParam,
-                                        $expiryDateParam,
-                                        $statusInStock
-                                    );
-                                    if (!$stmtInsertVirtual->execute()) {
-                                        throw new Exception('补全单件记录失败：' . $stmtInsertVirtual->error);
-                                    }
-                                    $itemsToUpdate[] = $virtualId;
-                                }
-                            $stmtInsertVirtual->close();
-                        }
-                        $targetStatus = $statusMap[$reason] ?? 'damaged';
-                        $targetStatusParam = $targetStatus;
-                        $stmtUpdateItem = $conn->prepare('UPDATE StockItem SET status = ? WHERE item_ID = ?');
-                        $stmtCert = $conn->prepare('INSERT INTO StockItemCertificate (item_ID, transaction_type, date, transaction_ID) VALUES (?, ?, ?, ?)');
-                        $now = date('Y-m-d H:i:s');
-                        $reasonParam = $reason;
-                        $nowParam = $now;
-                        $transactionIdParam = null;
-                        foreach ($itemsToUpdate as $itemId) {
-                            $itemIdParam = $itemId;
-                            $stmtUpdateItem->bind_param('ss', $targetStatusParam, $itemIdParam);
-                            if (!$stmtUpdateItem->execute()) {
-                                throw new Exception('更新单件状态失败：' . $stmtUpdateItem->error);
-                            }
-                            $stmtCert->bind_param('sssi', $itemIdParam, $reasonParam, $nowParam, $transactionIdParam);
-                            if (!$stmtCert->execute()) {
-                                throw new Exception('记录库存凭证失败：' . $stmtCert->error);
-                            }
-                        }
-                        $stmtUpdateItem->close();
-                        $stmtCert->close();
-                    }
-
-                        $stmtUpdateBatch = $conn->prepare('UPDATE Inventory SET quantity_on_hand = ? WHERE batch_ID = ? AND branch_ID = ?');
-                        $stmtUpdateBatch->bind_param('isi', $newQuantity, $batchId, $branchId);
-                        if (!$stmtUpdateBatch->execute()) {
-                            throw new Exception('更新批次库存失败：' . $stmtUpdateBatch->error);
-                        }
-                        $stmtUpdateBatch->close();
-
-                        $conn->commit();
                         $_SESSION['inventory_success'] = '库存已调整。';
                         header('Location: inventory.php');
                         exit();
                     } catch (Exception $inner) {
-                        $conn->rollback();
-                        $error_message = $inner->getMessage();
+                        $message = $inner->getMessage();
+                        if (strpos($message, 'Quantity mismatch') !== false || strpos($message, 'Quantity unchanged') !== false) {
+                            $actorInfo = getLastBatchAdjustmentActor($conn, $batchId);
+                            [$actorName, $actionTime] = resolveActorContext($actorInfo);
+                            if (strpos($message, 'Quantity mismatch') !== false) {
+                                $reasonText = sprintf(
+                                    '库存调整失败：%s%s已将该批次更新，请刷新后重试。',
+                                    $actorName,
+                                    $actionTime
+                                );
+                            } else {
+                                $reasonText = sprintf('库存未发生变化：%s%s已将该批次更新，请刷新后重试。', $actorName, $actionTime);
+                            }
+                            $_SESSION['inventory_error'] = $reasonText;
+                            header('Location: inventory.php');
+                            exit();
+                        }
+                        $error_message = $message;
                     }
                 }
             } elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['restock_action'])) {
@@ -441,7 +312,6 @@ if ($branchId === null) {
                 }
 
                 if (!$error_message) {
-                    $conn->begin_transaction();
                     try {
                         $stmtProduct = $conn->prepare('SELECT p.sku, p.product_name, p.category_id, c.parent_category_id FROM products p LEFT JOIN Categories c ON p.category_id = c.category_id WHERE p.product_ID = ? LIMIT 1 FOR UPDATE');
                         if (!$stmtProduct) {
@@ -502,100 +372,36 @@ if ($branchId === null) {
                             [$actorName, $actionTime] = resolveActorContext($actorInfo, '其他员工');
                             $reasonText = sprintf('补货失败：%s%s刚刚完成了该商品的入库，请刷新库存后再试。', $actorName, $actionTime);
                             $_SESSION['inventory_error'] = $reasonText;
-                            $conn->rollback();
                             header('Location: inventory.php');
                             exit();
                         }
 
-                        $productSku = $productRow['sku'] ?? '';
-                        $orderDate = date('Y-m-d');
-                        $status = 'received';
-                        $totalAmount = $unitCost * $quantity;
-                        $stmtPO = $conn->prepare('INSERT INTO PurchaseOrder (supplier_ID, branch_ID, date, status, total_amount) VALUES (?, ?, ?, ?, ?)');
-                        if (!$stmtPO) {
-                            throw new Exception('创建采购单失败：' . $conn->error);
+                        $stmtRestock = $conn->prepare('CALL staff_restock(?, ?, ?, ?, ?, ?, @po_id, @batch_id)');
+                        if (!$stmtRestock) {
+                            throw new Exception('准备补货存储过程失败：' . $conn->error);
                         }
-                        $stmtPO->bind_param('iissd', $supplierId, $branchId, $orderDate, $status, $totalAmount);
-                        if (!$stmtPO->execute()) {
-                            throw new Exception('保存采购单失败：' . $stmtPO->error);
+                        $expiryDateParam = $expiryDate;
+                        $stmtRestock->bind_param('iiiids', $productId, $branchId, $supplierId, $quantity, $unitCost, $expiryDateParam);
+                        if (!$stmtRestock->execute()) {
+                            throw new Exception('执行补货存储过程失败：' . $stmtRestock->error);
                         }
-                        $purchaseOrderId = $stmtPO->insert_id;
-                        $stmtPO->close();
-
-                        $batchId = generateBatchId($conn, $branchId, $productSku, true);
-                        $receivedDate = date('Y-m-d');
-                        $stmtInv = $conn->prepare('INSERT INTO Inventory (batch_ID, product_ID, branch_ID, quantity_received, quantity_on_hand, unit_cost, received_date, order_ID, date_expired) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-                        if (!$stmtInv) {
-                            throw new Exception('准备库存插入失败：' . $conn->error);
-                        }
-                        $stmtInv->bind_param(
-                            'siiiidsis',
-                            $batchId,
-                            $productId,
-                            $branchId,
-                            $quantity,
-                            $quantity,
-                            $unitCost,
-                            $receivedDate,
-                            $purchaseOrderId,
-                            $expiryDate
-                        );
-                        if (!$stmtInv->execute()) {
-                            throw new Exception('新增库存批次失败：' . $stmtInv->error);
-                        }
-                        $stmtInv->close();
-
-                        $stmtStock = $conn->prepare('INSERT INTO StockItem (item_ID, batch_ID, product_ID, branch_ID, purchase_order_ID, customer_order_ID, received_date, expiry_date, status) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)');
-                        if (!$stmtStock) {
-                            throw new Exception('准备 StockItem 插入失败：' . $conn->error);
-                        }
-                        $stmtCert = $conn->prepare('INSERT INTO StockItemCertificate (item_ID, transaction_type, date, transaction_ID) VALUES (?, ?, ?, ?)');
-                        if (!$stmtCert) {
-                            throw new Exception('准备凭证插入失败：' . $conn->error);
-                        }
-                        $stmtPurchaseItem = $conn->prepare('INSERT INTO PurchaseItem (purchase_order_ID, item_ID, product_ID, unit_cost, received_date) VALUES (?, ?, ?, ?, ?)');
-                        if (!$stmtPurchaseItem) {
-                            throw new Exception('准备采购明细插入失败：' . $conn->error);
-                        }
-                        $transactionType = 'purchase';
-                        $now = date('Y-m-d H:i:s');
-                        for ($i = 1; $i <= $quantity; $i++) {
-                            $itemId = generateStockItemId($batchId, $i);
-                            $statusValue = 'in_stock';
-                            $stmtStock->bind_param(
-                                'ssiiisss',
-                                $itemId,
-                                $batchId,
-                                $productId,
-                                $branchId,
-                                $purchaseOrderId,
-                                $receivedDate,
-                                $expiryDate,
-                                $statusValue
-                            );
-                            if (!$stmtStock->execute()) {
-                                throw new Exception('写入 StockItem 失败：' . $stmtStock->error);
-                            }
-
-                            $stmtCert->bind_param('sssi', $itemId, $transactionType, $now, $purchaseOrderId);
-                            if (!$stmtCert->execute()) {
-                                throw new Exception('写入库存凭证失败：' . $stmtCert->error);
-                            }
-                            $stmtPurchaseItem->bind_param('isids', $purchaseOrderId, $itemId, $productId, $unitCost, $receivedDate);
-                            if (!$stmtPurchaseItem->execute()) {
-                                throw new Exception('写入采购明细失败：' . $stmtPurchaseItem->error);
+                        $stmtRestock->close();
+                        while ($conn->more_results() && $conn->next_result()) {
+                            $extraResult = $conn->store_result();
+                            if ($extraResult) {
+                                $extraResult->free();
                             }
                         }
-                        $stmtStock->close();
-                        $stmtCert->close();
-                        $stmtPurchaseItem->close();
 
-                        $conn->commit();
+                        $resultOut = $conn->query('SELECT @po_id AS purchase_order_id, @batch_id AS batch_id');
+                        if ($resultOut) {
+                            $resultOut->free();
+                        }
+
                         $_SESSION['inventory_success'] = '补货成功，库存已更新。';
                         header('Location: inventory.php');
                         exit();
                     } catch (Exception $inner) {
-                        $conn->rollback();
                         $error_message = $inner->getMessage();
                     }
                 }
