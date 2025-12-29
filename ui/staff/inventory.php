@@ -10,7 +10,7 @@ if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== tru
 
 $servername = "localhost";
 $username = "root";
-$password = "8049023544Aaa?";
+$password = "NewRootPwd123!";
 $dbname = "mydb";
 
 $error_message = '';
@@ -31,6 +31,30 @@ function buildSupplierInfo(array $row): array {
         'phone' => $row['supplier_phone'] ?? '未提供',
         'address' => $row['supplier_address'] ?? '未提供'
     ];
+}
+
+function resolveRestockCategoryId(int $parentCategoryId, int $categoryId): int {
+    $validParents = [2, 3, 4];
+    if (in_array($parentCategoryId, $validParents, true)) {
+        return $parentCategoryId;
+    }
+    if (in_array($categoryId, $validParents, true)) {
+        return $categoryId;
+    }
+    return 0;
+}
+
+function mapSupplierCategoryByParent(int $parentCategoryId): string {
+    switch ($parentCategoryId) {
+        case 2:
+            return '果蔬';
+        case 3:
+            return '肉禽蛋';
+        case 4:
+            return '水产';
+        default:
+            return '';
+    }
 }
 
 function getLastBatchAdjustmentActor(mysqli $conn, string $batchId): ?array {
@@ -419,7 +443,7 @@ if ($branchId === null) {
                 if (!$error_message) {
                     $conn->begin_transaction();
                     try {
-                        $stmtProduct = $conn->prepare('SELECT sku, product_name FROM products WHERE product_ID = ? LIMIT 1 FOR UPDATE');
+                        $stmtProduct = $conn->prepare('SELECT p.sku, p.product_name, p.category_id, c.parent_category_id FROM products p LEFT JOIN Categories c ON p.category_id = c.category_id WHERE p.product_ID = ? LIMIT 1 FOR UPDATE');
                         if (!$stmtProduct) {
                             throw new Exception('准备商品查询失败：' . $conn->error);
                         }
@@ -434,7 +458,16 @@ if ($branchId === null) {
                             throw new Exception('未找到该商品，无法补货。');
                         }
 
-                        $stmtSupplier = $conn->prepare('SELECT supplier_ID FROM Supplier WHERE supplier_ID = ? LIMIT 1 FOR UPDATE');
+                        $parentCategoryId = resolveRestockCategoryId(
+                            (int)($productRow['parent_category_id'] ?? 0),
+                            (int)($productRow['category_id'] ?? 0)
+                        );
+                        $supplierCategoryExpected = mapSupplierCategoryByParent($parentCategoryId);
+                        if ($supplierCategoryExpected === '') {
+                            throw new Exception('该商品无法匹配供应商类别，请检查商品分类设置。');
+                        }
+
+                        $stmtSupplier = $conn->prepare('SELECT supplier_ID, supplier_category FROM Supplier WHERE supplier_ID = ? LIMIT 1 FOR UPDATE');
                         if (!$stmtSupplier) {
                             throw new Exception('准备供应商查询失败：' . $conn->error);
                         }
@@ -447,6 +480,10 @@ if ($branchId === null) {
                         $stmtSupplier->close();
                         if (!$supplierRow) {
                             throw new Exception('供应商不存在。');
+                        }
+                        $supplierCategory = trim((string)($supplierRow['supplier_category'] ?? ''));
+                        if ($supplierCategoryExpected !== $supplierCategory) {
+                            throw new Exception('供应商类别与商品父类不匹配，请重新选择供应商。');
                         }
 
                         $inventoryState = summarizeProductInventory($conn, $productId, $branchId, true);
@@ -576,12 +613,14 @@ if ($branchId === null) {
 
             $sql = "SELECT i.product_ID, i.batch_ID, i.branch_ID, i.quantity_on_hand, i.quantity_received,
                            i.received_date, i.date_expired, p.product_name, p.sku, p.unit_price,
+                           p.category_id, c.parent_category_id,
                            b.branch_name,
                            s.supplier_ID AS supplier_id,
                            s.company_name AS supplier_name, s.contact_person AS supplier_contact,
                            s.phone AS supplier_phone, s.address AS supplier_address
                     FROM Inventory i
                     JOIN products p ON i.product_ID = p.product_ID
+                    LEFT JOIN Categories c ON p.category_id = c.category_id
                     LEFT JOIN Branch b ON i.branch_ID = b.branch_ID
                     LEFT JOIN PurchaseOrder po ON i.order_ID = po.purchase_order_ID
                     LEFT JOIN Supplier s ON po.supplier_ID = s.supplier_ID
@@ -595,6 +634,10 @@ if ($branchId === null) {
                         $pid = (int)$row['product_ID'];
                         $code = $row['sku'] ?? ('P' . str_pad($pid, 4, '0', STR_PAD_LEFT));
                         $supplierInfo = buildSupplierInfo($row);
+                        $restockCategoryId = resolveRestockCategoryId(
+                            (int)($row['parent_category_id'] ?? 0),
+                            (int)($row['category_id'] ?? 0)
+                        );
 
                         $inventoryBatches[] = [
                             'product_id' => $pid,
@@ -606,6 +649,7 @@ if ($branchId === null) {
                             'received_date' => $row['received_date'],
                             'date_expired' => $row['date_expired'],
                             'unit_price' => $row['unit_price'],
+                            'restock_category_id' => $restockCategoryId,
                             'supplier' => $supplierInfo
                         ];
 
@@ -618,6 +662,7 @@ if ($branchId === null) {
                                 'total_received' => 0,
                                 'last_received' => $row['received_date'] ?? null,
                                 'unit_price' => $row['unit_price'] ?? null,
+                                'restock_category_id' => $restockCategoryId,
                                 'supplier' => $supplierInfo
                             ];
                         }
@@ -640,7 +685,7 @@ if ($branchId === null) {
                 $error_message = '准备库存查询失败：' . $conn->error;
             }
 
-            $resultSuppliers = $conn->query('SELECT supplier_ID, company_name FROM Supplier ORDER BY company_name ASC');
+            $resultSuppliers = $conn->query('SELECT supplier_ID, company_name, supplier_category FROM Supplier ORDER BY company_name ASC');
             if ($resultSuppliers) {
                 while ($row = $resultSuppliers->fetch_assoc()) {
                     $supplierOptions[] = $row;
@@ -666,6 +711,7 @@ foreach ($inventorySummary as $item) {
         'reorder_level' => $reorderLevel,
         'last_received' => $item['last_received'],
         'unit_price' => $item['unit_price'],
+        'restock_category_id' => $item['restock_category_id'],
         'supplier' => $item['supplier']
     ];
 }
@@ -883,6 +929,11 @@ if ($error_message !== '') {
     const inventoryBatches = <?php echo $batchJson ?: '[]'; ?>;
     const supplierOptions = <?php echo $supplierOptionsJson ?: '[]'; ?>;
     const branchName = <?php echo $jsBranchName; ?> || '';
+    const supplierCategoryMap = {
+        2: '果蔬',
+        3: '肉禽蛋',
+        4: '水产'
+    };
 
     function getRestockList() {
         const low = [], warn = [];
@@ -927,30 +978,18 @@ if ($error_message !== '') {
     }
 
     function openSupplierPopup(item) {
-        const s = item.supplier || {};
-        const popup = document.getElementById('supplierPopup');
-        popup.innerHTML = `
-            <h3>供货商信息</h3>
-            <div class='info'><b>商品：</b>${item.product_name} (${item.product_code})</div>
-            <div class='info'><b>当前库存：</b>${item.total_stock}，<b>补货阈值：</b>${item.reorder_level}</div>
-            <div class='info'><b>供应商：</b>${s.name || '未知'}</div>
-            <div class='info'><b>联系人：</b>${s.contact || '未登记'}</div>
-            <div class='info'><b>电话：</b>${s.phone || '未提供'}</div>
-            <div class='info'><b>地址：</b>${s.address || '未提供'}</div>
-            <div class='actions'>
-                <button class='btn btn-success' onclick='openRestockOrderForm(${JSON.stringify(item)})'>确认补货</button>
-                <button class='btn btn-warning' style='margin-left:10px;' onclick='closeSupplierPopup()'>取消</button>
-            </div>
-        `;
-        popup.style.display = 'block';
-        document.getElementById('popupMask').style.display = 'block';
+        openRestockOrderForm(item);
     }
 
-    function buildSupplierOptions(selectedId) {
-        if (!supplierOptions.length) {
-            return '<option value=\"\">暂无供应商</option>';
+    function buildSupplierOptions(item, selectedId) {
+        const categoryLabel = supplierCategoryMap[Number(item.restock_category_id)] || '';
+        const filtered = categoryLabel
+            ? supplierOptions.filter(opt => opt.supplier_category === categoryLabel)
+            : [];
+        if (!filtered.length) {
+            return '<option value=\"\">暂无可用供应商</option>';
         }
-        return supplierOptions.map(opt => {
+        return filtered.map(opt => {
             const sel = Number(selectedId) === Number(opt.supplier_ID) ? 'selected' : '';
             return `<option value=\"${opt.supplier_ID}\" ${sel}>${opt.company_name}</option>`;
         }).join('');
@@ -975,7 +1014,7 @@ if ($error_message !== '') {
                 <div class='info'><b>申请人：</b><input type='text' name='staff' placeholder='申请人姓名' style='width:60%;margin-left:8px;'></div>
                 <div class='info'><b>供应商：</b>
                     <select name='supplier_id' required style='margin-left:8px;flex:1;'>
-                        ${buildSupplierOptions(supplierId)}
+                        ${buildSupplierOptions(item, supplierId)}
                     </select>
                 </div>
                 <div class='info'><b>补货数量：</b><input type='number' name='qty' id='restockQty' min='1' value='10' required style='width:80px;margin-left:8px;' oninput='updateRestockTotal(${price})'></div>
@@ -988,6 +1027,8 @@ if ($error_message !== '') {
                 </div>
             </form>
         `;
+        popup.style.display = 'block';
+        document.getElementById('popupMask').style.display = 'block';
     }
 
     function updateRestockTotal(price) {

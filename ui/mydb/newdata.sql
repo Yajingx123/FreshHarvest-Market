@@ -130,10 +130,13 @@ INSERT INTO `User` (user_ID,user_name,password_hash,user_type,user_email,user_te
 (17,'sup_a@localhost',MD5('Test1234'),'supplier','supa@vendor.com','13600000001','Supplier','A',NULL,TRUE),
 (18,'sup_b@localhost',MD5('Test1234'),'supplier','supb@vendor.com','13600000002','Supplier','B',NULL,TRUE),
 (19,'sup_c@localhost',MD5('Test1234'),'supplier','supc@vendor.com','13600000003','Supplier','C',NULL,TRUE),
+(20,'sup_d@localhost',MD5('Test1234'),'supplier','supd@vendor.com','13600000004','Supplier','D',NULL,TRUE),
+(21,'sup_e@localhost',MD5('Test1234'),'supplier','supe@vendor.com','13600000005','Supplier','E',NULL,TRUE),
+(22,'sup_f@localhost',MD5('Test1234'),'supplier','supf@vendor.com','13600000006','Supplier','F',NULL,TRUE),
 -- 客户
-(20,'cust_regular@localhost',MD5('Test1234'),'customer','regular@user.com','13500000001','Zhang','San',NULL,TRUE),
-(21,'cust_vip@localhost',MD5('Test1234'),'customer','vip@user.com','13500000002','Li','Si',NULL,TRUE),
-(22,'cust_vvip@localhost',MD5('Test1234'),'customer','vvip@user.com','13500000003','Wang','Wu',NULL,TRUE);
+(23,'cust_regular@localhost',MD5('Test1234'),'customer','regular@user.com','13500000001','Zhang','San',NULL,TRUE),
+(24,'cust_vip@localhost',MD5('Test1234'),'customer','vip@user.com','13500000002','Li','Si',NULL,TRUE),
+(25,'cust_vvip@localhost',MD5('Test1234'),'customer','vvip@user.com','13500000003','Wang','Wu',NULL,TRUE);
 
 -- 6) 客户/供应商/员工表（保持不变）
 INSERT INTO Customer (customer_ID, user_name, phone, email, gender, address, loyalty_level,accu_cost) VALUES
@@ -142,9 +145,12 @@ INSERT INTO Customer (customer_ID, user_name, phone, email, gender, address, loy
 (3,'cust_vvip@localhost','13500000003','vvip@user.com','Men','Beijing','VVIP',1.00);
 
 INSERT INTO Supplier (supplier_ID, user_name, company_name, contact_person, phone, email, address, tax_number, supplier_category, status) VALUES
-(1,'sup_a@localhost','湘菜源蔬果基地','周供应','13600000001','supa@vendor.com','长沙市望城区XX基地','TAX-A-202512','果蔬','active'),
-(2,'sup_b@localhost','海鲜冷链直采','王海鲜','13600000002','supb@vendor.com','长沙市雨花区XX冷链仓','TAX-B-202512','肉禽蛋','active'),
-(3,'sup_c@localhost','综合供应商','李集采','13600000003','supc@vendor.com','长沙市开福区XX仓储中心','TAX-C-202512','水产','active');
+(1,'sup_a@localhost','湘菜源蔬果基地','周供应','13600000001','supa@vendor.com','长沙市望城区果蔬综合基地','TAX-A-202512','果蔬','active'),
+(2,'sup_b@localhost','肉禽蛋综合供应商','李集采','13600000002','supb@vendor.com','长沙市雨花区8号冷链仓','TAX-B-202512','肉禽蛋','active'),
+(3,'sup_c@localhost','海鲜冷链直采','王海鲜','13600000003','supc@vendor.com','长沙市开福区海鲜水产仓储中心','TAX-C-202512','水产','active'),
+(4,'sup_d@localhost','橘子洲果蔬超级市场','赵果蔬','13600000004','supd@vendor.com','长沙市岳麓区第3超级市场','TAX-D-202512','果蔬','active'),
+(5,'sup_e@localhost','湘江牧场','钱牧场','13600000005','supe@vendor.com','长沙市天心区综合牧场','TAX-E-202512','肉禽蛋','active'),
+(6,'sup_f@localhost','极速鲜海鲜水产超市','孙水产','13600000006','supf@vendor.com','长沙市芙蓉区7号路市场','TAX-F-202512','水产','active');
 
 INSERT INTO Staff (staff_ID, branch_ID, user_name, position, phone, salary, hire_date, status) VALUES
 -- 中南店(1)
