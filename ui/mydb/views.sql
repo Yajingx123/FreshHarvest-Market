@@ -183,46 +183,47 @@ SELECT
     p.description,
     p.status AS product_status,
     -- 聚合产品属性
-    GROUP_CONCAT(DISTINCT CONCAT(pa.attr_name, ': ', pa.attr_value) SEPARATOR ', ') AS product_attributes,
-    -- 按门店分组的在手库存（total_stock = quantity_on_hand）
-    i.quantity_on_hand AS total_stock,
-    -- 按门店分组的可用库存（available_stock = quantity_on_hand - locked_inventory）
-    (i.quantity_on_hand - i.locked_inventory) AS available_stock,
+    pa.product_attributes,
+    -- 全公司聚合在手库存（total_stock = SUM(quantity_on_hand)）
+    COALESCE(inv.total_stock, 0) AS total_stock,
+    -- 全公司聚合可用库存（available_stock = SUM(quantity_on_hand - locked_inventory)）
+    COALESCE(inv.available_stock, 0) AS available_stock,
     -- 库存状态
     CASE 
-        WHEN (i.quantity_on_hand - i.locked_inventory) > 0 THEN '有货'
+        WHEN COALESCE(inv.available_stock, 0) > 0 THEN '有货'
         ELSE '无货'
     END AS stock_status,
-    b.branch_name AS store_name,  -- 关联门店名称
-    b.branch_id AS store_id,       -- 关联门店ID
-    GROUP_CONCAT(DISTINCT si.item_ID SEPARATOR ', ') AS item_id  -- 新增：所有相关的item_id
+    si.item_ids AS item_id  -- 新增：所有相关的item_id
 FROM 
     products p
 JOIN Categories c ON p.category_id = c.category_id
-LEFT JOIN ProductAttribute pa ON p.product_ID = pa.product_id
-LEFT JOIN Inventory i ON p.product_ID = i.product_ID
-LEFT JOIN Branch b ON i.branch_id = b.branch_id  -- 关联门店表
-LEFT JOIN StockItem si ON p.product_ID = si.product_ID AND i.branch_id = si.branch_id
+LEFT JOIN (
+    SELECT
+        product_id,
+        GROUP_CONCAT(DISTINCT CONCAT(attr_name, ': ', attr_value) SEPARATOR ', ') AS product_attributes
+    FROM ProductAttribute
+    GROUP BY product_id
+) pa ON p.product_ID = pa.product_id
+LEFT JOIN (
+    SELECT
+        product_ID,
+        SUM(quantity_on_hand) AS total_stock,
+        SUM(quantity_on_hand - locked_inventory) AS available_stock
+    FROM Inventory
+    GROUP BY product_ID
+) inv ON p.product_ID = inv.product_ID
+LEFT JOIN (
+    SELECT
+        product_ID,
+        GROUP_CONCAT(DISTINCT item_ID SEPARATOR ', ') AS item_ids
+    FROM StockItem
+    GROUP BY product_ID
+) si ON p.product_ID = si.product_ID
 WHERE 
     p.status = 'active'  -- 只显示活跃产品
-GROUP BY 
-    p.product_ID,
-    p.sku,
-    p.product_name,
-    c.category_name,
-    c.parent_category_id,
-    p.unit_price,
-    p.unit,
-    p.description,
-    p.status,
-    i.quantity_on_hand,  -- 关键：按实际在手库存分组
-    i.locked_inventory,  -- 关键：按锁定库存分组
-    b.branch_id,
-    b.branch_name
 ORDER BY 
     c.category_name,
-    p.product_name,
-    b.branch_name;
+    p.product_name;
 
 -- 2. v_financial_overview - 财务概览
 -- 用途：查看公司财务状况可以看年月日

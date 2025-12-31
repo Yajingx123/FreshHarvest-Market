@@ -812,7 +812,6 @@ if ($error_message !== '') {
                 <input type='hidden' name='snapshot_last_received' value='${snapshotLastReceived}'>
                 <div class='info'><b>商品：</b>${item.product_name} (${item.product_code})</div>
                 <div class='info'><b>门店：</b><input type='text' value='${branchName}' readonly style='width:60%;margin-left:8px;background:#f5f5f5;'></div>
-                <div class='info'><b>申请人：</b><input type='text' name='staff' placeholder='申请人姓名' style='width:60%;margin-left:8px;'></div>
                 <div class='info'><b>供应商：</b>
                     <select name='supplier_id' required style='margin-left:8px;flex:1;'>
                         ${buildSupplierOptions(item, supplierId)}
