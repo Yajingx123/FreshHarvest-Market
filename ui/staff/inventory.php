@@ -417,21 +417,16 @@ if ($branchId === null) {
                 $stmtBranch->close();
             }
 
-            $sql = "SELECT i.product_ID, i.batch_ID, i.branch_ID, i.quantity_on_hand, i.quantity_received,
-                           i.received_date, i.date_expired, p.product_name, p.sku, p.unit_price,
-                           p.category_id, c.parent_category_id,
-                           b.branch_name,
-                           s.supplier_ID AS supplier_id,
-                           s.company_name AS supplier_name, s.contact_person AS supplier_contact,
-                           s.phone AS supplier_phone, s.address AS supplier_address
-                    FROM Inventory i
-                    JOIN products p ON i.product_ID = p.product_ID
-                    LEFT JOIN Categories c ON p.category_id = c.category_id
-                    LEFT JOIN Branch b ON i.branch_ID = b.branch_ID
-                    LEFT JOIN PurchaseOrder po ON i.order_ID = po.purchase_order_ID
-                    LEFT JOIN Supplier s ON po.supplier_ID = s.supplier_ID
-                    WHERE i.branch_ID = ?
-                    ORDER BY i.product_ID, i.received_date DESC";
+            $sql = "SELECT product_ID, batch_ID, branch_ID, quantity_on_hand, quantity_received,
+                           received_date, date_expired, product_name, sku, unit_price,
+                           category_id, parent_category_id,
+                           branch_name,
+                           supplier_id,
+                           supplier_name, supplier_contact,
+                           supplier_phone, supplier_address
+                    FROM v_staff_inventory_batches
+                    WHERE branch_ID = ?
+                    ORDER BY product_ID, received_date DESC";
             if ($stmt = $conn->prepare($sql)) {
                 $stmt->bind_param('i', $branchId);
                 if ($stmt->execute()) {
