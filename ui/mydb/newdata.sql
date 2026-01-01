@@ -61,25 +61,25 @@ INSERT INTO CategoryAttribute (category_id, attr_name, data_type, is_required) V
 (11,'冷藏/冷冻','text',TRUE);
 
 -- 2) 产品表（进货价与售价分离，售价=进货价+10）
-INSERT INTO products (product_ID, sku, product_name, status, unit_cost, unit_price, unit, description, category_id) VALUES
+INSERT INTO products (product_ID, sku, product_name, status, unit_price, unit, description, category_id) VALUES
 -- 蔬菜(5)
-(1,'VEG-SPINACH-250','有机菠菜 250g','active',3.50,13.50,'g','当日采摘，冷链配送',5),
-(2,'VEG-TOMATO-500','番茄 500g','active',7.90,17.90,'g','沙瓤番茄，口感酸甜',5),
-(3,'VEG-POTATO-1K','土豆 1kg','active',9.90,19.90,'kg','黄心土豆，耐储存',5),
+(1,'VEG-SPINACH-250','有机菠菜 250g','active',13.50,'g','当日采摘，冷链配送',5),
+(2,'VEG-TOMATO-500','番茄 500g','active',17.90,'g','沙瓤番茄，口感酸甜',5),
+(3,'VEG-POTATO-1K','土豆 1kg','active',19.90,'kg','黄心土豆，耐储存',5),
 -- 水果(6)
-(4,'FRU-STRAW-500','草莓 500g','active',29.90,39.90,'g','新鲜草莓，冷链直达',6),
-(5,'FRU-APPLE-1K','红富士苹果 1kg','active',18.80,28.80,'kg','脆甜多汁',6),
-(6,'FRU-BANANA-1K','香蕉 1kg','active',12.80,22.80,'kg','香甜软糯',6),
+(4,'FRU-STRAW-500','草莓 500g','active',39.90,'g','新鲜草莓，冷链直达',6),
+(5,'FRU-APPLE-1K','红富士苹果 1kg','active',28.80,'kg','脆甜多汁',6),
+(6,'FRU-BANANA-1K','香蕉 1kg','active',22.80,'kg','香甜软糯',6),
 -- 肉(7)
-(7,'MEAT-PORK-500','五花肉 500g','active',28.90,38.90,'g','精选猪五花',7),
-(8,'MEAT-BEEF-500','牛腱子 500g','active',49.90,59.90,'g','适合卤煮炖',7),
-(9,'MEAT-CHICK-1','三黄鸡 1只','active',39.90,49.90,'只','散养鸡，冷链配送',7),
+(7,'MEAT-PORK-500','五花肉 500g','active',38.90,'g','精选猪五花',7),
+(8,'MEAT-BEEF-500','牛腱子 500g','active',59.90,'g','适合卤煮炖',7),
+(9,'MEAT-CHICK-1','三黄鸡 1只','active',49.90,'只','散养鸡，冷链配送',7),
 -- 蛋(8)
-(10,'EGG-30','鲜鸡蛋 30枚','active',26.90,36.90,'枚','家庭装鸡蛋',8),
+(10,'EGG-30','鲜鸡蛋 30枚','active',36.90,'枚','家庭装鸡蛋',8),
 -- 鱼/虾/其他水产品
-(11,'FISH-SALMON-300','三文鱼 300g','active',59.90,69.90,'g','冰鲜切片',9),
-(12,'SHRIMP-500','大虾 500g','active',45.90,55.90,'g','冷冻保鲜',10),
-(13,'SEA-CRAB-2','梭子蟹 2只','active',69.00,79.00,'只','季节限定',11);
+(11,'FISH-SALMON-300','三文鱼 300g','active',69.90,'g','冰鲜切片',9),
+(12,'SHRIMP-500','大虾 500g','active',55.90,'g','冷冻保鲜',10),
+(13,'SEA-CRAB-2','梭子蟹 2只','active',79.00,'只','季节限定',11);
 
 -- 3) 产品属性表（保持不变）
 INSERT INTO ProductAttribute (product_id, attr_name, attr_value) VALUES
@@ -292,7 +292,7 @@ INSERT INTO SupplierProduct (supplier_ID, product_ID, price)
 SELECT
     s.supplier_ID,
     p.product_ID,
-    p.unit_cost
+    GREATEST(p.unit_price - 10, 0)
 FROM Supplier s
 JOIN products p ON (
     (s.supplier_category = '果蔬' AND p.category_id IN (5, 6))

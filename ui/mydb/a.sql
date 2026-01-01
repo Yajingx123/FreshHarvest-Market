@@ -58,7 +58,6 @@ CREATE TABLE IF NOT EXISTS `mydb`.`products` (
   `sku` VARCHAR(45) UNIQUE NOT NULL,
   `product_name` VARCHAR(45) NOT NULL,  
   `status` ENUM('active', 'discontinued') DEFAULT 'active',
-  `unit_cost` DECIMAL(10,2) NOT NULL,
   `unit_price` DECIMAL(10,2) NOT NULL,
   `unit` VARCHAR(20) NULL,
   `description` TEXT NULL,  

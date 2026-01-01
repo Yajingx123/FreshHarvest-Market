@@ -343,7 +343,10 @@ SELECT
     p.sku,
     c.category_name,
     GROUP_CONCAT(DISTINCT CONCAT(pa.attr_name, ': ', pa.attr_value) SEPARATOR ', ') AS attributes,
-    p.unit_cost AS unit_cost,
+    COALESCE(
+        (SELECT AVG(pi.unit_cost) FROM PurchaseItem pi WHERE pi.product_ID = p.product_ID),
+        (SELECT MIN(sp.price) FROM SupplierProduct sp WHERE sp.product_ID = p.product_ID)
+    ) AS unit_cost,
     p.unit_price AS selling_price,
     (SELECT AVG(pi.unit_cost) FROM PurchaseItem pi WHERE pi.product_ID = p.product_ID) AS avg_cost,
     (SELECT GROUP_CONCAT(DISTINCT s.company_name) 
@@ -361,7 +364,6 @@ GROUP BY
     p.product_name,
     p.sku,
     c.category_name,
-    p.unit_cost,
     p.unit_price;
 
 -- ============================================================
