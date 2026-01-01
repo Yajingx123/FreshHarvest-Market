@@ -358,32 +358,23 @@ if ($branchId === null) {
                             throw new Exception('供应商类别与商品父类不匹配，请重新选择供应商。');
                         }
 
-                        $inventoryState = summarizeProductInventory($conn, $productId, $branchId, true);
-                        $currentTotalStock = (int)$inventoryState['total_stock'];
-                        $currentLastReceived = $inventoryState['last_received'] ?? null;
-                        if ($currentLastReceived !== null) {
-                            $timestamp = strtotime($currentLastReceived);
-                            if ($timestamp !== false) {
-                                $currentLastReceived = date('Y-m-d', $timestamp);
-                            }
-                        }
                         $snapshotLast = $snapshotLastReceived === '' ? null : $snapshotLastReceived;
-                        if (($snapshotStock !== null && $snapshotStock !== $currentTotalStock) ||
-                            ($snapshotLast !== null && $currentLastReceived !== null && $snapshotLast !== $currentLastReceived)) {
-                            $actorInfo = getLastRestockActor($conn, $productId, $branchId);
-                            [$actorName, $actionTime] = resolveActorContext($actorInfo, '其他员工');
-                            $reasonText = sprintf('补货失败：%s%s刚刚完成了该商品的入库，请刷新库存后再试。', $actorName, $actionTime);
-                            $_SESSION['inventory_error'] = $reasonText;
-                            header('Location: inventory.php');
-                            exit();
-                        }
-
-                        $stmtRestock = $conn->prepare('CALL staff_restock(?, ?, ?, ?, ?, ?, @po_id, @batch_id)');
+                        $stmtRestock = $conn->prepare('CALL staff_restock(?, ?, ?, ?, ?, ?, ?, ?, @po_id, @batch_id)');
                         if (!$stmtRestock) {
                             throw new Exception('准备补货存储过程失败：' . $conn->error);
                         }
                         $expiryDateParam = $expiryDate;
-                        $stmtRestock->bind_param('iiiids', $productId, $branchId, $supplierId, $quantity, $unitCost, $expiryDateParam);
+                        $stmtRestock->bind_param(
+                            'iiiidiss',
+                            $productId,
+                            $branchId,
+                            $supplierId,
+                            $quantity,
+                            $unitCost,
+                            $snapshotStock,
+                            $snapshotLast,
+                            $expiryDateParam
+                        );
                         if (!$stmtRestock->execute()) {
                             throw new Exception('执行补货存储过程失败：' . $stmtRestock->error);
                         }
@@ -404,7 +395,16 @@ if ($branchId === null) {
                         header('Location: inventory.php');
                         exit();
                     } catch (Exception $inner) {
-                        $error_message = $inner->getMessage();
+                        $message = $inner->getMessage();
+                        if (strpos($message, 'Restock snapshot mismatch') !== false) {
+                            $actorInfo = getLastRestockActor($conn, $productId, $branchId);
+                            [$actorName, $actionTime] = resolveActorContext($actorInfo, '其他员工');
+                            $reasonText = sprintf('补货失败：%s%s刚刚完成了该商品的入库，请刷新库存后再试。', $actorName, $actionTime);
+                            $_SESSION['inventory_error'] = $reasonText;
+                            header('Location: inventory.php');
+                            exit();
+                        }
+                        $error_message = $message;
                     }
                 }
             }
@@ -877,11 +877,11 @@ if ($error_message !== '') {
 
     const pricingMap = buildPricingMap();
 
-    function resolvePricing(productId, supplierId, fallbackCost, fallbackPrice) {
+    function resolvePricing(productId, supplierId, fallbackPrice) {
         const key = `${supplierId}-${productId}`;
         const entry = pricingMap.get(key);
         return {
-            unit_cost: entry && entry.unit_cost > 0 ? entry.unit_cost : (Number(fallbackCost) || 0),
+            unit_cost: entry && entry.unit_cost > 0 ? entry.unit_cost : 0,
             unit_price: entry && entry.unit_price > 0 ? entry.unit_price : (Number(fallbackPrice) || 0)
         };
     }
@@ -923,7 +923,7 @@ if ($error_message !== '') {
         const snapshotStock = Number.isFinite(parsedStock) ? parsedStock : '';
         const snapshotLastReceived = item.last_received || '';
         const titleText = mode === 'new' ? '进货下单' : '补货下单';
-        const basePricing = resolvePricing(item.product_id, supplierId, item.unit_cost, item.unit_price);
+        const basePricing = resolvePricing(item.product_id, supplierId, item.unit_price);
         const costValue = basePricing.unit_cost > 0 ? basePricing.unit_cost : 0;
         const sellValue = basePricing.unit_price > 0 ? basePricing.unit_price : (Number(item.unit_price) || 0);
         popup.innerHTML = `
@@ -936,7 +936,7 @@ if ($error_message !== '') {
                 <div class='info'><b>商品：</b>${item.product_name} (${item.product_code})</div>
                 <div class='info'><b>门店：</b><input type='text' value='${branchName}' readonly style='width:60%;margin-left:8px;background:#f5f5f5;'></div>
                 <div class='info'><b>供应商：</b>
-                    <select name='supplier_id' required style='margin-left:8px;flex:1;' onchange="updateRestockPricing(${item.product_id}, this.value, ${Number(item.unit_cost) || 0}, ${Number(item.unit_price) || 0})">
+                    <select name='supplier_id' required style='margin-left:8px;flex:1;' onchange="updateRestockPricing(${item.product_id}, this.value, ${Number(item.unit_price) || 0})">
                         ${buildSupplierOptions(item, supplierId)}
                     </select>
                 </div>
@@ -966,8 +966,8 @@ if ($error_message !== '') {
         }
     }
 
-    function updateRestockPricing(productId, supplierId, fallbackCost, fallbackPrice) {
-        const pricing = resolvePricing(productId, supplierId, fallbackCost, fallbackPrice);
+    function updateRestockPricing(productId, supplierId, fallbackPrice) {
+        const pricing = resolvePricing(productId, supplierId, fallbackPrice);
         const costSpan = document.getElementById('restockUnitCost');
         const priceSpan = document.getElementById('restockUnitPrice');
         const costInput = document.getElementById('restockUnitCostInput');

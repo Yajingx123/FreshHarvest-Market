@@ -111,12 +111,14 @@ function getPurchaseOrderDetail($orderId) {
     
     // 获取订单商品
     $stmt = $conn->prepare("
-        SELECT pi.*, p.product_name, p.sku 
+        SELECT pi.*, p.product_name, p.sku, sp.price AS supplier_price
         FROM PurchaseItem pi
         JOIN products p ON pi.product_ID = p.product_ID
+        LEFT JOIN SupplierProduct sp
+            ON sp.product_ID = pi.product_ID AND sp.supplier_ID = ?
         WHERE pi.purchase_order_ID = ?
     ");
-    $stmt->bind_param("i", $orderId);
+    $stmt->bind_param("ii", $supplierId, $orderId);
     $stmt->execute();
     $order['items'] = [];
     $result = $stmt->get_result();
