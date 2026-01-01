@@ -165,9 +165,11 @@ function renderSuppliersTable() {
             </td>
             <td>${escapeHtml(supplier.created_at)}</td>
             <td>
-                <button class="btn btn-primary btn-view" title="查看详情" style="width: 60px;">查看</button>
-                <button class="btn btn-warning btn-edit" title="编辑信息" style="width: 60px; margin-left: 8px;">编辑</button>
-                <button class="btn btn-danger btn-delete" title="删除" style="width: 60px; margin-left: 8px;">删除</button>
+                <div class="action-buttons">
+                    <button class="btn btn-primary btn-view" title="查看详情">查看</button>
+                    <button class="btn btn-warning btn-edit" title="编辑信息">编辑</button>
+                    <button class="btn btn-danger btn-delete" title="删除">删除</button>
+                </div>
             </td>
         </tr>
         `;
@@ -700,5 +702,11 @@ setTimeout(applyFilters, 100);
     border-color: #1976d2;
     outline: none;
     box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
+}
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: nowrap;
 }
 </style>

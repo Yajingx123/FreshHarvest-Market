@@ -2,7 +2,7 @@
 function getDBConnection() {
     $servername = "localhost";
     $username = "root";
-    $password = "8049023544Aaa?"; // 你的密码
+    $password = "NewRootPwd123!"; // 统一为当前root密码
     $dbname = "mydb";
     
     $conn = new mysqli($servername, $username, $password, $dbname);
@@ -54,7 +54,7 @@ function getSupplierPurchaseOrders($status = NULL, $branchId = 0, $supplierId = 
     } 
     
     // 搜索功能
-    if (!empty(trim($search))) {
+    if ($search !== null && trim($search) !== '') {
         $sql .= " AND (po.purchase_order_ID LIKE ? OR b.branch_name LIKE ?)";
         $searchVal = '%' . trim($search) . '%';
         $params[] = $searchVal;
@@ -126,6 +126,42 @@ function getPurchaseOrderDetail($orderId) {
     $stmt->close();
     
     return $order;
+}
+
+/**
+ * 获取供应商可供产品清单（使用视图）
+ */
+function getSupplierProducts($supplierId) {
+    $conn = getDBConnection();
+    $products = [];
+    if (!$supplierId) {
+        return $products;
+    }
+    $stmt = $conn->prepare("SELECT product_ID, product_name, sku, description, price FROM v_supplier_products WHERE supplier_ID = ? ORDER BY product_name");
+    if (!$stmt) {
+        return $products;
+    }
+    $stmt->bind_param("i", $supplierId);
+    if ($stmt->execute()) {
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $products[] = $row;
+        }
+    }
+    $stmt->close();
+    return $products;
+}
+
+function updateSupplierProductPrice($supplierId, $productId, $price) {
+    $conn = getDBConnection();
+    $stmt = $conn->prepare("UPDATE SupplierProduct SET price = ? WHERE supplier_ID = ? AND product_ID = ?");
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param("dii", $price, $supplierId, $productId);
+    $ok = $stmt->execute();
+    $stmt->close();
+    return $ok;
 }
 
 /**

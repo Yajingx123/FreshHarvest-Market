@@ -340,7 +340,7 @@ BEGIN
     ELSEIF NEW.purchase_order_ID IS NOT NULL
        AND NEW.customer_order_ID IS NULL
        AND NEW.status = 'in_stock'
-       AND NEW.received_date = CURDATE() THEN
+       THEN
         SELECT unit_cost INTO v_unit_cost
         FROM Inventory
         WHERE batch_ID = NEW.batch_ID

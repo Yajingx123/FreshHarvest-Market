@@ -48,7 +48,7 @@ if (isset($_SESSION['supplier_username'])) {
         .logo {
             font-size: 24px;
             font-weight: bold;
-            color: #1976d2;
+            color: #ff7043;
             text-decoration: none;
         }
         .nav-menu {
@@ -68,11 +68,22 @@ if (isset($_SESSION['supplier_username'])) {
             align-items: center;
         }
         .nav-link:hover {
-            color: #1976d2;
+            color: #ff7043;
         }
         .nav-link.active {
-            color: #1976d2;
-            font-weight: bold;
+            color: #ff7043;
+            font-weight: 600;
+            position: relative;
+        }
+        .nav-link.active::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: #ff7043;
+            border-radius: 1px;
         }
         .main {
             width: 90%;
@@ -81,10 +92,10 @@ if (isset($_SESSION['supplier_username'])) {
         }
         .section-title {
             font-size: 22px;
-            color: #333;
+            color: #ff7043;
             margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #eee;
+            padding-left: 10px;
+            border-left: 4px solid #ff7043;
         }
         .profile-card {
             background-color: white;
@@ -107,9 +118,9 @@ if (isset($_SESSION['supplier_username'])) {
         .profile-value {
             font-size: 16px;
             padding: 10px 15px;
-            background-color: #f5f9ff;
+            background-color: #fff3e0;
             border-radius: 6px;
-            border: 1px solid #e3f2fd;
+            border: 1px solid #ffe0b2;
         }
         .action-buttons {
             display: flex;
@@ -127,11 +138,11 @@ if (isset($_SESSION['supplier_username'])) {
             transition: background-color 0.3s;
         }
         .btn-primary {
-            background-color: #1976d2;
+            background-color: #ff7043;
             color: white;
         }
         .btn-primary:hover {
-            background-color: #1565c0;
+            background-color: #f57c00;
         }
         .btn-danger {
             background-color: #e53935;
@@ -155,6 +166,38 @@ if (isset($_SESSION['supplier_username'])) {
             margin-top: 20px;
             font-size: 14px;
             color: #999;
+        }
+        .profile-container {
+            width: 90%;
+            margin: 30px auto;
+        }
+        .profile-title {
+            font-size: 22px;
+            color: #ff7043;
+            margin-bottom: 20px;
+            padding-left: 10px;
+            border-left: 4px solid #ff7043;
+        }
+        .profile-item {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 15px;
+        }
+        .logout-btn {
+            margin-top: 24px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            background-color: #e53935;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .logout-btn:hover {
+            background-color: #d32f2f;
         }
         /* 红点提示样式 */
         .badge {

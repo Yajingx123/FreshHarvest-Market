@@ -23,7 +23,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
               </span>
             </a>
          </li>
-            
+            <li class="nav-item"><a href="products_manage.php" class="nav-link <?php echo $currentPage === 'products_manage.php' ? 'active' : ''; ?>">产品管理</a></li>
             <li class="nav-item"><a href="profile.php" class="nav-link <?php echo $currentPage === 'profile.php' ? 'active' : ''; ?>">供货商信息</a></li>
         </ul>
     </div>

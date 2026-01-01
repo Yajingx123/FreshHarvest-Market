@@ -9,6 +9,7 @@ DROP VIEW IF EXISTS v_staff_branch_staff_inventory;
 DROP VIEW IF EXISTS v_staff_in_london_branch;
 DROP VIEW IF EXISTS v_branches_without_staff;
 DROP VIEW IF EXISTS v_staff_stockitem_counts;
+DROP VIEW IF EXISTS v_staff_branch_unstocked_products;
 
 -- 1) Multi-Table Joins (inner + outer joins)
 -- Inventory batches with product/category/branch/supplier details.
@@ -23,6 +24,7 @@ SELECT
     i.date_expired,
     p.product_name,
     p.sku,
+    p.unit_cost,
     p.unit_price,
     p.category_id,
     c.parent_category_id,
@@ -99,6 +101,33 @@ JOIN StockItemCertificate c ON c.transaction_ID = s.staff_ID
 GROUP BY s.branch_ID, s.staff_ID, s.user_name
 ORDER BY s.branch_ID, action_count DESC;
 
+-- 4) Unstocked products for a staff member's branch
+-- Products not yet sold/stocked in the current staff's branch (for new purchase).
+CREATE OR REPLACE VIEW v_staff_branch_unstocked_products AS
+SELECT
+    b.branch_ID,
+    b.branch_name,
+    p.product_ID,
+    p.product_name,
+    p.sku,
+    p.unit_cost,
+    p.unit_price,
+    p.unit,
+    p.description,
+    p.category_id,
+    c.parent_category_id,
+    c.category_name
+FROM Branch b
+CROSS JOIN products p
+JOIN Categories c ON p.category_id = c.category_id
+WHERE p.status = 'active'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM Inventory i
+      WHERE i.product_ID = p.product_ID
+        AND i.branch_ID = b.branch_ID
+  );
+
 -- ============================================================
 -- Permissions (staff users from newdata.sql)
 -- ============================================================
@@ -127,87 +156,102 @@ GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 'm1@localhost'@'localhost
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 'm1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 'm1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 'm1@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm1@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 'm2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 'm2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 'm2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 'm2@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm2@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 's1_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 's1_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 's1_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 's1_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 's1_b1@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's1_b1@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 's2_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 's2_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 's2_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 's2_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 's2_b1@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's2_b1@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 'd_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 'd_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 'd_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 'd_b1@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 'd_b1@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'd_b1@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 'm3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 'm3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 'm3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 'm3@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm3@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm4@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 'm4@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 'm4@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 'm4@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 'm4@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm4@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 's1_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 's1_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 's1_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 's1_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 's1_b2@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's1_b2@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 's2_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 's2_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 's2_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 's2_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 's2_b2@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's2_b2@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 'd_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 'd_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 'd_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 'd_b2@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 'd_b2@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'd_b2@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm5@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 'm5@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 'm5@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 'm5@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 'm5@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm5@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm6@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 'm6@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 'm6@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 'm6@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 'm6@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm6@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 's1_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 's1_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 's1_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 's1_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 's1_b3@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's1_b3@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 's2_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 's2_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 's2_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 's2_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 's2_b3@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's2_b3@localhost'@'localhost';
 
 GRANT SELECT ON mydb.v_staff_inventory_batches TO 'd_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_staff_inventory TO 'd_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_in_london_branch TO 'd_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_branches_without_staff TO 'd_b3@localhost'@'localhost';
 GRANT SELECT ON mydb.v_staff_stockitem_counts TO 'd_b3@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'd_b3@localhost'@'localhost';

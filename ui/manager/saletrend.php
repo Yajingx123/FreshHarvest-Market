@@ -142,6 +142,7 @@ function getSortIcon($field, $currentField, $currentOrder) {
             font-size: 14px;
             width: 100%;
             background-color: white;
+            height: 44px;
         }
         .form-select:focus, .form-input:focus {
             border-color: #1976d2;
@@ -151,6 +152,10 @@ function getSortIcon($field, $currentField, $currentOrder) {
         .btn-group {
             display: flex;
             gap: 10px;
+            align-self: end;
+        }
+        .filter-actions .form-label {
+            visibility: hidden;
         }
         .btn {
             padding: 10px 20px;
@@ -160,6 +165,10 @@ function getSortIcon($field, $currentField, $currentOrder) {
             font-weight: 500;
             cursor: pointer;
             transition: all 0.3s;
+            height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         .btn-primary {
             background-color: #1976d2;
@@ -355,9 +364,12 @@ function getSortIcon($field, $currentField, $currentOrder) {
                         </select>
                     </div>
                     
-                    <div class="btn-group">
-                        <button type="submit" class="btn btn-primary">应用筛选</button>
-                        <a href="saletrend.php" class="btn btn-secondary">重置筛选</a>
+                    <div class="form-group filter-actions">
+                        <label class="form-label">操作</label>
+                        <div class="btn-group">
+                            <button type="submit" class="btn btn-primary">应用筛选</button>
+                            <a href="saletrend.php" class="btn btn-secondary">重置筛选</a>
+                        </div>
                     </div>
                 </form>
             </div>
