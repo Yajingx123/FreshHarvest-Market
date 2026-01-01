@@ -60,9 +60,12 @@ function getTransactionsData() {
                     'productName' => $row['productName'],
                     'batchId' => $row['batchId'],
                     'type' => $row['direction'],
+                    'txn_type' => $row['type'],
                     'qty' => $row['qty'],
                     'unit' => $row['unit'],
                     'note' => $row['note'],
+                    'source' => $row['source_name'] ?? '',
+                    'destination' => $row['destination_name'] ?? '',
                 ];
             }
         }
@@ -893,6 +896,42 @@ function getAlertSummary() {
         error_log("获取预警统计失败: " . $e->getMessage());
         return [];
     }
+}
+
+// 经理端：产品库存（按门店汇总，使用视图）
+function getManagerProductInventoryByBranch() {
+    global $conn;
+    $data = [];
+    try {
+        $sql = "SELECT * FROM v_manager_product_inventory_by_branch";
+        $result = $conn->query($sql);
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+        }
+    } catch (Exception $e) {
+        error_log("获取产品库存汇总失败: " . $e->getMessage());
+    }
+    return $data;
+}
+
+// 经理端：产品供应商进货价与售价（使用视图）
+function getManagerProductSupplierPricing() {
+    global $conn;
+    $data = [];
+    try {
+        $sql = "SELECT * FROM v_manager_product_supplier_pricing";
+        $result = $conn->query($sql);
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+        }
+    } catch (Exception $e) {
+        error_log("获取供应商售价失败: " . $e->getMessage());
+    }
+    return $data;
 }
 
 /**

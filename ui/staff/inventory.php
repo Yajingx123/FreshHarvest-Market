@@ -20,6 +20,8 @@ unset($_SESSION['inventory_success'], $_SESSION['inventory_error']);
 $inventorySummary = [];
 $inventoryBatches = [];
 $supplierOptions = [];
+$supplierPricing = [];
+$unstockedProducts = [];
 $branchId = $_SESSION['staff_branch_id'] ?? null;
 $currentBranchName = '';
 
@@ -418,7 +420,7 @@ if ($branchId === null) {
             }
 
             $sql = "SELECT product_ID, batch_ID, branch_ID, quantity_on_hand, quantity_received,
-                           received_date, date_expired, product_name, sku, unit_price,
+                           received_date, date_expired, product_name, sku, unit_cost, unit_price,
                            category_id, parent_category_id,
                            branch_name,
                            supplier_id,
@@ -449,6 +451,7 @@ if ($branchId === null) {
                             'quantity_received' => (int)$row['quantity_received'],
                             'received_date' => $row['received_date'],
                             'date_expired' => $row['date_expired'],
+                            'unit_cost' => $row['unit_cost'],
                             'unit_price' => $row['unit_price'],
                             'restock_category_id' => $restockCategoryId,
                             'supplier' => $supplierInfo
@@ -462,6 +465,7 @@ if ($branchId === null) {
                                 'total_stock' => 0,
                                 'total_received' => 0,
                                 'last_received' => $row['received_date'] ?? null,
+                                'unit_cost' => $row['unit_cost'] ?? null,
                                 'unit_price' => $row['unit_price'] ?? null,
                                 'restock_category_id' => $restockCategoryId,
                                 'supplier' => $supplierInfo
@@ -493,6 +497,49 @@ if ($branchId === null) {
                 }
                 $resultSuppliers->free();
             }
+
+            $resultPricing = $conn->query("SELECT sp.supplier_ID, sp.product_ID, sp.price, p.unit_price
+                                            FROM SupplierProduct sp
+                                            JOIN products p ON sp.product_ID = p.product_ID");
+            if ($resultPricing) {
+                while ($row = $resultPricing->fetch_assoc()) {
+                    $supplierPricing[] = $row;
+                }
+                $resultPricing->free();
+            }
+
+            if ($stmtUnstocked = $conn->prepare("SELECT branch_ID, product_ID, product_name, sku, unit_cost, unit_price, unit, description, category_id, parent_category_id, category_name
+                                                 FROM v_staff_branch_unstocked_products
+                                                 WHERE branch_ID = ?
+                                                 ORDER BY product_name ASC")) {
+                $stmtUnstocked->bind_param('i', $branchId);
+                if ($stmtUnstocked->execute()) {
+                    $rsUnstocked = $stmtUnstocked->get_result();
+                    while ($row = $rsUnstocked->fetch_assoc()) {
+                        $pid = (int)$row['product_ID'];
+                        $restockCategoryId = resolveRestockCategoryId(
+                            (int)($row['parent_category_id'] ?? 0),
+                            (int)($row['category_id'] ?? 0)
+                        );
+                        $unstockedProducts[] = [
+                            'product_id' => $pid,
+                            'product_code' => $row['sku'] ?? ('P' . str_pad($pid, 4, '0', STR_PAD_LEFT)),
+                            'product_name' => $row['product_name'] ?? ('商品' . $pid),
+                            'unit_cost' => $row['unit_cost'] ?? null,
+                            'unit_price' => $row['unit_price'] ?? null,
+                            'unit' => $row['unit'] ?? '',
+                            'description' => $row['description'] ?? '',
+                            'category_name' => $row['category_name'] ?? '',
+                            'restock_category_id' => $restockCategoryId,
+                            'total_stock' => 0,
+                            'last_received' => null
+                        ];
+                    }
+                } else {
+                    $error_message = '查询可进货商品失败：' . $conn->error;
+                }
+                $stmtUnstocked->close();
+            }
         } catch (Exception $e) {
             $error_message = $e->getMessage();
         }
@@ -511,6 +558,7 @@ foreach ($inventorySummary as $item) {
         'total_stock' => $item['total_stock'],
         'reorder_level' => $reorderLevel,
         'last_received' => $item['last_received'],
+        'unit_cost' => $item['unit_cost'],
         'unit_price' => $item['unit_price'],
         'restock_category_id' => $item['restock_category_id'],
         'supplier' => $item['supplier']
@@ -518,6 +566,8 @@ foreach ($inventorySummary as $item) {
 }
 
 $inventoryJson = json_encode($inventoryData, JSON_UNESCAPED_UNICODE);
+$unstockedJson = json_encode($unstockedProducts, JSON_UNESCAPED_UNICODE);
+$pricingJson = json_encode($supplierPricing, JSON_UNESCAPED_UNICODE);
 $batchJson = json_encode($inventoryBatches, JSON_UNESCAPED_UNICODE);
 if ($inventoryJson === false) {
     $inventoryJson = '[]';
@@ -525,6 +575,16 @@ if ($inventoryJson === false) {
     $inventoryJson = str_replace('</', '<\/', $inventoryJson);
 }
 $supplierOptionsJson = json_encode($supplierOptions, JSON_UNESCAPED_UNICODE);
+if ($unstockedJson === false) {
+    $unstockedJson = '[]';
+} else {
+    $unstockedJson = str_replace('</', '<\/', $unstockedJson);
+}
+if ($pricingJson === false) {
+    $pricingJson = '[]';
+} else {
+    $pricingJson = str_replace('</', '<\/', $pricingJson);
+}
 if ($batchJson === false) {
     $batchJson = '[]';
 } else {
@@ -653,6 +713,13 @@ if ($error_message !== '') {
 #restockList {
     margin-bottom: 32px;
 }
+.new-purchase-list {
+    margin-top: 26px;
+    margin-bottom: 32px;
+}
+.restock-card.new {
+    border-left: 5px solid #1e88e5;
+}
 .alert-box {
     background:#fff3e0;
     border:1px solid #ffc107;
@@ -722,11 +789,15 @@ if ($error_message !== '') {
                     <tbody></tbody>
                 </table>
             </div>
+            <h2 class="section-title" style="margin-top:40px;">进货新商品</h2>
+            <div id="newPurchaseList" class="new-purchase-list"></div>
         </section>
     </main>
     <?php include 'footer.php'; ?>
     <script>
     const inventorySummary = <?php echo $inventoryJson ?: '[]'; ?>;
+    const unstockedProducts = <?php echo $unstockedJson ?: '[]'; ?>;
+    const supplierPricing = <?php echo $pricingJson ?: '[]'; ?>;
     const inventoryBatches = <?php echo $batchJson ?: '[]'; ?>;
     const supplierOptions = <?php echo $supplierOptionsJson ?: '[]'; ?>;
     const branchName = <?php echo $jsBranchName; ?> || '';
@@ -766,6 +837,55 @@ if ($error_message !== '') {
         warn.forEach(item => wrap.appendChild(createRestockCard(item, 'warn')));
     }
 
+    function renderNewPurchaseList() {
+        const wrap = document.getElementById('newPurchaseList');
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        if (!unstockedProducts.length) {
+            wrap.innerHTML = '<div style="color:#888;padding:28px;text-align:center;">当前门店暂无可进货的新商品</div>';
+            return;
+        }
+        unstockedProducts.forEach(item => wrap.appendChild(createNewPurchaseCard(item)));
+    }
+
+
+    function createNewPurchaseCard(item) {
+        const card = document.createElement('div');
+        card.className = 'restock-card new';
+        const desc = item.description ? item.description : '暂无描述';
+        card.innerHTML = `
+            <div style="flex:1;">
+                <div style="font-size:16px;font-weight:600;">${item.product_name} <span style="color:#888;font-size:13px;">(${item.product_code})</span></div>
+                <div style="font-size:13px;color:#888;margin-top:6px;">${desc}</div>
+            </div>
+            <button class="btn btn-primary restock-btn" onclick='openRestockOrderForm(${JSON.stringify(item)}, "new")'>进货</button>
+        `;
+        return card;
+    }
+
+    function buildPricingMap() {
+        const map = new Map();
+        supplierPricing.forEach(row => {
+            const key = `${row.supplier_ID}-${row.product_ID}`;
+            map.set(key, {
+                unit_cost: Number(row.price) || 0,
+                unit_price: Number(row.unit_price) || 0
+            });
+        });
+        return map;
+    }
+
+    const pricingMap = buildPricingMap();
+
+    function resolvePricing(productId, supplierId, fallbackCost, fallbackPrice) {
+        const key = `${supplierId}-${productId}`;
+        const entry = pricingMap.get(key);
+        return {
+            unit_cost: entry && entry.unit_cost > 0 ? entry.unit_cost : (Number(fallbackCost) || 0),
+            unit_price: entry && entry.unit_price > 0 ? entry.unit_price : (Number(fallbackPrice) || 0)
+        };
+    }
+
     function createRestockCard(item, type) {
         const card = document.createElement('div');
         card.className = 'restock-card ' + type;
@@ -796,15 +916,18 @@ if ($error_message !== '') {
         }).join('');
     }
 
-    function openRestockOrderForm(item) {
-        const price = Number(item.unit_price) > 0 ? Number(item.unit_price) : 10.0;
+    function openRestockOrderForm(item, mode = 'restock') {
         const popup = document.getElementById('supplierPopup');
         const supplierId = item.supplier?.id || '';
         const parsedStock = Number(item.total_stock);
         const snapshotStock = Number.isFinite(parsedStock) ? parsedStock : '';
         const snapshotLastReceived = item.last_received || '';
+        const titleText = mode === 'new' ? '进货下单' : '补货下单';
+        const basePricing = resolvePricing(item.product_id, supplierId, item.unit_cost, item.unit_price);
+        const costValue = basePricing.unit_cost > 0 ? basePricing.unit_cost : 0;
+        const sellValue = basePricing.unit_price > 0 ? basePricing.unit_price : (Number(item.unit_price) || 0);
         popup.innerHTML = `
-            <h3>补货下单</h3>
+            <h3>${titleText}</h3>
             <form id='restockForm' method='post'>
                 <input type='hidden' name='restock_action' value='1'>
                 <input type='hidden' name='product_id' value='${item.product_id}'>
@@ -813,14 +936,15 @@ if ($error_message !== '') {
                 <div class='info'><b>商品：</b>${item.product_name} (${item.product_code})</div>
                 <div class='info'><b>门店：</b><input type='text' value='${branchName}' readonly style='width:60%;margin-left:8px;background:#f5f5f5;'></div>
                 <div class='info'><b>供应商：</b>
-                    <select name='supplier_id' required style='margin-left:8px;flex:1;'>
+                    <select name='supplier_id' required style='margin-left:8px;flex:1;' onchange="updateRestockPricing(${item.product_id}, this.value, ${Number(item.unit_cost) || 0}, ${Number(item.unit_price) || 0})">
                         ${buildSupplierOptions(item, supplierId)}
                     </select>
                 </div>
-                <div class='info'><b>补货数量：</b><input type='number' name='qty' id='restockQty' min='1' value='10' required style='width:80px;margin-left:8px;' oninput='updateRestockTotal(${price})'></div>
-                <div class='info'><b>采购单价：</b>¥${price.toFixed(2)}<input type='hidden' name='unit_cost' value='${price.toFixed(2)}'></div>
+                <div class='info'><b>补货数量：</b><input type='number' name='qty' id='restockQty' min='1' value='10' required style='width:80px;margin-left:8px;' oninput='updateRestockTotal()'></div>
+                <div class='info'><b>采购单价：</b>¥<span id='restockUnitCost'>${costValue.toFixed(2)}</span><input type='hidden' name='unit_cost' id='restockUnitCostInput' value='${costValue.toFixed(2)}'></div>
+                <div class='info'><b>售价：</b>¥<span id='restockUnitPrice'>${sellValue.toFixed(2)}</span></div>
                 <div class='info'><b>预计到期（选填）：</b><input type='date' name='expiry_date' style='margin-left:8px;'></div>
-                <div class='info'><b>总金额：</b>¥<span id='restockTotal'>${(price*10).toFixed(2)}</span></div>
+                <div class='info'><b>总金额：</b>¥<span id='restockTotal'>${(costValue*10).toFixed(2)}</span></div>
                 <div class='actions' style='margin-top:18px;'>
                     <button class='btn btn-success' type='submit'>提交订单</button>
                     <button class='btn btn-warning' type='button' style='margin-left:10px;' onclick='closeSupplierPopup()'>取消</button>
@@ -831,13 +955,32 @@ if ($error_message !== '') {
         document.getElementById('popupMask').style.display = 'block';
     }
 
-    function updateRestockTotal(price) {
+    function updateRestockTotal() {
         const qtyInput = document.getElementById('restockQty');
         const qty = qtyInput ? parseInt(qtyInput.value, 10) || 0 : 0;
+        const costInput = document.getElementById('restockUnitCostInput');
+        const unitCost = costInput ? parseFloat(costInput.value) || 0 : 0;
         const target = document.getElementById('restockTotal');
         if (target) {
-            target.textContent = (price * qty).toFixed(2);
+            target.textContent = (unitCost * qty).toFixed(2);
         }
+    }
+
+    function updateRestockPricing(productId, supplierId, fallbackCost, fallbackPrice) {
+        const pricing = resolvePricing(productId, supplierId, fallbackCost, fallbackPrice);
+        const costSpan = document.getElementById('restockUnitCost');
+        const priceSpan = document.getElementById('restockUnitPrice');
+        const costInput = document.getElementById('restockUnitCostInput');
+        if (costSpan) {
+            costSpan.textContent = pricing.unit_cost.toFixed(2);
+        }
+        if (priceSpan) {
+            priceSpan.textContent = pricing.unit_price.toFixed(2);
+        }
+        if (costInput) {
+            costInput.value = pricing.unit_cost.toFixed(2);
+        }
+        updateRestockTotal();
     }
 
     function openBatchManager(productId) {
@@ -939,6 +1082,7 @@ if ($error_message !== '') {
     }
 
     renderRestockList();
+    renderNewPurchaseList();
     renderInventoryTable();
 
     ['successNotice','errorNotice'].forEach(id => {

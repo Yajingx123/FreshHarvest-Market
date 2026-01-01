@@ -76,9 +76,11 @@ if (!isset($branches) || !is_array($branches)) {
                         </td>
                         <td><?= htmlspecialchars($branch['established_date']) ?></td>
                         <td>
-                            <button class="btn btn-primary btn-view" title="查看详情">查看</button>
-                            <button class="btn btn-warning btn-edit" title="编辑信息" style="margin-left:8px;">编辑</button>
-                            <button class="btn btn-info btn-manage" title="管理员工" style="margin-left:8px;">员工</button>
+                            <div class="action-buttons">
+                                <button class="btn btn-primary btn-view" title="查看详情">查看</button>
+                                <button class="btn btn-warning btn-edit" title="编辑信息">编辑</button>
+                                <button class="btn btn-info btn-manage" title="管理员工">员工</button>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -353,5 +355,11 @@ setTimeout(filterStores, 100);
     background-color: #f8d7da;
     color: #721c24;
     border: 1px solid #f5c6cb;
+}
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: nowrap;
 }
 </style>

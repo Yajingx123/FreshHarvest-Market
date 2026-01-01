@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS `mydb`.`Inventory` ;
 DROP TABLE IF EXISTS `mydb`.`StockItem` ;
 DROP TABLE IF EXISTS `mydb`.`OrderItem` ;
 DROP TABLE IF EXISTS `mydb`.`PurchaseItem` ;
+DROP TABLE IF EXISTS `mydb`.`SupplierProduct` ;
 DROP TABLE IF EXISTS `mydb`.`StockItemCertificate` ;
 SET FOREIGN_KEY_CHECKS=1;
 
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`products` (
   `sku` VARCHAR(45) UNIQUE NOT NULL,
   `product_name` VARCHAR(45) NOT NULL,  
   `status` ENUM('active', 'discontinued') DEFAULT 'active',
+  `unit_cost` DECIMAL(10,2) NOT NULL,
   `unit_price` DECIMAL(10,2) NOT NULL,
   `unit` VARCHAR(20) NULL,
   `description` TEXT NULL,  
@@ -194,6 +196,27 @@ CREATE TABLE IF NOT EXISTS `mydb`.`Supplier` (
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
+-- -----------------------------------------------------
+-- Table `mydb`.`SupplierProduct`
+-- -----------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `mydb`.`SupplierProduct` (
+  `supplier_ID` INT NOT NULL,
+  `product_ID` INT NOT NULL,
+  `price` DECIMAL(10,2) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`supplier_ID`, `product_ID`),
+  CONSTRAINT `fk_supplier_product_supplier`
+    FOREIGN KEY (`supplier_ID`)
+    REFERENCES `mydb`.`Supplier` (`supplier_ID`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_supplier_product_product`
+    FOREIGN KEY (`product_ID`)
+    REFERENCES `mydb`.`products` (`product_ID`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
 
 
 

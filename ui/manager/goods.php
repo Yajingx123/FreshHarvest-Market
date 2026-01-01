@@ -6,34 +6,89 @@ require_once __DIR__ . '/inc/header.php';  // 页头
 
 $categories=getProductCategories();
 $suppliers = getSuppliersFromDB(); 
+$inventoryByBranch = getManagerProductInventoryByBranch();
+$productSupplierPricing = getManagerProductSupplierPricing();
 ?>
+<style>
+    .product-list {
+        margin-top: 10px;
+    }
+    .product-card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        padding: 18px 22px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        transition: box-shadow 0.2s, transform 0.2s;
+    }
+    .product-card:hover {
+        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+        transform: translateY(-2px);
+    }
+    .product-card-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 10px;
+    }
+    .manager-modal-mask {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.25);
+        z-index: 999;
+    }
+    .manager-modal {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        min-width: 420px;
+        max-width: 90vw;
+        max-height: 80vh;
+        overflow: auto;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 8px 28px rgba(0,0,0,0.2);
+        padding: 24px;
+        z-index: 1000;
+    }
+    .manager-modal h3 {
+        margin-bottom: 12px;
+        color: #ff7043;
+    }
+    .manager-modal table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    .manager-modal th,
+    .manager-modal td {
+        padding: 10px 12px;
+        border-bottom: 1px solid #f0f0f0;
+        text-align: left;
+        font-size: 14px;
+    }
+    .manager-modal th {
+        background: #fff8e1;
+        color: #ff7043;
+    }
+</style>
 <section class="section">
     <h2 class="section-title">货品信息</h2>
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
         <input id="productSearchInput" class="filter-input" placeholder="搜索产品名称/编号">
-        <!-- 分类已取消，保留状态筛选 -->
-        <select id="productStatusSelect" class="filter-select">
-            <option value="">全部状态</option>
-            <option>已上架</option>
-            <option>已下架</option>
-            <option>库存预警</option>
-        </select>
         <button id="productSearchBtn" class="btn btn-primary">搜索</button>
         <button id="productAddBtn" class="btn btn-success" style="margin-left:auto;">新增产品</button>
     </div>
 
-    <!-- 横向卡片展示区 -->
-    <div id="productCardsWrap" style="overflow-x:auto;overflow-y:hidden;padding-bottom:12px;-webkit-overflow-scrolling:touch;">
-        <!-- 关键：内层容器设置 min-width: fit-content 以容纳所有卡片 -->
-        <div id="productCards" style="display:flex;gap:12px;min-height:160px;min-width:fit-content;padding:4px 2px;"></div>
-    </div>
-    <!-- changed -->
-
-    <!-- 可选的滚动提示 -->
-    <div style="text-align:center;margin-top:8px;color:#999;font-size:12px;">
-        <span>← 左右滑动查看更多 →</span>
-    </div>
+    <div id="productList" class="product-list"></div>
 </section>
+<div id="managerModalMask" class="manager-modal-mask" onclick="closeManagerModal()"></div>
+<div id="managerModal" class="manager-modal"></div>
 
 <!-- 货物流水管理（只读流水表） -->
 <section class="section" style="margin-top:20px;">
@@ -43,8 +98,9 @@ $suppliers = getSuppliersFromDB();
             <input id="txSearchInput" class="filter-input" placeholder="搜索产品名称/批次/备注">
             <select id="txTypeSelect" class="filter-select">
                 <option value="">全部类型</option>
-                <option value="in">入库</option>
-                <option value="out">出库</option>
+                <option value="sale">售卖</option>
+                <option value="adjustment">调整</option>
+                <option value="purchase">进货</option>
             </select>
             <button id="txSearchBtn" class="btn btn-primary">筛选</button>
         </div>
@@ -58,9 +114,9 @@ $suppliers = getSuppliersFromDB();
                     <th>批次号</th>
                     <th>数量</th>
                     <th>单位</th>
-                    <th>进or出</th>
-                    <th>来源（供应商）</th>
-                    <th>去向（门店）</th>
+                    <th>类型</th>
+                    <th>来源</th>
+                    <th>去向</th>
                     <th>备注</th>
                 </tr>
             </thead>
@@ -95,6 +151,8 @@ let transactions = <?= json_encode($transactions, JSON_UNESCAPED_UNICODE) ?>;
 const partnersList = <?= json_encode($partners, JSON_UNESCAPED_UNICODE) ?>;
 const categoriesData = <?= json_encode($categories, JSON_UNESCAPED_UNICODE) ?>;
 const suppliersData = <?= json_encode($suppliers, JSON_UNESCAPED_UNICODE) ?>;
+const inventoryByBranch = <?= json_encode($inventoryByBranch, JSON_UNESCAPED_UNICODE) ?>;
+const supplierPricing = <?= json_encode($productSupplierPricing, JSON_UNESCAPED_UNICODE) ?>;
 
 // 当前编辑的产品ID
 let currentEditProductId = null;
@@ -117,74 +175,32 @@ function formatDate(ts) {
     return d.toISOString().replace('T', ' ').slice(0, 19);
 }
 
-// 渲染产品卡片（展示name、description、图片、spec、unit，可点击）
-function renderProductCards(filteredProducts) {
-    const container = document.getElementById('productCards');
-    if (!container) return;
-    container.innerHTML = '';
+// 渲染产品列表（进货新商品样式）
+function renderProductList(filteredProducts) {
+    const wrap = document.getElementById('productList');
+    if (!wrap) return;
+    wrap.innerHTML = '';
 
     if (filteredProducts.length === 0) {
-        container.innerHTML = '<div style="flex:1;padding:24px;color:#666;text-align:center;">暂无匹配产品</div>';
+        wrap.innerHTML = '<div style="color:#666;padding:24px;text-align:center;">暂无匹配产品</div>';
         return;
     }
 
     filteredProducts.forEach(product => {
-        // 图片处理
-        const productImage = product.image 
-            ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" style="width:100%;height:120px;object-fit:cover;border-radius:4px;">`
-            : '<div style="width:100%;height:120px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;color:#999;border-radius:4px;">无图片</div>';
-
         const card = document.createElement('div');
-        
-        // 关键设置：使用 inline-block 而不是 flex-item 以避免压缩
-        card.style.display = 'inline-block';  // 改为 inline-block
-        card.style.width = '220px';           // 固定宽度
-        card.style.height = '320px';          // 固定高度，确保统一
-        card.style.verticalAlign = 'top';     // 顶部对齐
-        card.style.marginRight = '12px';      // 替换 gap 属性
-        
-        // 其他样式保持不变
-        card.style.border = '1px solid #eee';
-        card.style.borderRadius = '8px';
-        card.style.padding = '12px';
-        card.style.background = '#fff';
-        card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-        card.style.cursor = 'pointer';
-        card.style.transition = 'box-shadow 0.2s ease';
-        card.style.boxSizing = 'border-box'; // 重要：确保内边距不影响总宽度
-        
-        // 悬停效果
-        card.addEventListener('mouseover', () => {
-            card.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
-        });
-        card.addEventListener('mouseout', () => {
-            card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-        });
-        
-        // 点击卡片打开编辑弹窗
-        card.addEventListener('click', () => openEditModal(product.id));
-
+        card.className = 'product-card';
+        const desc = product.description || '暂无描述';
         card.innerHTML = `
-            ${productImage}
-            <h3 style="margin:10px 0 6px; font-size:16px; font-weight:600; height:20px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(product.name)}</h3>
-            <p style="margin:0 0 8px; font-size:13px; color:#666; line-height:1.4; height:40px; overflow:hidden;">
-                ${escapeHtml(product.description || '无简介')}
-            </p>
-            <div style="margin:4px 0; font-size:12px; color:#888;">
-                <span>产品类型：${escapeHtml(product.spec || '无')}</span>
+            <div style="flex:1;">
+                <div style="font-size:16px;font-weight:600;">${escapeHtml(product.name || '')} <span style="color:#888;font-size:13px;">(${escapeHtml(product.sku || product.id || '')})</span></div>
+                <div style="font-size:13px;color:#888;margin-top:6px;">${escapeHtml(desc)}</div>
             </div>
-            <div style="margin:4px 0; font-size:12px; color:#888;">
-                <span>单位：${escapeHtml(product.unit || '无')}</span>
-            </div>
-            <div style="margin-top:8px; padding-top:8px; border-top:1px dashed #eee; font-size:12px; color:#999;">
-                状态：${escapeHtml(product.statusText || '未知')}
-            </div>
-            <!-- 可编辑提示 -->
-            <div style="margin-top:6px; font-size:11px; color:#007bff; text-align:right;">
-                点击编辑 →
+            <div class="product-card-actions">
+                <button class="btn btn-primary" onclick="openInventoryModal(${product.id})">库存查看</button>
+                <button class="btn btn-warning" onclick="openSupplierPricingModal(${product.id})">供货与销售</button>
             </div>
         `;
-        container.appendChild(card);
+        wrap.appendChild(card);
     });
 }
 
@@ -200,7 +216,7 @@ function renderTransactions() {
     // 筛选流水数据
     let filteredTx = transactions;
     if (typeFilter) {
-        filteredTx = filteredTx.filter(tx => tx.type === typeFilter);
+        filteredTx = filteredTx.filter(tx => (tx.txn_type || '').toLowerCase() === typeFilter);
     }
     if (searchQuery) {
         filteredTx = filteredTx.filter(tx => {
@@ -217,8 +233,6 @@ function renderTransactions() {
     // 渲染流水行
     filteredTx.forEach(tx => {
         const product = products.find(p => p.id === tx.productId) || {};
-        const supplier = tx.supplier ? (partnersList.find(s => s.id === tx.supplier) || {}) : {};
-        const store = tx.store ? (partnersList.find(s => s.id === tx.store) || {}) : {};
 
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -227,32 +241,181 @@ function renderTransactions() {
             <td>${escapeHtml(tx.batchId || '')}</td>
             <td>${escapeHtml(String(tx.qty || 0))}</td>
             <td>${escapeHtml(tx.unit || product.unit || '')}</td>
-            <td>${escapeHtml(tx.type === 'in' ? '入库' : '出库')}</td>
-            <td>${escapeHtml(supplier.name ? `${supplier.name} (${supplier.id})` : '')}</td>
-            <td>${escapeHtml(store.name ? `${store.name} (${store.id})` : '')}</td>
+            <td>${escapeHtml(resolveTransactionLabel(tx))}</td>
+            <td>${escapeHtml(tx.source || '')}</td>
+            <td>${escapeHtml(tx.destination || '')}</td>
             <td>${escapeHtml(tx.note || '')}</td>
         `;
         tb.appendChild(row);
     });
 }
 
+function resolveTransactionLabel(tx) {
+    const raw = (tx.txn_type || '').toLowerCase();
+    if (raw === 'purchase') return '进货';
+    if (raw === 'sale') return '售卖';
+    if (raw === 'return' || raw === 'transfer' || raw === 'adjustment') return '调整';
+    return tx.type === 'in' ? '进货' : (tx.type === 'out' ? '售卖' : '调整');
+}
+
+function openInventoryModal(productId) {
+    const modal = document.getElementById('managerModal');
+    const mask = document.getElementById('managerModalMask');
+    const product = products.find(p => p.id === productId) || {};
+    const rows = inventoryByBranch.filter(r => Number(r.product_ID) === Number(productId));
+    let total = 0;
+    let bodyHtml = '';
+
+    if (rows.length === 0) {
+        bodyHtml = '<div style="color:#888;padding:16px 0;">暂无库存数据</div>';
+    } else {
+        const rowHtml = rows.map(r => {
+            const qty = Number(r.total_stock) || 0;
+            total += qty;
+            return `<tr><td>${escapeHtml(r.branch_name)}</td><td>${qty}</td></tr>`;
+        }).join('');
+        bodyHtml = `
+            <table>
+                <thead>
+                    <tr><th>门店名称</th><th>库存</th></tr>
+                </thead>
+                <tbody>
+                    ${rowHtml}
+                    <tr>
+                        <td><b>全公司合计</b></td>
+                        <td><b>${total}</b></td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+    }
+
+    modal.innerHTML = `
+        <h3>库存统计 - ${escapeHtml(product.name || '')}</h3>
+        ${bodyHtml}
+        <div style="text-align:right;margin-top:16px;">
+            <button class="btn btn-warning" onclick="closeManagerModal()">关闭</button>
+        </div>
+    `;
+    modal.style.display = 'block';
+    mask.style.display = 'block';
+}
+
+function openSupplierPricingModal(productId) {
+    const modal = document.getElementById('managerModal');
+    const mask = document.getElementById('managerModalMask');
+    const product = products.find(p => p.id === productId) || {};
+    const rows = supplierPricing.filter(r => Number(r.product_ID) === Number(productId));
+
+    let bodyHtml = '';
+    if (rows.length === 0) {
+        bodyHtml = '<div style="color:#888;padding:16px 0;">暂无供应商数据</div>';
+    } else {
+        const rowHtml = rows.map(r => `
+            <tr id="pricing-row-${r.product_ID}-${r.supplier_ID}">
+                <td>${escapeHtml(r.supplier_name)}</td>
+                <td>¥${Number(r.unit_cost).toFixed(2)}</td>
+                <td class="pricing-value" data-value="${Number(r.selling_price).toFixed(2)}">¥${Number(r.selling_price).toFixed(2)}</td>
+                <td class="pricing-action">
+                    <button class="btn btn-primary" onclick="editSellingPrice(${r.product_ID}, ${r.supplier_ID})">编辑</button>
+                </td>
+            </tr>
+        `).join('');
+
+        bodyHtml = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>供应商</th>
+                        <th>进货价</th>
+                        <th>售卖价</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>${rowHtml}</tbody>
+            </table>
+        `;
+    }
+
+    modal.innerHTML = `
+        <h3>供货与销售 - ${escapeHtml(product.name || '')}</h3>
+        ${bodyHtml}
+        <div style="text-align:right;margin-top:16px;">
+            <button class="btn btn-warning" onclick="closeManagerModal()">关闭</button>
+        </div>
+    `;
+    modal.style.display = 'block';
+    mask.style.display = 'block';
+}
+
+function editSellingPrice(productId, supplierId) {
+    const row = document.getElementById(`pricing-row-${productId}-${supplierId}`);
+    if (!row) return;
+    const price = row.querySelector('.pricing-value')?.dataset.value || '0.00';
+    const valueCell = row.querySelector('.pricing-value');
+    const actionCell = row.querySelector('.pricing-action');
+    valueCell.innerHTML = `<input type="number" step="0.01" id="selling-input-${productId}" value="${price}" style="width:120px;">`;
+    actionCell.innerHTML = `
+        <button class="btn btn-success" onclick="saveSellingPrice(${productId})">保存</button>
+        <button class="btn btn-warning" style="margin-left:6px;" onclick="openSupplierPricingModal(${productId})">取消</button>
+    `;
+}
+
+function saveSellingPrice(productId) {
+    const input = document.getElementById(`selling-input-${productId}`);
+    const newPrice = input ? parseFloat(input.value) : NaN;
+    if (!Number.isFinite(newPrice) || newPrice <= 0) {
+        alert('请输入有效的售卖价');
+        return;
+    }
+    const payload = new URLSearchParams({
+        action: 'update_selling_price',
+        product_id: productId,
+        selling_price: newPrice.toFixed(2)
+    });
+
+    fetch('product_pricing_ajax.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload.toString()
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.success) {
+            alert(data.message || '更新失败');
+            return;
+        }
+        supplierPricing.forEach(r => {
+            if (Number(r.product_ID) === Number(productId)) {
+                r.selling_price = Number(newPrice).toFixed(2);
+            }
+        });
+        openSupplierPricingModal(productId);
+    })
+    .catch(() => {
+        alert('更新失败，请稍后重试');
+    });
+}
+
+function closeManagerModal() {
+    const modal = document.getElementById('managerModal');
+    const mask = document.getElementById('managerModalMask');
+    if (modal) modal.style.display = 'none';
+    if (mask) mask.style.display = 'none';
+}
+
 // 产品筛选逻辑
 function applyProductFilter() {
     const searchQuery = (document.getElementById('productSearchInput') || {}).value.trim().toLowerCase();
-    const statusFilter = (document.getElementById('productStatusSelect') || {}).value;
-
     const filteredProducts = products.filter(product => {
         // 搜索筛选（产品ID、名称、描述、规格）
         const searchStr = `${product.id || ''} ${product.name || ''} ${product.description || ''} ${product.spec || ''} ${product.sku || ''}`.toLowerCase();
         const matchSearch = !searchQuery || searchStr.includes(searchQuery);
-        
-        // 状态筛选
-        const matchStatus = !statusFilter || product.statusText === statusFilter;
 
-        return matchSearch && matchStatus;
+        return matchSearch;
     });
 
-    renderProductCards(filteredProducts);
+    renderProductList(filteredProducts);
 }
 
 // 打开编辑弹窗
@@ -571,7 +734,6 @@ function bindAllEvents() {
     document.getElementById('productSearchInput').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') applyProductFilter();
     });
-    document.getElementById('productStatusSelect').addEventListener('change', applyProductFilter);
 
     // 流水搜索事件
     document.getElementById('txSearchBtn').addEventListener('click', renderTransactions);

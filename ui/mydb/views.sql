@@ -8,6 +8,10 @@ DROP VIEW IF EXISTS v_product_information;
 DROP VIEW IF EXISTS v_sales_dashboard;
 DROP VIEW IF EXISTS v_customer_interaction;
 DROP VIEW IF EXISTS v_purchasing_management;
+DROP VIEW IF EXISTS v_supplier_inventory;
+DROP VIEW IF EXISTS v_manager_product_inventory_by_branch;
+DROP VIEW IF EXISTS v_manager_product_supplier_pricing;
+DROP VIEW IF EXISTS v_supplier_products;
 DROP VIEW IF EXISTS v_supplier_relations;
 DROP VIEW IF EXISTS v_stock_movement;
 DROP VIEW IF EXISTS v_inventory_management;
@@ -111,25 +115,50 @@ GROUP BY
 -- 2. 优化交易流水视图（替代原StockItemCertificate查询）
 CREATE OR REPLACE VIEW v_transactions AS
 SELECT 
-    sc.certificate_ID AS id,
-    sc.date AS time,
+    MAX(sc.certificate_ID) AS id,
+    MAX(sc.date) AS time,
     si.product_ID AS productId,
     si.batch_ID AS batchId,
     p.product_name AS productName,
     sc.transaction_type AS type,
     sc.note,
+    sc.transaction_ID AS transaction_id,
     CASE 
         WHEN sc.transaction_type = 'purchase' THEN 'in'
         WHEN sc.transaction_type = 'sale' THEN 'out'
-        ELSE sc.transaction_type
+        ELSE 'adjustment'
     END AS direction,
-    1 AS qty,
-    p.unit
+    COUNT(*) AS qty,
+    p.unit,
+    CASE 
+        WHEN sc.transaction_type = 'purchase' THEN s.company_name
+        WHEN sc.transaction_type = 'sale' THEN b.branch_name
+        WHEN sc.transaction_type IN ('return','transfer','adjustment') THEN b.branch_name
+        ELSE NULL
+    END AS source_name,
+    CASE 
+        WHEN sc.transaction_type = 'purchase' THEN b.branch_name
+        WHEN sc.transaction_type = 'sale' THEN CONCAT(u.first_name, ' ', u.last_name)
+        ELSE NULL
+    END AS destination_name
 FROM 
     StockItemCertificate sc
 LEFT JOIN StockItem si ON sc.item_ID = si.item_ID
 LEFT JOIN products p ON si.product_ID = p.product_ID
-ORDER BY sc.date DESC
+LEFT JOIN PurchaseOrder po ON sc.transaction_ID = po.purchase_order_ID AND sc.transaction_type = 'purchase'
+LEFT JOIN Supplier s ON po.supplier_ID = s.supplier_ID
+LEFT JOIN Branch b ON (
+    (sc.transaction_type = 'purchase' AND po.branch_ID = b.branch_ID)
+    OR (sc.transaction_type = 'sale' AND si.branch_ID = b.branch_ID)
+    OR (sc.transaction_type IN ('return','transfer','adjustment') AND si.branch_ID = b.branch_ID)
+)
+LEFT JOIN OrderItem oi ON sc.transaction_ID = oi.order_ID AND sc.transaction_type = 'sale'
+LEFT JOIN CustomerOrder co ON oi.order_ID = co.order_ID
+LEFT JOIN Customer cu ON co.customer_ID = cu.customer_ID
+LEFT JOIN User u ON cu.user_name = u.user_name
+WHERE sc.transaction_type IN ('purchase','sale','return','transfer','adjustment')
+GROUP BY si.product_ID, si.batch_ID, p.product_name, sc.transaction_type, sc.transaction_ID, sc.note, p.unit, s.company_name, b.branch_name, u.first_name, u.last_name
+ORDER BY MAX(sc.date) DESC
 LIMIT 100;
 
 CREATE OR REPLACE VIEW v_employees AS
@@ -314,6 +343,7 @@ SELECT
     p.sku,
     c.category_name,
     GROUP_CONCAT(DISTINCT CONCAT(pa.attr_name, ': ', pa.attr_value) SEPARATOR ', ') AS attributes,
+    p.unit_cost AS unit_cost,
     p.unit_price AS selling_price,
     (SELECT AVG(pi.unit_cost) FROM PurchaseItem pi WHERE pi.product_ID = p.product_ID) AS avg_cost,
     (SELECT GROUP_CONCAT(DISTINCT s.company_name) 
@@ -331,6 +361,7 @@ GROUP BY
     p.product_name,
     p.sku,
     c.category_name,
+    p.unit_cost,
     p.unit_price;
 
 -- ============================================================
@@ -403,6 +434,69 @@ GROUP BY
     po.date,
     po.status,
     po.total_amount;
+
+-- 14. v_supplier_inventory - 供应商进货价清单
+-- 用途：供应商-商品进货价查询
+CREATE VIEW v_supplier_inventory AS
+SELECT
+    s.supplier_ID,
+    s.company_name,
+    s.supplier_category,
+    si.product_ID,
+    p.product_name,
+    p.sku,
+    c.category_name,
+    si.price AS unit_cost
+FROM SupplierProduct si
+JOIN Supplier s ON si.supplier_ID = s.supplier_ID
+JOIN products p ON si.product_ID = p.product_ID
+JOIN Categories c ON p.category_id = c.category_id;
+
+-- 15. v_supplier_products - 供应商可供产品清单
+-- 用途：供应商端产品管理列表
+CREATE VIEW v_supplier_products AS
+SELECT
+    sp.supplier_ID,
+    p.product_ID,
+    p.product_name,
+    p.sku,
+    p.description,
+    sp.price,
+    p.unit,
+    c.category_name
+FROM SupplierProduct sp
+JOIN products p ON sp.product_ID = p.product_ID
+JOIN Categories c ON p.category_id = c.category_id;
+
+-- 15. v_manager_product_inventory_by_branch - 产品库存按门店汇总
+-- 用途：经理查看商品在各门店库存
+CREATE VIEW v_manager_product_inventory_by_branch AS
+SELECT
+    i.product_ID,
+    p.product_name,
+    p.sku,
+    i.branch_ID,
+    b.branch_name,
+    SUM(i.quantity_on_hand) AS total_stock
+FROM Inventory i
+JOIN products p ON i.product_ID = p.product_ID
+JOIN Branch b ON i.branch_ID = b.branch_ID
+GROUP BY i.product_ID, p.product_name, p.sku, i.branch_ID, b.branch_name;
+
+-- 16. v_manager_product_supplier_pricing - 产品供应商进货/售价
+-- 用途：经理查看供应商进货价与商品售价
+CREATE VIEW v_manager_product_supplier_pricing AS
+SELECT
+    sp.product_ID,
+    p.product_name,
+    p.sku,
+    sp.supplier_ID,
+    s.company_name AS supplier_name,
+    sp.price AS unit_cost,
+    p.unit_price AS selling_price
+FROM SupplierProduct sp
+JOIN products p ON sp.product_ID = p.product_ID
+JOIN Supplier s ON sp.supplier_ID = s.supplier_ID;
 
 -- 14. v_supplier_relations - 供应商关系
 -- 用途：管理供应商信息
@@ -752,6 +846,10 @@ SELECT * FROM v_branch_comparison ORDER BY period DESC, total_sales DESC;
 -- 4. v_supplier_information - 供应商信息
 SELECT * FROM v_supplier_information ORDER BY total_amount DESC;
 -- 查看供应商信息：公司名、联系人、电话、email、订单数、总金额
+
+-- 14. v_supplier_inventory - 供应商进货价清单
+SELECT * FROM v_supplier_inventory ORDER BY company_name, product_name;
+-- 查看供应商-商品进货价：供应商、商品、进货价
 
 -- 5. v_staff_information - 员工信息
 SELECT * FROM v_staff_information ORDER BY branch_name, position;
