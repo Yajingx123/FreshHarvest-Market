@@ -13,6 +13,8 @@ CREATE PROCEDURE staff_restock(
     IN p_supplier_id INT,
     IN p_quantity INT,
     IN p_unit_cost DECIMAL(10,2),
+    IN p_expected_total_stock INT,
+    IN p_expected_last_received DATE,
     IN p_expiry_date DATE,
     OUT o_purchase_order_id INT,
     OUT o_batch_id VARCHAR(20)
@@ -27,6 +29,8 @@ BEGIN
     DECLARE v_total DECIMAL(10,2);
     DECLARE v_clean_batch VARCHAR(50);
     DECLARE v_item_id VARCHAR(60);
+    DECLARE v_current_total INT DEFAULT 0;
+    DECLARE v_current_last DATE;
     DECLARE i INT DEFAULT 1;
 
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
@@ -42,6 +46,21 @@ BEGIN
     START TRANSACTION;
     SET @stock_adjust_reason = NULL;
     SET @stock_adjust_staff_id = NULL;
+
+    SELECT COALESCE(SUM(quantity_on_hand), 0), MAX(received_date)
+    INTO v_current_total, v_current_last
+    FROM Inventory
+    WHERE product_ID = p_product_id
+      AND branch_ID = p_branch_id
+    FOR UPDATE;
+
+    IF p_expected_total_stock IS NOT NULL AND p_expected_total_stock <> v_current_total THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Restock snapshot mismatch';
+    END IF;
+    IF p_expected_last_received IS NOT NULL AND v_current_last IS NOT NULL
+       AND p_expected_last_received <> v_current_last THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Restock snapshot mismatch';
+    END IF;
 
     SELECT sku INTO v_sku
     FROM products

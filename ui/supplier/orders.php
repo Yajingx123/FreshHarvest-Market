@@ -612,7 +612,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                                     <tr>
                                         <td>${item.product_name}</td>
                                         <td>${item.sku}</td>
-                                        <td>¥${parseFloat(item.unit_cost).toFixed(2)}</td>
+                                        <td>¥${(Number(item.supplier_price) || 0).toFixed(2)}</td>
                                         <td>${item.unit || '件'}</td>
                                         <td>¥${parseFloat(item.total_cost).toFixed(2)}</td>
                                     </tr>
