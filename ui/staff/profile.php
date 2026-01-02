@@ -20,13 +20,11 @@ $profile = null;
 $staffId = $_SESSION['staff_id'] ?? null;
 
 function fetchStaffProfile(mysqli $conn, int $staffId): ?array {
-    $sql = "SELECT s.staff_ID, s.branch_ID, s.position, s.phone, s.hire_date, s.status, s.user_name,
-                   b.branch_name,
-                   u.first_name, u.last_name, u.user_email, u.user_telephone
-            FROM Staff s
-            LEFT JOIN Branch b ON s.branch_ID = b.branch_ID
-            LEFT JOIN `User` u ON s.user_name = u.user_name
-            WHERE s.staff_ID = ?
+    $sql = "SELECT staff_ID, branch_ID, position, phone, hire_date, status, user_name,
+                   branch_name,
+                   first_name, last_name, user_email, user_telephone
+            FROM v_staff_profile_detail
+            WHERE staff_ID = ?
             LIMIT 1";
     if (!$stmt = $conn->prepare($sql)) {
         throw new Exception('准备查询失败：' . $conn->error);
