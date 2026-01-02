@@ -951,6 +951,10 @@ if ($error_message !== '') {
                 </div>
             </form>
         `;
+        const supplierSelect = popup.querySelector("select[name='supplier_id']");
+        if (supplierSelect && supplierSelect.value) {
+            updateRestockPricing(item.product_id, supplierSelect.value, Number(item.unit_price) || 0);
+        }
         popup.style.display = 'block';
         document.getElementById('popupMask').style.display = 'block';
     }
