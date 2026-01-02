@@ -61,16 +61,13 @@ function mapSupplierCategoryByParent(int $parentCategoryId): string {
 
 function getLastBatchAdjustmentActor(mysqli $conn, string $batchId): ?array {
     $sql = "SELECT 
-                c.transaction_ID AS staff_id,
-                COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.user_name, CONCAT('员工#', c.transaction_ID)) AS staff_name,
-                c.date AS action_time
-            FROM StockItemCertificate c
-            JOIN StockItem si ON si.item_ID = c.item_ID
-            LEFT JOIN Staff s ON s.staff_ID = c.transaction_ID
-            LEFT JOIN User u ON u.user_name = s.user_name
-            WHERE si.batch_ID = ?
-              AND c.transaction_type IN ('return','transfer','adjustment')
-            ORDER BY c.date DESC
+                staff_id,
+                staff_name,
+                action_time
+            FROM v_staff_stockitem_adjustment_actor
+            WHERE batch_id = ?
+              AND transaction_type IN ('return','transfer','adjustment')
+            ORDER BY action_time DESC
             LIMIT 1";
     $stmt = $conn->prepare($sql);
     if ($stmt) {
@@ -91,19 +88,16 @@ function getLastBatchAdjustmentActor(mysqli $conn, string $batchId): ?array {
 
 function getLastRestockActor(mysqli $conn, int $productId, int $branchId): ?array {
     $sql = "SELECT 
-                c.transaction_ID AS purchase_order_id,
-                c.date AS action_time,
-                po.date AS order_date,
-                s.company_name AS supplier_name
-            FROM StockItemCertificate c
-            JOIN StockItem si ON si.item_ID = c.item_ID
-            LEFT JOIN PurchaseOrder po ON po.purchase_order_ID = c.transaction_ID
-            LEFT JOIN Supplier s ON s.supplier_ID = po.supplier_ID
-            WHERE si.product_ID = ?
-              AND si.branch_ID = ?
-              AND c.transaction_type = 'purchase'
-              AND c.transaction_ID IS NOT NULL
-            ORDER BY c.date DESC
+                purchase_order_id,
+                action_time,
+                order_date,
+                supplier_name
+            FROM v_staff_restock_actor
+            WHERE product_ID = ?
+              AND branch_ID = ?
+              AND transaction_type = 'purchase'
+              AND purchase_order_id IS NOT NULL
+            ORDER BY action_time DESC
             LIMIT 1";
     $stmt = $conn->prepare($sql);
     if ($stmt) {
@@ -315,7 +309,17 @@ if ($branchId === null) {
 
                 if (!$error_message) {
                     try {
-                        $stmtProduct = $conn->prepare('SELECT p.sku, p.product_name, p.category_id, c.parent_category_id FROM products p LEFT JOIN Categories c ON p.category_id = c.category_id WHERE p.product_ID = ? LIMIT 1 FOR UPDATE');
+                        $stmtProductLock = $conn->prepare('SELECT product_ID FROM products WHERE product_ID = ? LIMIT 1 FOR UPDATE');
+                        if (!$stmtProductLock) {
+                            throw new Exception('准备商品锁定失败：' . $conn->error);
+                        }
+                        $stmtProductLock->bind_param('i', $productId);
+                        if (!$stmtProductLock->execute()) {
+                            throw new Exception('锁定商品失败：' . $stmtProductLock->error);
+                        }
+                        $stmtProductLock->close();
+
+                        $stmtProduct = $conn->prepare('SELECT sku, product_name, category_id, parent_category_id FROM v_staff_product_category WHERE product_ID = ? LIMIT 1');
                         if (!$stmtProduct) {
                             throw new Exception('准备商品查询失败：' . $conn->error);
                         }
@@ -498,9 +502,8 @@ if ($branchId === null) {
                 $resultSuppliers->free();
             }
 
-            $resultPricing = $conn->query("SELECT sp.supplier_ID, sp.product_ID, sp.price, p.unit_price
-                                            FROM SupplierProduct sp
-                                            JOIN products p ON sp.product_ID = p.product_ID");
+            $resultPricing = $conn->query("SELECT supplier_ID, product_ID, price, unit_price
+                                            FROM v_staff_supplier_pricing");
             if ($resultPricing) {
                 while ($row = $resultPricing->fetch_assoc()) {
                     $supplierPricing[] = $row;
