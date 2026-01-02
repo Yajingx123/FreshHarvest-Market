@@ -39,7 +39,6 @@ function getCustomerFullInfo() {
     if ($result && $result->num_rows > 0) {
         $customer_info = $result->fetch_assoc();
 
-        // 拼接全名
         if (isset($customer_info['first_name']) && isset($customer_info['last_name'])) {
             $customer_info['full_name'] = $customer_info['first_name'] . ' ' . $customer_info['last_name'];
         }
@@ -390,7 +389,6 @@ function getFIFOStockItems($productId, $quantity, $branchId) {
     $currentDate = date('Y-m-d');
 
     // 直接从Inventory表查询可用库存（按FIFO排序）
-    // 添加date_expired条件过滤掉已过期的产品
     $query = "SELECT batch_ID, (quantity_on_hand - locked_inventory) AS available_qty 
               FROM Inventory 
               WHERE product_ID = ? 
@@ -400,7 +398,7 @@ function getFIFOStockItems($productId, $quantity, $branchId) {
               ORDER BY received_date ASC, date_expired ASC"; // FIFO原则：先入库先出库
 
     $stmt = $conn->prepare($query);
-    $stmt->bind_param("iis", $productId, $branchId, $currentDate);  // 注意参数类型改为"iis"
+    $stmt->bind_param("iis", $productId, $branchId, $currentDate);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -435,7 +433,7 @@ function getFIFOStockItems($productId, $quantity, $branchId) {
 }
 
 /**
- * 加入购物车核心逻辑（关联OrderItem和StockItem）
+ * 加入购物车核心逻辑（按FEFO原则分配批次库存）
  * @param int $customerId 客户ID
  * @param int $productId 产品ID
  * @param int $quantity 购买数量
@@ -452,13 +450,35 @@ function addToCartWithFIFO($customerId, $productId, $quantity, $branchId = 1) {
     $conn->begin_transaction(); // 开启事务
 
     try {
-        // 步骤1：获取或创建用户的Pending订单
+        // ========== 步骤1：验证门店和产品的关联性（使用视图） ==========
+        $storeCheckQuery = "SELECT store_id, store_name, available_stock_in_store 
+                           FROM product_branch_view 
+                           WHERE product_ID = ? AND store_id = ?";
+        $storeStmt = $conn->prepare($storeCheckQuery);
+        $storeStmt->bind_param("ii", $productId, $branchId);
+        $storeStmt->execute();
+        $storeResult = $storeStmt->get_result();
+        
+        if ($storeResult->num_rows === 0) {
+            throw new Exception("该产品在所选门店不存在");
+        }
+        
+        $storeInfo = $storeResult->fetch_assoc();
+        $availableStock = $storeInfo['available_stock_in_store'];
+        
+        if ($availableStock < $quantity) {
+            throw new Exception("库存不足！所选门店可用库存为 {$availableStock} 件");
+        }
+        
+        $storeStmt->close();
+
+        // ========== 步骤2：获取或创建用户的Pending订单 ==========
         $orderId = getOrCreatePendingOrder($customerId, $branchId);
         if (!$orderId) {
             throw new Exception("无法创建或获取订单");
         }
 
-        // 步骤2：获取产品单价
+        // ========== 步骤3：获取产品单价 ==========
         $priceQuery = "SELECT unit_price FROM products WHERE product_ID = ? AND status = 'active'";
         $priceStmt = $conn->prepare($priceQuery);
         $priceStmt->bind_param("i", $productId);
@@ -471,162 +491,288 @@ function addToCartWithFIFO($customerId, $productId, $quantity, $branchId = 1) {
         $unitPrice = $product['unit_price'];
         $priceStmt->close();
 
-        // 步骤3：检查Inventory表库存是否充足（核心修改）
-        $batches = getFIFOStockItems($productId, $quantity, $branchId);
-        error_log("快速加入 - 产品ID: $productId, 门店ID: $branchId, 需分配数量: $quantity, 价格:$unitPrice, 批次: " . json_encode($batches));
+        // ========== 步骤4：获取该门店下该产品的可用批次（FEFO原则：先过期先出） ==========
+        $currentDate = date('Y-m-d');
+        $batchesQuery = "SELECT 
+                    inv.batch_ID,
+                    inv.quantity_on_hand,
+                    inv.locked_inventory,
+                    (inv.quantity_on_hand - inv.locked_inventory) AS available_qty,
+                    inv.received_date,
+                    inv.date_expired
+                 FROM Inventory inv
+                 WHERE inv.product_ID = ? 
+                   AND inv.branch_ID = ?
+                   AND (inv.quantity_on_hand - inv.locked_inventory) > 0
+                 ORDER BY 
+                    COALESCE(inv.date_expired, '9999-12-31') ASC,
+                    inv.received_date ASC";
+
+       $batchesStmt = $conn->prepare($batchesQuery);
+       $batchesStmt->bind_param("ii", $productId, $branchId);
+       $batchesStmt->execute();
+       $batchesResult = $batchesStmt->get_result();
+
+        // ========== 步骤5：计算总可用库存并分配批次 ==========
+        $totalAvailable = 0;
+        $availableBatches = [];
+        $batchDetails = []; // 存储批次详细信息
         
-        if (empty($batches)) {
-            throw new Exception("库存不足，无法满足购买数量");
+        while ($row = $batchesResult->fetch_assoc()) {
+            $batchAvailable = $row['available_qty'];
+            $totalAvailable += $batchAvailable;
+            $availableBatches[] = $row;
+            
+            // 存储批次详细信息用于后续处理
+            $batchDetails[$row['batch_ID']] = [
+                'quantity_on_hand' => $row['quantity_on_hand'],
+                'locked_inventory' => $row['locked_inventory'],
+                'available_qty' => $batchAvailable,
+                'date_expired' => $row['date_expired']
+            ];
+        }
+        $batchesStmt->close();
+
+        // 再次验证库存（基于实际批次库存）
+        if ($totalAvailable < $quantity) {
+            throw new Exception("实际批次库存不足，无法满足购买数量。可用: {$totalAvailable}, 需要: {$quantity}");
         }
 
-        // 步骤4：更新Inventory表的锁定库存
-        foreach ($batches as $batch) {
-            $batchId = $batch['batch_id'];
-            $need = $batch['lock_qty'];
-            $lockCheckQuery = "UPDATE Inventory 
-                      SET locked_inventory = locked_inventory + ? 
-                      WHERE batch_ID = ? 
-                      AND (quantity_on_hand - locked_inventory) >= ?";
-            $lockStmt = $conn->prepare($lockCheckQuery);
-            $lockStmt->bind_param("isi", $need, $batchId, $need);
+        // ========== 步骤6：按FEFO原则分配批次库存 ==========
+        $remaining = $quantity;
+        $batchAllocations = [];
+        $batchIds = []; // 用于记录哪些批次被分配了
+
+        // 遍历所有可用批次，按FEFO顺序分配
+        foreach ($availableBatches as $batch) {
+            if ($remaining <= 0) break;
+            
+            $batchId = $batch['batch_ID'];
+            $batchAvailable = $batch['available_qty'];
+            
+            // 计算这个批次能分配多少
+            $take = min($remaining, $batchAvailable);
+            
+            if ($take > 0) {
+                $batchAllocations[] = [
+                    'batch_id' => $batchId,
+                    'lock_qty' => $take,
+                    'date_expired' => $batch['date_expired'],
+                    'received_date' => $batch['received_date']
+                ];
+                $remaining -= $take;
+                $batchIds[] = $batchId; // 记录被分配的批次ID
+            }
+        }
+
+        // 记录分配详情（用于调试和日志）
+        error_log("FEFO分配详情 - 产品ID: $productId, 门店ID: $branchId, 数量: $quantity");
+        foreach ($batchAllocations as $alloc) {
+            error_log("  -> 批次: {$alloc['batch_id']}, 分配数量: {$alloc['lock_qty']}, 过期时间: {$alloc['date_expired']}");
+        }
+
+        // ========== 步骤7：更新Inventory表的锁定库存 ==========
+        foreach ($batchAllocations as $allocation) {
+            $batchId = $allocation['batch_id'];
+            $need = $allocation['lock_qty'];
+            
+            // 先检查当前实际可用库存是否足够
+            $checkLockQuery = "SELECT (quantity_on_hand - locked_inventory) AS current_available 
+                              FROM Inventory 
+                              WHERE batch_ID = ? 
+                                AND product_ID = ?
+                                AND branch_ID = ?";
+            
+            $checkStmt = $conn->prepare($checkLockQuery);
+            $checkStmt->bind_param("sii", $batchId, $productId, $branchId);
+            $checkStmt->execute();
+            $checkResult = $checkStmt->get_result();
+            $currentAvailable = 0;
+            
+            if ($checkRow = $checkResult->fetch_assoc()) {
+                $currentAvailable = $checkRow['current_available'];
+            }
+            $checkStmt->close();
+            
+            if ($currentAvailable < $need) {
+                throw new Exception("批次 {$batchId} 当前可用库存不足。当前: {$currentAvailable}, 需要: {$need}");
+            }
+            
+            // 执行锁定更新
+            $lockQuery = "UPDATE Inventory 
+                         SET locked_inventory = locked_inventory + ? 
+                         WHERE batch_ID = ? 
+                           AND product_ID = ?
+                           AND branch_ID = ?
+                           AND (quantity_on_hand - locked_inventory) >= ?";
+            
+            $lockStmt = $conn->prepare($lockQuery);
+            $lockStmt->bind_param("isiii", $need, $batchId, $productId, $branchId, $need);
             $lockStmt->execute();
+            
             if ($lockStmt->affected_rows <= 0) {
-              throw new Exception("库存分配异常，请重试");
+                throw new Exception("锁定批次 {$batchId} 库存失败");
             }
             $lockStmt->close();
         }
 
-        // 步骤5：处理StockItem（仅更新状态，不依赖其库存数量）
+        // ========== 步骤8：处理StockItem记录 ==========
         $totalProcessed = 0;
-        foreach ($batches as $batch) {
-            $batchId = $batch['batch_id'];
-            $need = $batch['lock_qty'];
-
-            // 查询该批次下未被占用的StockItem
+        
+        foreach ($batchAllocations as $allocation) {
+            $batchId = $allocation['batch_id'];
+            $need = $allocation['lock_qty'];
+            
+            // 查找该批次下可用的StockItem（状态为in_stock且未关联订单）
             $stockQuery = "SELECT item_ID FROM StockItem 
-                           WHERE batch_ID = ? AND product_ID = ? AND branch_ID = ? 
-                           AND status = 'in_stock' AND customer_order_ID IS NULL
-                           LIMIT ?";
+               WHERE batch_ID = ? 
+                 AND product_ID = ? 
+                 AND branch_ID = ?
+                 AND status = 'in_stock' 
+                 AND customer_order_ID IS NULL
+               ORDER BY received_date ASC
+               LIMIT ?";
+            
             $stockStmt = $conn->prepare($stockQuery);
             $stockStmt->bind_param("siii", $batchId, $productId, $branchId, $need);
             $stockStmt->execute();
             $stockResult = $stockStmt->get_result();
 
-            // 更新StockItem状态为pending并关联订单
+            $foundItems = [];
             while ($row = $stockResult->fetch_assoc()) {
-                $itemId = $row['item_ID'];
-                // 插入OrderItem
-                $insertOrderItem = "INSERT INTO OrderItem (order_ID, item_ID, unit_price, product_ID, quantity, status)
-                                   VALUES (?, ?, ?, ?, 1, 'pending')";
-                $orderItemStmt = $conn->prepare($insertOrderItem);
-                $orderItemStmt->bind_param("issd", $orderId, $itemId, $unitPrice, $productId);
-                $orderItemStmt->execute();
-                $orderItemStmt->close();
-
-                // 更新StockItem状态
-                $updateStock = "UPDATE StockItem 
-                                SET status = 'pending', customer_order_ID = ? 
-                                WHERE item_ID = ?";
-                $updateStmt = $conn->prepare($updateStock);
-                $updateStmt->bind_param("is", $orderId, $itemId);
-                $updateStmt->execute();
-                $updateStmt->close();
-
-                $totalProcessed++;
+                $foundItems[] = $row['item_ID'];
             }
             $stockStmt->close();
+            
+            $foundCount = count($foundItems);
+            
+            // 情况1：找到足够的现有StockItem
+            if ($foundCount >= $need) {
+                for ($i = 0; $i < $need; $i++) {
+                    $itemId = $foundItems[$i];
+                    
+                    $insertOrderItem = "INSERT INTO OrderItem 
+                   (order_ID, item_ID, unit_price, product_ID, quantity, status)
+                   VALUES (?, ?, ?, ?, 1, 'pending')";
+
+                   $orderItemStmt = $conn->prepare($insertOrderItem);
+                   $orderItemStmt->bind_param("issd", $orderId, $itemId, $unitPrice, $productId);
+                   $orderItemStmt->execute();
+                    
+                    // 更新StockItem状态
+                    $updateStock = "UPDATE StockItem 
+                                   SET status = 'pending', customer_order_ID = ? 
+                                   WHERE item_ID = ?";
+                    
+                    $updateStmt = $conn->prepare($updateStock);
+                    $updateStmt->bind_param("is", $orderId, $itemId);
+                    $updateStmt->execute();
+                    $updateStmt->close();
+                    
+                    $totalProcessed++;
+                }
+            } 
+            // 情况2：现有StockItem不足，需要创建新的
+            else {
+                // 先处理找到的现有StockItem
+                foreach ($foundItems as $itemId) {
+                    // 插入OrderItem
+                    $insertOrderItem = "INSERT INTO OrderItem 
+                                       (order_ID, item_ID, unit_price, product_ID, quantity, status)
+                                       VALUES (?, ?, ?, ?, 1, 'pending')";
+                    
+                    $orderItemStmt = $conn->prepare($insertOrderItem);
+                    $orderItemStmt->bind_param("issd", $orderId, $itemId, $unitPrice, $productId);
+                    $orderItemStmt->execute();
+                    $orderItemStmt->close();
+                    
+                    // 更新StockItem状态
+                    $updateStock = "UPDATE StockItem 
+                                   SET status = 'pending', customer_order_ID = ? 
+                                   WHERE item_ID = ?";
+                    
+                    $updateStmt = $conn->prepare($updateStock);
+                    $updateStmt->bind_param("is", $orderId, $itemId);
+                    $updateStmt->execute();
+                    $updateStmt->close();
+                    
+                    $totalProcessed++;
+                    $need--; // 减少还需要创建的数量
+                }
+                
+                // 创建新的StockItem记录（用于剩余的分配数量）
+                for ($i = 0; $i < $need; $i++) {
+                    $newItemId = uniqid('SI_', true); // 生成唯一的item_ID
+                    
+                    // 获取批次的过期时间
+                    $expiryDate = $allocation['date_expired'] ?: NULL;
+                    
+                    $createStockItem = "INSERT INTO StockItem 
+                                       (item_ID, batch_ID, product_ID, branch_ID, status, 
+                                        received_date, expiry_date, customer_order_ID)
+                                       VALUES (?, ?, ?, ?, 'pending', NOW(), ?, ?)";
+                    
+                    $createStmt = $conn->prepare($createStockItem);
+                    $createStmt->bind_param("ssiiss", $newItemId, $batchId, $productId, $branchId, $expiryDate, $orderId);
+                    $createStmt->execute();
+                    $createStmt->close();
+                    
+                    // 插入对应的OrderItem
+                    $insertOrderItem = "INSERT INTO OrderItem 
+                                       (order_ID, item_ID, unit_price, product_ID, quantity, status)
+                                       VALUES (?, ?, ?, ?, 1, 'pending')";
+                    
+                    $orderItemStmt = $conn->prepare($insertOrderItem);
+                    $orderItemStmt->bind_param("issd", $orderId, $newItemId, $unitPrice, $productId);
+                    $orderItemStmt->execute();
+                    $orderItemStmt->close();
+                    
+                    $totalProcessed++;
+                }
+            }
         }
-        // 验证是否成功处理了足够的StockItem
-        if ($totalProcessed < $quantity) {
-            throw new Exception("库存分配异常，请重试");
+
+        // ========== 步骤9：验证处理数量 ==========
+        if ($totalProcessed !== $quantity) {
+            throw new Exception("库存分配异常，实际处理数量({$totalProcessed})与需求数量({$quantity})不匹配");
         }
-        //插入orderitem
-        // 搜索符合条件的StockItem并插入OrderItem（避免重复）
-        $getOrderIdQuery = "SELECT order_ID FROM CustomerOrder 
-                   WHERE customer_id = ? AND status = 'pending' 
-                   ORDER BY created_at DESC LIMIT 1";
-        $orderStmt = $conn->prepare($getOrderIdQuery);
-        $orderStmt->bind_param("i", $customerId); // $customerId是当前用户ID（函数入参）
-        $orderStmt->execute();
-        $orderResult = $orderStmt->get_result();
-        if ($orderResult->num_rows === 0) {
-          throw new Exception("用户暂无待处理订单，请先创建订单");
-        }
-        $orderRow = $orderResult->fetch_assoc();
-        $targetOrderId = $orderRow['order_ID']; // 拿到真正的订单ID
-        $orderStmt->close();
 
-        // 原foreach逻辑保留，仅替换订单ID的来源
-        foreach ($batches as $batch) {
-          $batchId = $batch['batch_id'];
-          $need = $batch['lock_qty']; // 原逻辑的锁定数量
-
-         // 查询该批次下：状态pending+关联目标订单+未插入OrderItem的StockItem
-          $stockQuery = "SELECT si.item_ID 
-                   FROM StockItem si
-                   LEFT JOIN OrderItem oi 
-                     ON si.item_ID = oi.item_ID 
-                     AND si.customer_order_ID = oi.order_ID
-                   WHERE si.batch_ID = ? 
-                     AND si.product_ID = ? 
-                     AND si.branch_ID = ?
-                     AND si.status = 'pending' 
-                     AND si.customer_order_ID = ?
-                     AND oi.item_ID IS NULL"; // 避免重复插入
-          $stockStmt = $conn->prepare($stockQuery);
-          // 绑定参数：批次ID、产品ID、门店ID、目标订单ID
-          $stockStmt->bind_param("siii", $batchId, $productId, $branchId, $targetOrderId);
-          $stockStmt->execute();
-          $stockResult = $stockStmt->get_result();
-
-         // 插入OrderItem（和你原格式完全一致）
-       while ($row = $stockResult->fetch_assoc()) {
-         $itemId = $row['item_ID'];
-        
-         // 获取产品单价（沿用你原逻辑）
-         $priceQuery = "SELECT unit_price FROM product_catalog_view WHERE product_ID = ?";
-         $priceStmt = $conn->prepare($priceQuery);
-         $priceStmt->bind_param("i", $productId);
-         $priceStmt->execute();
-         $priceResult = $priceStmt->get_result();
-         $product = $priceResult->fetch_assoc();
-         $unitPrice = $product['unit_price'];
-         $priceStmt->close();
-
-        // 插入OrderItem（状态pending，避免重复）
-         $insertOrderItem = "INSERT INTO OrderItem 
-                           (order_ID, item_ID, unit_price, product_ID, quantity, status)
-                           VALUES (?, ?, ?, ?, 1, 'pending')";
-         $orderItemStmt = $conn->prepare($insertOrderItem);
-         $orderItemStmt->bind_param("isid", $targetOrderId, $itemId, $unitPrice, $productId);
-         $orderItemStmt->execute();
-         $orderItemStmt->close();
-
-         $totalInserted++; // 统计插入数量
-      }
-      $stockStmt->close();
-    }
-        // 步骤6：更新订单总金额
+        // ========== 步骤10：更新订单总金额 ==========
         $updateOrderQuery = "UPDATE CustomerOrder 
-                             SET total_amount = (
-                                 SELECT SUM(unit_price * quantity) 
-                                 FROM OrderItem 
-                                 WHERE order_ID = ?
-                             ), order_date = NOW() 
-                             WHERE order_ID = ?";
+                            SET total_amount = (
+                                SELECT COALESCE(SUM(unit_price * quantity), 0) 
+                                FROM OrderItem 
+                                WHERE order_ID = ?
+                            ), order_date = NOW() 
+                            WHERE order_ID = ?";
+        
         $updateOrderStmt = $conn->prepare($updateOrderQuery);
         $updateOrderStmt->bind_param("ii", $orderId, $orderId);
         $updateOrderStmt->execute();
         $updateOrderStmt->close();
 
+        // ========== 步骤11：提交事务 ==========
         $conn->commit();
         $conn->close();
-        return ['success' => true, 'message' => '商品已成功加入购物车', 'order_id' => $orderId];
+        
+        error_log("购物车添加成功 - 产品ID: $productId, 门店ID: $branchId, 数量: $quantity, 订单ID: $orderId");
+        
+        return [
+            'success' => true, 
+            'message' => '商品已成功加入购物车', 
+            'order_id' => $orderId,
+            'processed_qty' => $totalProcessed,
+            'allocated_batches' => $batchIds // 返回分配的批次ID用于调试
+        ];
+        
     } catch (Exception $e) {
-        $conn->rollback();
-        $conn->close();
-        error_log("加入购物车失败: " . $e->getMessage());
-        error_log("快速加入失败 - 产品ID: $productId, 错误: " . $e->getMessage());
+        // 回滚事务
+        if (isset($conn) && $conn) {
+            $conn->rollback();
+            $conn->close();
+        }
+        
+        error_log("加入购物车失败 - 产品ID: $productId, 门店ID: $branchId, 数量: $quantity, 错误: " . $e->getMessage());
         return ['success' => false, 'message' => $e->getMessage()];
     }
 }
@@ -683,7 +829,8 @@ function updateCustomerInfo($customerId, $data) {
         $oldUsername = $customer['user_name'];
 
         // 1.2 从user表获取原有信息（用于对比是否需要更新）
-        $stmt = $conn->prepare("SELECT user_telephone, user_email FROM user WHERE user_name = ?");
+        // ========== 修改这里：新增查询password_hash字段 ==========
+        $stmt = $conn->prepare("SELECT user_telephone, user_email, password_hash FROM user WHERE user_name = ?");
         $stmt->bind_param("s", $oldUsername);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -718,15 +865,26 @@ function updateCustomerInfo($customerId, $data) {
         $userParams = [];
         $userParamTypes = '';
         // 定义user表可更新的字段（数据库字段名 => 前端传递的键名）
+        // ========== 修改这里：新增password_hash字段 ==========
         $userUpdatableFields = [
             'user_telephone' => 'phone', 
-            'user_email' => 'email'      
+            'user_email' => 'email',
+            'password_hash' => 'password_hash'  // 新增密码字段
         ];
         foreach ($userUpdatableFields as $dbField => $dataKey) {
-            if (isset($data[$dataKey]) && $data[$dataKey] !== '' && $data[$dataKey] !== $user[$dbField]) {
-                $userUpdateParts[] = "{$dbField} = ?";
-                $userParams[] = $data[$dataKey];
-                $userParamTypes .= 's';
+            if (isset($data[$dataKey]) && $data[$dataKey] !== '') {
+                // 特殊处理：密码字段总是更新（因为有哈希处理，不能直接对比）
+                if ($dataKey === 'password_hash') {
+                    $userUpdateParts[] = "{$dbField} = ?";
+                    $userParams[] = $data[$dataKey];
+                    $userParamTypes .= 's';
+                } 
+                // 其他字段：只有当值改变时才更新
+                else if ($data[$dataKey] !== $user[$dbField]) {
+                    $userUpdateParts[] = "{$dbField} = ?";
+                    $userParams[] = $data[$dataKey];
+                    $userParamTypes .= 's';
+                }
             }
         }
         // 执行user表的更新
@@ -863,7 +1021,6 @@ function getProductsByCategory($category = null) {
     return $products;
 }
 
-// 3. 按分类+搜索关键词获取商品（核心函数，修复字段名）
 function getProductsByCategoryAndSearch($category = null, $search = null) {
     $conn = getDBConnection();
     // 关键：WHERE 1=1 拼接条件，字段名全部使用视图的实际名称
@@ -907,7 +1064,7 @@ function getProductsByCategoryAndSearch($category = null, $search = null) {
                 'category' => $row['category_name'],
                 'stock' => $row['available_stock'], // 视图的可用库存字段
                 'stock_status' => $row['stock_status'],
-                'store_id' => $row['store_id'], // 门店ID（关键）
+                //'store_id' => $row['store_id'], // 门店ID（关键）
                 'branch' => $row['store_name'] ?? '无'
             ];
         }
@@ -921,7 +1078,7 @@ function getProductsByCategoryAndSearch($category = null, $search = null) {
 // 4. 获取单个商品详情（可选，用于弹窗）
 function getProductDetails($productId) {
     $conn = getDBConnection();
-    $query = "SELECT * FROM product_catalog_view WHERE product_ID = ?"; // 视图的product_ID
+    $query = "SELECT * FROM product_branch_view WHERE product_ID = ?"; // 视图的product_ID
     
     $stmt = $conn->prepare($query);
     $stmt->bind_param("i", $productId);
@@ -937,9 +1094,9 @@ function getProductDetails($productId) {
             'description' => $row['description'],
             'price' => $row['unit_price'],
             'category' => $row['category_name'],
-            'stock' => $row['available_stock'],
-            'stock_status' => $row['stock_status'],
-            'store_id' => $row['store_id'], // 门店ID（关键）
+            'stock' => $row['available_stock_in_store'],
+            'stock_status' => $row['stock_status_in_store'],
+            'store_id' => $row['store_id'], 
             'branch' => $row['store_name'] ?? '无'
         ];
     }
@@ -948,16 +1105,25 @@ function getProductDetails($productId) {
     $conn->close();
     return $product;
 }
-/**
- * 根据产品ID获取有库存的门店列表
- * @param int $productId 产品ID
- * @return array 门店列表（包含branch_id和branch_name）
- */
+
 function getProductBranches($productId) {
     $conn = getDBConnection();
-    $query = "SELECT DISTINCT store_id, store_name 
-              FROM product_catalog_view 
-              WHERE product_ID = ? AND available_stock > 0";
+    
+    $query = "SELECT 
+                store_id, 
+                store_name, 
+                available_stock_in_store,
+                total_stock_in_store,
+                stock_status_in_store,
+                store_address,
+                store_phone,
+                batch_count
+              FROM product_branch_view 
+              WHERE product_ID = ? 
+                AND store_status = 'active'
+                AND available_stock_in_store > 0  -- 只显示有库存的门店
+              ORDER BY store_name";
+    
     $stmt = $conn->prepare($query);
     $stmt->bind_param("i", $productId);
     $stmt->execute();
@@ -967,7 +1133,13 @@ function getProductBranches($productId) {
     while ($row = $result->fetch_assoc()) {
         $branches[] = [
             'id' => $row['store_id'],
-            'name' => $row['store_name']
+            'name' => $row['store_name'],
+            'available_stock' => $row['available_stock_in_store'] ?? 0,
+            'total_stock' => $row['total_stock_in_store'] ?? 0,
+            'stock_status' => $row['stock_status_in_store'] ?? '有货',
+            'address' => $row['store_address'] ?? '',
+            'phone' => $row['store_phone'] ?? '',
+            'batch_count' => $row['batch_count'] ?? 0
         ];
     }
 
@@ -1083,5 +1255,38 @@ function getRandomProducts() {
     
     $conn->close();
     return $products;
+}
+
+function getProductStockInStore($productId, $storeId) {
+    $conn = getDBConnection();
+    
+    $query = "SELECT 
+                product_ID,
+                product_name,
+                store_id,
+                store_name,
+                total_stock_in_store,
+                available_stock_in_store,
+                stock_status_in_store,
+                store_address,
+                store_phone,
+                batch_count,
+                earliest_received_date
+              FROM product_branch_view 
+              WHERE product_ID = ? AND store_id = ?";
+    
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("ii", $productId, $storeId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    $stockInfo = null;
+    if ($result && $result->num_rows > 0) {
+        $stockInfo = $result->fetch_assoc();
+    }
+    
+    $stmt->close();
+    $conn->close();
+    return $stockInfo;
 }
 ?>

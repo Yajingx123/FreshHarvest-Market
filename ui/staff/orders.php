@@ -8,7 +8,7 @@ if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== tru
 
 $servername = "localhost";
 $username = "root";
-$password = "NewRootPwd123!";
+$password = "8049023544Aaa?";
 $dbname = "mydb";
 
 $ordersData = [];
@@ -44,14 +44,12 @@ if ($conn->connect_error) {
 } else {
     $conn->set_charset("utf8mb4");
 
-    $sql_orders = "SELECT co.order_ID, co.order_date, co.total_amount, co.status, co.shipping_address,
-                          c.customer_ID, c.phone AS customer_phone, c.email AS customer_email, c.loyalty_level,
-                          u.first_name, u.last_name
-                   FROM CustomerOrder co
-                   LEFT JOIN Customer c ON co.customer_ID = c.customer_ID
-                   LEFT JOIN `User` u ON c.user_name = u.user_name
-                   WHERE co.branch_ID = ?
-                   ORDER BY co.order_date DESC
+    $sql_orders = "SELECT order_ID, order_date, total_amount, status, shipping_address,
+                          customer_ID, customer_phone, customer_email, loyalty_level,
+                          first_name, last_name
+                   FROM v_staff_order_overview
+                   WHERE branch_ID = ?
+                   ORDER BY order_date DESC
                    LIMIT 100";
 
     if ($stmt_orders = $conn->prepare($sql_orders)) {
@@ -89,14 +87,10 @@ if ($conn->connect_error) {
     }
 
     if (!$error_message && count($ordersData) > 0) {
-        $sql_items = "SELECT oi.order_ID, oi.product_ID, p.product_name, p.sku,
-                             COUNT(*) AS quantity, MAX(oi.unit_price) AS unit_price
-                      FROM OrderItem oi
-                      JOIN CustomerOrder co ON oi.order_ID = co.order_ID
-                      JOIN products p ON oi.product_ID = p.product_ID
-                      WHERE co.branch_ID = ?
-                      GROUP BY oi.order_ID, oi.product_ID, p.product_name, p.sku
-                      ORDER BY oi.order_ID DESC";
+        $sql_items = "SELECT order_ID, product_ID, product_name, sku, quantity, unit_price
+                      FROM v_staff_order_items_summary
+                      WHERE branch_ID = ?
+                      ORDER BY order_ID DESC";
         if ($stmt_items = $conn->prepare($sql_items)) {
             $stmt_items->bind_param("i", $branchId);
             if ($stmt_items->execute()) {

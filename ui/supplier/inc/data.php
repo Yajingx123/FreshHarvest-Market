@@ -2,7 +2,7 @@
 function getDBConnection() {
     $servername = "localhost";
     $username = "root";
-    $password = "NewRootPwd123!"; // 统一为当前root密码
+    $password = "8049023544Aaa?"; // 统一为当前root密码
     $dbname = "mydb";
     
     $conn = new mysqli($servername, $username, $password, $dbname);
@@ -16,7 +16,94 @@ function getDBConnection() {
 function getCurrentSupplierId() {
     return isset($_SESSION['supplier_id']) ? (int)$_SESSION['supplier_id'] : 0;
 }
-
+function updateSupplierInfo($username, $updateData) {
+    $conn = getDBConnection();
+    
+    // 分离User表和Supplier表的数据
+    $userData = [];
+    $supplierData = [];
+    
+    // 字段映射关系
+    // User表字段（新增password_hash）
+    $userFields = ['first_name', 'last_name', 'user_email', 'user_telephone', 'password_hash'];
+    // Supplier表字段（包括需要映射的字段）
+    $supplierFields = ['contact_person', 'address'];
+    
+    foreach ($updateData as $field => $value) {
+        $escapedValue = mysqli_real_escape_string($conn, $value);
+        
+        if (in_array($field, $userFields)) {
+            // 直接添加到User数据
+            $userData[$field] = $escapedValue;
+        } elseif (in_array($field, $supplierFields)) {
+            // 直接添加到Supplier数据
+            $supplierData[$field] = $escapedValue;
+        }
+        
+        // 特殊处理：邮箱和电话需要同步到Supplier表
+        if ($field === 'user_email') {
+            // User表的user_email对应Supplier表的email
+            $supplierData['email'] = $escapedValue;
+        } elseif ($field === 'user_telephone') {
+            // User表的user_telephone对应Supplier表的phone
+            $supplierData['phone'] = $escapedValue;
+        } elseif ($field === 'email') {
+            // 如果前端直接传email，也更新Supplier表
+            $supplierData['email'] = $escapedValue;
+        } elseif ($field === 'phone') {
+            // 如果前端直接传phone，也更新Supplier表
+            $supplierData['phone'] = $escapedValue;
+        }
+    }
+    
+    $errors = [];
+    $safeUsername = mysqli_real_escape_string($conn, $username);
+    
+    // 更新User表
+    if (!empty($userData)) {
+        $userSetParts = [];
+        foreach ($userData as $field => $value) {
+            $safeField = mysqli_real_escape_string($conn, $field);
+            $userSetParts[] = "`$safeField` = '$value'";
+        }
+        
+        $userSetClause = implode(', ', $userSetParts);
+        $userSql = "UPDATE `User` SET $userSetClause WHERE `user_name` = '$safeUsername'";
+        
+        error_log("更新User表SQL: " . $userSql); // 调试
+        
+        if (!mysqli_query($conn, $userSql)) {
+            $errors[] = "更新用户信息失败: " . mysqli_error($conn);
+        }
+    }
+    
+    // 更新Supplier表
+    if (!empty($supplierData)) {
+        $supplierSetParts = [];
+        foreach ($supplierData as $field => $value) {
+            $safeField = mysqli_real_escape_string($conn, $field);
+            $supplierSetParts[] = "`$safeField` = '$value'";
+        }
+        
+        $supplierSetClause = implode(', ', $supplierSetParts);
+        $supplierSql = "UPDATE `Supplier` SET $supplierSetClause WHERE `user_name` = '$safeUsername'";
+        
+        error_log("更新Supplier表SQL: " . $supplierSql); // 调试
+        
+        if (!mysqli_query($conn, $supplierSql)) {
+            $errors[] = "更新供应商信息失败: " . mysqli_error($conn);
+        }
+    }
+    
+    // 返回结果
+    if (empty($errors)) {
+        error_log("更新成功: 用户名=$username");
+        return true;
+    } else {
+        error_log("更新失败: " . implode(', ', $errors));
+        return false;
+    }
+}
 /**
  * 获取供应商的采购订单列表
  */
@@ -233,7 +320,25 @@ function getOrderStatusSummary() {
     $stmt->close();
     return $summary;
 }
-
+function getSupplierProductCount() {
+    $conn = getDBConnection();
+    $supplierId = getCurrentSupplierId();
+    
+    $query = "SELECT COUNT(DISTINCT product_ID) as product_count 
+              FROM SupplierProduct 
+              WHERE supplier_ID = ?";
+    
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("i", $supplierId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    
+    $stmt->close();
+    $conn->close();
+    
+    return $row['product_count'] ?? 0;
+}
 /**
  * 格式化金额显示
  */
@@ -441,23 +546,26 @@ function getPendingOrderCount($supplierId) {
     $stmt->close();
     return $row['count'] ?? 0;
 }
-
-/**
- * 退出登录处理
- */
-function logout() {
-    session_start();
-    $_SESSION = [];
-    if (ini_get("session.use_cookies")) {
-        $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000,
-            $params["path"], $params["domain"],
-            $params["secure"], $params["httponly"]
-        );
+function getSupplierRecentSales($supplierId, $days = 7) {
+    $conn = getDBConnection();
+    $salesData = [];
+    
+    for ($i = $days - 1; $i >= 0; $i--) {
+        $date = date('Y-m-d', strtotime("-$i days"));
+        
+        $stmt = $conn->prepare("SELECT COALESCE(SUM(total_amount), 0) AS daily_sales 
+                              FROM PurchaseOrder 
+                              WHERE supplier_ID = ? AND DATE(date) = ?");
+        $stmt->bind_param("is", $supplierId, $date);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $salesData[$date] = floatval($row['daily_sales']);
+        $stmt->close();
     }
-    session_destroy();
-    header("Location: login.php");
-    exit;
+    
+    $conn->close();
+    return $salesData;
 }
 
 // 处理退出请求

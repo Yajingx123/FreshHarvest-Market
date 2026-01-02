@@ -100,13 +100,150 @@ $customer_info = getCustomerFullInfo();
     .save-btn:hover {
         background-color: #096dd9;
     }
-    .logout-btn {
-        background-color: #ff4d4f;
-        color: white;
-    }
-    .logout-btn:hover {
-        background-color: #d9363e;
-    }
+    /* 为退出登录按钮添加悬停效果 */
+.logout-btn {
+    background-color: #ff4d4f;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+    min-width: 100px;
+}
+
+.logout-btn:hover {
+    background-color: #d9363e;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(217, 54, 62, 0.3);
+}
+
+.logout-btn:active {
+    transform: translateY(0);
+}
+
+.logout-btn:disabled {
+    background-color: #ffcccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+    /* ========== 退出确认弹窗样式 ========== */
+.logout-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.logout-modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.logout-modal {
+    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 400px;
+    padding: 40px 30px 30px;
+    position: relative;
+    transform: translateY(-30px) scale(0.95);
+    transition: all 0.4s ease;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.logout-modal-overlay.active .logout-modal {
+    transform: translateY(0) scale(1);
+}
+
+.logout-modal-icon {
+    font-size: 64px;
+    color: #ff6b6b;
+    text-align: center;
+    margin-bottom: 20px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.logout-modal-title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.logout-modal-message {
+    font-size: 16px;
+    color: #666;
+    text-align: center;
+    line-height: 1.6;
+    margin-bottom: 30px;
+}
+
+.logout-modal-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.logout-modal-btn {
+    flex: 1;
+    padding: 14px 0;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 120px;
+}
+
+.logout-modal-cancel {
+    background-color: #f0f0f0;
+    color: #666;
+}
+
+.logout-modal-cancel:hover {
+    background-color: #e0e0e0;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.logout-modal-confirm {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%);
+    color: white;
+}
+
+.logout-modal-confirm:hover {
+    background: linear-gradient(135deg, #ff4757 0%, #ff3838 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+}
+
+.logout-modal-btn:active {
+    transform: translateY(0);
+}
     /* 新增图片区域样式 */
     .account-image-container {
         flex: 1; /* 占据剩余空间 */
@@ -235,8 +372,8 @@ $customer_info = getCustomerFullInfo();
                         <div class="form-group">
                              <label class="form-label" for="gender">性别</label>
                              <select id="gender" class="form-input" disabled>
-                              <option value="Men" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Men' ? 'selected' : ''; ?>>Men</option>
-                             <option value="Woman" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Woman' ? 'selected' : ''; ?>>Woman</option>
+                              <option value="Male" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Male' ? 'selected' : ''; ?>>Male</option>
+                             <option value="Female" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Female' ? 'selected' : ''; ?>>Female</option>
                              </select>
                         </div>
                     </div>
@@ -259,11 +396,21 @@ $customer_info = getCustomerFullInfo();
                             <input type="text" id="address" class="form-input" 
                                    value="<?php echo htmlspecialchars($customer_info['address'] ?? ''); ?>" disabled>
                         </div>
+                        <div class="form-group">
+                            <label class="form-label" for="new_password">新密码</label>
+                            <input type="password" id="new_password" class="form-input" disabled>
+                        </div>
+
+                        <div class="form-group">
+                           <label class="form-label" for="confirm_password">确认密码</label>
+                           <input type="password" id="confirm_password" class="form-input" disabled>
+                        </div>
                         
                         <div class="form-actions">
                             <button type="button" class="edit-btn">编辑信息</button>
                             <button type="button" class="save-btn">保存修改</button>
-                            <a href="../login/login.php" class="logout-btn">退出登录</a>
+                            <!-- 将原来的退出登录按钮改为： -->
+                            <button type="button" class="logout-btn" onclick="showLogoutModal()">退出登录</button>
                         </div>
                     </div>
                 </form>
@@ -280,34 +427,83 @@ $customer_info = getCustomerFullInfo();
         <div class="success-message">信息修改成功！</div>
     </div>
 </div>
+<div class="logout-modal-overlay" id="logoutModal">
+    <div class="logout-modal">
+        <div class="logout-modal-icon">⚠️</div>
+        <h3 class="logout-modal-title">确认退出</h3>
+        <p class="logout-modal-message">确定要退出登录吗？<br>退出后需要重新登录才能访问账户。</p>
+        <div class="logout-modal-actions">
+            <button type="button" class="logout-modal-btn logout-modal-cancel" id="cancelLogout">取消</button>
+            <button type="button" class="logout-modal-btn logout-modal-confirm" id="confirmLogout">确认退出</button>
+        </div>
+    </div>
+</div>
 
 <script>
+    // 退出登录确认
+function confirmLogout() {
+    if (confirm('确定要退出登录吗？')) {
+        // 添加一个加载状态
+        const logoutBtn = document.querySelector('.logout-btn');
+        const originalText = logoutBtn.textContent;
+        logoutBtn.textContent = '退出中...';
+        logoutBtn.disabled = true;
+        
+        // 跳转到logout.php
+        setTimeout(() => {
+            window.location.href = '../login/logout.php';
+        }, 500);
+    }
+}
     // 编辑账户信息
     const successModal = document.getElementById('successModal');
     const closeSuccessModal = document.getElementById('closeSuccessModal');
+
+     // 退出登录弹窗变量
+    const logoutModal = document.getElementById('logoutModal');
+    const cancelLogoutBtn = document.getElementById('cancelLogout');
+    const confirmLogoutBtn = document.getElementById('confirmLogout');
+    let originalLogoutBtnText = '';
 
     document.querySelector('.edit-btn')?.addEventListener('click', function() {
        document.querySelectorAll('.form-input:not(#loyalty_level):not(#full-name)').forEach(input => {
           input.disabled = false;
        });
+       // 新增：启用密码输入框
+       document.getElementById('new_password').disabled = false;
+       document.getElementById('confirm_password').disabled = false;
+   
+       document.getElementById('new_password').value = '';
+       document.getElementById('confirm_password').value = '';
        this.style.display = 'none';
        document.querySelector('.save-btn').style.display = 'inline-block';
     });
-
     // 保存账户信息
     document.querySelector('.save-btn')?.addEventListener('click', async function() {
     // 1. 手动收集所有输入框的数值（即使是disabled/readonly的输入框，也能获取value）
     const formData = {
-        // 必传：用户ID（从后端获取，用于定位要修改的用户）
         customerId: <?php echo $customer_info['customer_ID'] ?? 0; ?>,
-        // 收集所有输入框的值（包括不可编辑的）
         username: document.getElementById('username').value.trim(),
         gender: document.getElementById('gender').value.trim(),
         phone: document.getElementById('phone').value.trim(),
         email: document.getElementById('email').value.trim(),
         address: document.getElementById('address').value.trim(),
-        loyalty_level: document.getElementById('loyalty_level').value.trim()
+        loyalty_level: document.getElementById('loyalty_level').value.trim(),
+        new_password: document.getElementById('new_password').value.trim(),
+        confirm_password: document.getElementById('confirm_password').value.trim()
     };
+
+    if (formData.new_password && formData.new_password !== formData.confirm_password) {
+        alert('两次输入的密码不一致！');
+        return; // 阻止提交
+    }
+    
+    // 如果只填了一个密码框
+    if ((formData.new_password && !formData.confirm_password) || 
+        (!formData.new_password && formData.confirm_password)) {
+          alert('请完整填写密码和确认密码！');
+          return;
+    }
 
     try {
         // 2. 发送AJAX请求到后端update_account.php
@@ -328,6 +524,10 @@ $customer_info = getCustomerFullInfo();
                     input.disabled = true;
                 }
             });
+            document.getElementById('new_password').disabled = true;
+            document.getElementById('confirm_password').disabled = true;
+            document.getElementById('new_password').value = '';
+            document.getElementById('confirm_password').value = '';
             this.style.display = 'none';
             document.querySelector('.edit-btn').style.display = 'inline-block';
         } else {
@@ -349,6 +549,52 @@ $customer_info = getCustomerFullInfo();
         if (e.target === successModal) {
             successModal.classList.remove('active');
             document.body.style.overflow = '';
+        }
+    });
+    // ========== 退出登录弹窗功能 ==========
+    // 显示退出确认弹窗
+    function showLogoutModal() {
+        logoutModal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    // 隐藏退出确认弹窗
+    function hideLogoutModal() {
+        logoutModal.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // 点击弹窗外部关闭
+    logoutModal.addEventListener('click', function(e) {
+        if (e.target === logoutModal) {
+            hideLogoutModal();
+        }
+    });
+
+    // 点击取消按钮
+    cancelLogoutBtn.addEventListener('click', hideLogoutModal);
+
+    // 点击确认退出按钮
+    confirmLogoutBtn.addEventListener('click', function() {
+        const logoutBtn = document.querySelector('.logout-btn');
+        originalLogoutBtnText = logoutBtn.textContent;
+        logoutBtn.textContent = '退出中...';
+        logoutBtn.disabled = true;
+        
+        logoutModal.style.opacity = '0.5';
+        
+        setTimeout(() => {
+            window.location.href = '../login/logout.php';
+        }, 800);
+    });
+
+    // 键盘快捷键支持
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && logoutModal.classList.contains('active')) {
+            hideLogoutModal();
+        }
+        if (e.key === 'Enter' && logoutModal.classList.contains('active')) {
+            confirmLogoutBtn.click();
         }
     });
 </script>

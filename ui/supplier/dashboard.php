@@ -10,12 +10,16 @@ $supplierId = getCurrentSupplierId();
 $todayOrders = 0;
 $cooperativeStores = 0;
 $todaySales = 0;
+$recentSales = [];
+$dateLabels = [];
+$salesData = [];
 $orderStatus = [
     'pending' => 0,
-    'accepted' => 0,
-    'shipped' => 0,
-    'completed' => 0
+    'ordered' => 0,
+    'received' => 0,
+    'cancelled' => 0
 ];
+$ProductCount = getSupplierProductCount();
 
 // 只有当供应商ID有效时才获取数据
 if ($supplierId > 0) {
@@ -59,8 +63,53 @@ if ($supplierId > 0) {
     foreach ($orderStatus as $status => $value) {
         $orderStatus[$status] = $statusSummary[$status] ?? 0;
     }
+    // 修改销售数据获取部分
+    for ($i = 6; $i >= 0; $i--) {
+      $date = date('Y-m-d', strtotime("-$i days"));
+      $dateLabels[] = date('m-d', strtotime("-$i days"));
     
-    // 关闭数据库连接
+      $stmt = $conn->prepare("SELECT SUM(total_amount) AS daily_sales 
+                          FROM PurchaseOrder 
+                          WHERE supplier_ID = ? 
+                          AND DATE(date) = ? 
+                          AND status IN ('ordered', 'received')");
+    
+      if (!$stmt) {
+          error_log("SQL 准备失败: " . $conn->error);
+          $salesData[] = 0;
+          continue;
+      }
+    
+      $stmt->bind_param("is", $supplierId, $date);
+    
+      if (!$stmt->execute()) {
+          error_log("SQL 执行失败: " . $stmt->error);
+          $salesData[] = 0;
+          $stmt->close();
+          continue;
+      }
+    
+      $result = $stmt->get_result();
+    
+      if (!$result) {
+        error_log("获取结果失败: " . $stmt->error);
+        $salesData[] = 0;
+        $stmt->close();
+        continue;
+      }
+    
+      $row = $result->fetch_assoc();
+      $dailySales = $row['daily_sales'] ?? 0;
+    
+      // 调试日志
+      error_log("日期: $date, 销售额: " . $dailySales);
+    
+      $salesData[] = floatval($dailySales);
+      $stmt->close();
+    
+      $recentSales[$date] = $dailySales;
+    }
+    
     $conn->close();
 }
 ?>
@@ -278,6 +327,18 @@ if ($supplierId > 0) {
                 grid-template-columns: 1fr;
             }
         }
+        /* 添加这些样式 */
+        .chart-wrap {
+           position: relative;
+           height: 260px; /* 固定高度，与 overview.php 一致 */
+        }
+        #salesChart {
+          width: 100% !important;
+          height: 100% !important;
+        }
+        .sales-chart {
+          height: 260px !important; /* 覆盖之前的高度设置 */
+        }
     </style>
 </head>
 <body>
@@ -303,7 +364,7 @@ if ($supplierId > 0) {
                 </div>
                 <div class="card-content">
                     <h3>可供应货品数</h3>
-                    <div class="number">42</div>
+                    <div class="number"><?php echo $ProductCount; ?></div>
                 </div>
             </div>
             <div class="card">
@@ -328,10 +389,12 @@ if ($supplierId > 0) {
 
         <!-- 图表区域 -->
         <div class="chart-container">
-            <div class="chart-card">
-                <div class="chart-title">近7日销售额趋势</div>
-                <div id="salesChart" class="sales-chart"></div>
+          <div class="chart-card">
+           <div class="chart-title">近7日销售额趋势</div>
+             <div class="chart-wrap">
+               <canvas id="salesChart"></canvas>
             </div>
+        </div>
             <div class="chart-card">
                 <div class="chart-title">订单状态分布</div>
                 <div class="order-status">
@@ -345,23 +408,23 @@ if ($supplierId > 0) {
                     <div class="status-item">
                         <div class="status-label">
                             <div class="status-dot dot-accepted"></div>
-                            <span>已确认</span>
+                            <span>已下单</span>
                         </div>
-                        <div class="status-value"><?php echo $orderStatus['accepted']; ?></div>
+                        <div class="status-value"><?php echo $orderStatus['ordered']; ?></div>
                     </div>
                     <div class="status-item">
                         <div class="status-label">
                             <div class="status-dot dot-shipped"></div>
-                            <span>已发货</span>
+                            <span>已收货</span>
                         </div>
-                        <div class="status-value"><?php echo $orderStatus['shipped']; ?></div>
+                        <div class="status-value"><?php echo $orderStatus['received']; ?></div>
                     </div>
                     <div class="status-item">
                         <div class="status-label">
                             <div class="status-dot dot-completed"></div>
-                            <span>已完成</span>
+                            <span>已取消</span>
                         </div>
-                        <div class="status-value"><?php echo $orderStatus['completed']; ?></div>
+                        <div class="status-value"><?php echo $orderStatus['cancelled']; ?></div>
                     </div>
                 </div>
             </div>
@@ -378,35 +441,125 @@ if ($supplierId > 0) {
                 <a href="#" style="color: #ccc; text-decoration: none;">投诉反馈</a>
                 <a href="#" style="color: #ccc; text-decoration: none;">联系平台</a>
             </div>
-            <div class="copyright">© 2024 鲜选生鲜 版权所有 | 平台客服电话：400-888-XXXX</div>
+            <div class="copyright">© 2024 鲜选生鲜 版权所有 | 平台客服电话:400-888-XXXX</div>
         </div>
     </footer>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <script>
-        // 计算并更新未处理订单数量（待确认状态）
-        function updateUnhandledOrderCount() {
-            // 实际应用中应通过AJAX从服务器获取数据
-            // 此处模拟数据，与订单页保持一致
-            const pendingCount = <?php echo $orderStatus['pending']; ?>; // 从PHP获取待确认订单数量
-            const badge = document.getElementById('unhandledOrderBadge');
-            if (badge) {
-                badge.textContent = pendingCount > 0 ? pendingCount : '';
+<script>
+const salesData = <?php echo json_encode($salesData); ?>;
+const dateLabels = <?php echo json_encode($dateLabels); ?>;
+
+console.log('销售数据:', salesData);
+console.log('日期标签:', dateLabels);
+
+// 使用与 overview.php 相同的 buildChart 函数
+function buildChart(ctx, config) {
+    if (!ctx) {
+        console.error('Canvas context 不存在');
+        return null;
+    }
+    return new Chart(ctx, config);
+}
+
+// 修改 renderSalesChart 函数
+function renderSalesChart() {
+    const canvas = document.getElementById('salesChart');
+    
+    if (!canvas) {
+        console.error('找不到 salesChart 元素');
+        return;
+    }
+    
+    // 清理之前的图表实例
+    if (window.salesChartInstance) {
+        window.salesChartInstance.destroy();
+    }
+    
+    window.salesChartInstance = buildChart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: dateLabels,
+            datasets: [{
+                label: '销售额（元）',
+                data: salesData,
+                borderColor: '#1976d2',
+                backgroundColor: 'rgba(25, 118, 210, 0.15)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 4,
+                pointBackgroundColor: '#1976d2',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // 关键：让图表填充容器
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        font: {
+                            size: 14
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return '销售额: ¥' + context.parsed.y.toFixed(2);
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '¥' + value;
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0,0,0,0.05)'
+                    }
+                },
+                x: {
+                    grid: {
+                        display: false
+                    }
+                }
             }
         }
+    });
+    
+    console.log('图表创建成功');
+}
 
-        // 页面加载完成后初始化红点
-        document.addEventListener('DOMContentLoaded', function() {
-            updateUnhandledOrderCount();
-            
-            // 点击红点跳转到订单管理页并筛选待确认订单
-            const badge = document.getElementById('unhandledOrderBadge');
-            if (badge) {
-                badge.parentElement.addEventListener('click', function(e) {
-                    // 跳转到订单页并自动筛选待确认订单
-                    window.location.href = 'orders.php?status=pending';
-                });
-            }
-        });
-    </script>
+// DOM 加载完成后执行
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM 加载完成');
+    
+    // 立即渲染图表
+    if (document.getElementById('salesChart')) {
+        renderSalesChart();
+    } else {
+        console.error('找不到 salesChart 元素');
+    }
+    
+    // 更新红点
+    updateUnhandledOrderCount();
+});
+
+function updateUnhandledOrderCount() {
+    const pendingCount = <?php echo $orderStatus['pending']; ?>;
+    const badge = document.getElementById('unhandledOrderBadge');
+    if (badge) {
+        badge.textContent = pendingCount > 0 ? pendingCount : '';
+    }
+}
+</script>
 </body>
 </html>

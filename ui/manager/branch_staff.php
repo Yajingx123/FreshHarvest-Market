@@ -113,7 +113,6 @@ if (isset($_POST['add_staff'])) {
 }
 
 // 处理移除员工
-// 处理移除员工
 if (isset($_GET['remove_staff'])) {
     $staffId = $_GET['remove_staff'];
     try {
@@ -341,7 +340,51 @@ $availableStaff = getAvailableStaff($branchId);
                 width: 100%;
             }
         }
-    </style>
+        /* 弹窗按钮悬停效果 */
+#confirmCancelBtn:hover {
+    background: #e9ecef;
+    border-color: #adb5bd;
+}
+
+#confirmOkBtn:hover {
+    background: #c62828;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(211, 47, 47, 0.2);
+}
+
+/* 动画效果 */
+#customConfirmModal > div {
+    animation: modalFadeIn 0.3s ease;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+/* 移除链接样式 */
+a[onclick*="showRemoveConfirm"] {
+    color: #d32f2f;
+    text-decoration: none;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid #ffcdd2;
+    transition: all 0.3s ease;
+    display: inline-block;
+}
+
+a[onclick*="showRemoveConfirm"]:hover {
+    background-color: #ffebee;
+    border-color: #ef9a9a;
+    transform: translateY(-1px);
+}
+</style>
 </head>
 <body>
     <h1><?= $branch['branch_name'] ?> - 员工管理</h1>
@@ -377,8 +420,9 @@ $availableStaff = getAvailableStaff($branchId);
             <td><?= $s['user_email'] ?></td>
             <td><?= $s['phone'] ?></td>
             <td>
-                <a href="?id=<?= $branchId ?>&remove_staff=<?= $s['staff_ID'] ?>" 
-                    onclick="return confirm('确定移除?')">移除</a>
+                <a href="javascript:void(0);" onclick="showRemoveConfirm(<?= $branchId ?>, <?= $s['staff_ID'] ?>, '<?= addslashes($s['name']) ?>')" style="color: #d32f2f; text-decoration: none; font-weight: 500; padding: 6px 12px; border-radius: 4px; border: 1px solid #ffcdd2; transition: all 0.3s ease; display: inline-block;">
+                  移除
+                </a>
             </td>
         </tr>
         <?php endforeach; ?>
@@ -394,6 +438,232 @@ $availableStaff = getAvailableStaff($branchId);
         <button type="submit" name="add_staff">添加</button>
     </form>
     <script>
+    // 全局弹窗通知函数
+    function showNotification(type, message) {
+        // 移除现有的弹窗
+        const existing = document.querySelector('.notification-popup');
+        if (existing) existing.remove();
+        
+        // 创建弹窗元素
+        const notification = document.createElement('div');
+        notification.className = 'notification-popup';
+        notification.style.cssText = `
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            padding: 18px 25px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            z-index: 9999;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+            animation: slideInRight 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            min-width: 300px;
+            max-width: 500px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        `;
+        
+        // 根据类型设置样式
+        if (type === 'success') {
+            notification.style.background = 'linear-gradient(135deg, rgba(76, 175, 80, 0.95) 0%, rgba(46, 125, 50, 0.95) 100%)';
+        } else if (type === 'error') {
+            notification.style.background = 'linear-gradient(135deg, rgba(244, 67, 54, 0.95) 0%, rgba(198, 40, 40, 0.95) 100%)';
+        } else if (type === 'warning') {
+            notification.style.background = 'linear-gradient(135deg, rgba(255, 193, 7, 0.95) 0%, rgba(245, 124, 0, 0.95) 100%)';
+        } else {
+            notification.style.background = 'linear-gradient(135deg, rgba(33, 150, 243, 0.95) 0%, rgba(13, 71, 161, 0.95) 100%)';
+        }
+        
+        // 图标
+        let icon = 'ℹ️';
+        if (type === 'success') icon = '✅';
+        else if (type === 'error') icon = '❌';
+        else if (type === 'warning') icon = '⚠️';
+        
+        notification.innerHTML = `
+            <div style="font-size: 28px; flex-shrink: 0;">${icon}</div>
+            <div style="flex-grow: 1; font-size: 15px; line-height: 1.4;">${message}</div>
+            <div style="cursor: pointer; font-size: 24px; opacity: 0.8; flex-shrink: 0; margin-left: 10px;" onclick="this.parentElement.remove()">×</div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // 添加CSS动画
+        if (!document.querySelector('#notification-styles')) {
+            const style = document.createElement('style');
+            style.id = 'notification-styles';
+            style.textContent = `
+                @keyframes slideInRight {
+                    from {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+                @keyframes slideOutRight {
+                    from {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                    to {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        // 5秒后自动移除
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.style.animation = 'slideOutRight 0.4s ease forwards';
+                setTimeout(() => notification.remove(), 400);
+            }
+        }, 5000);
+    }
+    // 移除员工相关变量
+let pendingRemoveBranchId = null;
+let pendingRemoveStaffId = null;
+
+// 显示确认弹窗
+function showRemoveConfirm(branchId, staffId, staffName) {
+    pendingRemoveBranchId = branchId;
+    pendingRemoveStaffId = staffId;
+    
+    // 设置确认消息
+    const message = `确定要移除员工 <strong>${escapeHtml(staffName)}</strong> 吗？`;
+    document.getElementById('confirmMessage').innerHTML = message;
+    
+    // 显示弹窗
+    document.getElementById('customConfirmModal').style.display = 'flex';
+}
+
+// 确认移除
+function confirmRemove() {
+    if (pendingRemoveBranchId && pendingRemoveStaffId) {
+        // 跳转到移除URL
+        window.location.href = `?id=${pendingRemoveBranchId}&remove_staff=${pendingRemoveStaffId}`;
+    }
+    closeConfirmModal();
+}
+
+// 关闭弹窗
+function closeConfirmModal() {
+    document.getElementById('customConfirmModal').style.display = 'none';
+    pendingRemoveBranchId = null;
+    pendingRemoveStaffId = null;
+}
+
+// 绑定弹窗事件
+document.addEventListener('DOMContentLoaded', function() {
+    // 确认按钮
+    document.getElementById('confirmOkBtn').addEventListener('click', confirmRemove);
+    
+    // 取消按钮
+    document.getElementById('confirmCancelBtn').addEventListener('click', closeConfirmModal);
+    
+    // 点击背景关闭
+    document.getElementById('customConfirmModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeConfirmModal();
+        }
+    });
+    
+    // ESC键关闭
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && document.getElementById('customConfirmModal').style.display === 'flex') {
+            closeConfirmModal();
+        }
+    });
+});
+
+// HTML转义函数（如果还没有的话）
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+    
+    // 页面加载后显示PHP消息
+    document.addEventListener('DOMContentLoaded', function() {
+        <?php if (isset($success)): ?>
+            setTimeout(() => {
+                showNotification('success', '<?= addslashes($success) ?>');
+            }, 300);
+        <?php endif; ?>
+        
+        <?php if (isset($error)): ?>
+            setTimeout(() => {
+                showNotification('error', '<?= addslashes($error) ?>');
+            }, 300);
+        <?php endif; ?>
+        
+        // 表单提交提示
+        const addStaffForm = document.querySelector('form[method="post"]');
+        if (addStaffForm) {
+            const submitBtn = addStaffForm.querySelector('button[name="add_staff"]');
+            if (submitBtn) {
+                submitBtn.addEventListener('click', function(e) {
+                    const staffSelect = addStaffForm.querySelector('select[name="staff_id"]');
+                    if (staffSelect && staffSelect.value) {
+                        const selectedOption = staffSelect.options[staffSelect.selectedIndex];
+                        const staffName = selectedOption.text.split(' (')[0];
+                        
+                        // 保存原始文本
+                        const originalText = submitBtn.innerHTML;
+                        
+                        // 显示加载状态
+                        submitBtn.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite;">↻</span> 添加中...';
+                        submitBtn.disabled = true;
+                        
+                        // 添加旋转动画
+                        if (!document.querySelector('#spin-animation')) {
+                            const spinStyle = document.createElement('style');
+                            spinStyle.id = 'spin-animation';
+                            spinStyle.textContent = `
+                                @keyframes spin {
+                                    0% { transform: rotate(0deg); }
+                                    100% { transform: rotate(360deg); }
+                                }
+                            `;
+                            document.head.appendChild(spinStyle);
+                        }
+                        
+                        // 表单提交后恢复按钮状态
+                        setTimeout(() => {
+                            submitBtn.innerHTML = originalText;
+                            submitBtn.disabled = false;
+                        }, 3000);
+                    }
+                });
+            }
+        }
+    });
 </script>
+<!-- 自定义确认弹窗 -->
+<div id="customConfirmModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1001;display:none;">
+    <div style="background:#fff;width:400px;border-radius:12px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+        <div style="text-align:center;margin-bottom:20px;">
+            <div style="width:60px;height:60px;margin:0 auto 15px;background:#fff3cd;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                <span style="font-size:28px;color:#f0ad4e;">⚠️</span>
+            </div>
+            <h3 style="margin:0;color:#333;font-size:18px;font-weight:600;">确认移除</h3>
+        </div>
+        <p id="confirmMessage" style="text-align:center;color:#666;margin-bottom:24px;line-height:1.5;font-size:14px;"></p>
+        <div style="display:flex;gap:12px;justify-content:center;">
+            <button id="confirmCancelBtn" style="background:#f8f9fa;color:#333;border:1px solid #ddd;padding:10px 24px;border-radius:6px;font-weight:500;cursor:pointer;transition:all 0.3s;flex:1;">取消</button>
+            <button id="confirmOkBtn" style="background:#d32f2f;color:white;border:none;padding:10px 24px;border-radius:6px;font-weight:500;cursor:pointer;transition:all 0.3s;flex:1;">确认移除</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>

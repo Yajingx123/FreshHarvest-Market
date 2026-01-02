@@ -20,6 +20,22 @@ $phone = $data['phone'] ?? null;             // 手机号码
 $email = $data['email'] ?? null;             // 电子邮箱
 $address = $data['address'] ?? null;         // 地址
 $loyaltyLevel = $data['loyalty_level'] ?? null; // 会员等级（不可编辑）
+$new_password = $data['new_password'] ?? '';
+$confirm_password = $data['confirm_password'] ?? '';
+
+if ($new_password !== '' || $confirm_password !== '') {
+    // 验证两次密码是否一致
+    if ($new_password !== $confirm_password) {
+        echo json_encode(['status' => 'error', 'message' => '两次输入的密码不一致']);
+        exit;
+    }
+    
+    // 验证密码复杂度（可选）
+    if (strlen($new_password) < 6) {
+        echo json_encode(['status' => 'error', 'message' => '密码长度不能少于6位']);
+        exit;
+    }
+}
 
 // 数据验证
 $errors = [];
@@ -30,8 +46,8 @@ if (checkUsernameExists($data['username'], $customer_id)) {
 }
 
 // 性别验证
-if (!in_array($data['gender'], ['Men', 'Woman'])) {
-    $errors[] = '性别只能是Men或Woman';
+if (!in_array($data['gender'], ['Male', 'Female'])) {
+    $errors[] = '性别只能是Male或Female';
 }
 
 // 电话号码验证
@@ -62,7 +78,11 @@ if ($gender !== null && $gender !== '') $updateData['gender'] = $gender;
 if ($phone !== null && $phone !== '') $updateData['phone'] = $phone;
 if ($email !== null && $email !== '') $updateData['email'] = $email;
 if ($address !== null && $address !== '') $updateData['address'] = $address;
-
+if ($new_password !== '') {
+    // 安全地生成密码哈希（重要！不要存明文）
+    $password_hash = md5($new_password);
+    $updateData['password_hash'] = $password_hash;
+}
 // 执行更新
 if (updateCustomerInfo($customer_id, $updateData)) {
     echo json_encode(['status' => 'success', 'message' => '信息更新成功']);

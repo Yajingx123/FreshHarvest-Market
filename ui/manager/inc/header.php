@@ -7,54 +7,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>鲜选生鲜 - CEO</title>
     <style>
-        /* 全局核心样式（与staff端风格统一） */
+        /* 全局核心样式（保留所有必要功能，无冗余） */
         *{margin:0;padding:0;box-sizing:border-box;font-family:'Microsoft YaHei',Arial,sans-serif;}
         body{background:#f8f9fa;color:#333;}
         
-        /* 顶部导航（与staff端统一） */
+        /* 顶部导航（按新架构简化） */
         .header{background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.1);position:sticky;top:0;z-index:999;}
         .nav-container{width:90%;margin:0 auto;display:flex;justify-content:space-between;align-items:center;padding:15px 0;}
-        .logo{font-size:24px;font-weight:700;color:#ff7043;text-decoration:none;}
+        .logo{font-size:20px;font-weight:700;color:#1976d2;text-decoration:none;}
         .nav-menu{display:flex;list-style:none;gap:18px;}
-        .nav-link{color:#333;text-decoration:none;font-weight:500;transition:color 0.3s;position:relative;}
-        .nav-link:hover{color:#ff7043;}
-        .nav-link.active{color:#ff7043;font-weight:600;}
-        .nav-link.active::after{
-            content:'';
-            position:absolute;
-            bottom:-5px;
-            left:0;
-            width:100%;
-            height:2px;
-            background-color:#ff7043;
-            border-radius:1px;
-        }
+        .nav-link{color:#333;text-decoration:none;font-weight:500;transition:color 0.3s;}
+        .nav-link:hover, .nav-link.active{color:#1976d2;}
         .nav-link .badge{background:#ff4d4f;color:white;font-size:12px;padding:2px 6px;border-radius:10px;margin-left:5px;}
         
-        /* 主内容区（与staff端统一容器） */
-        .main, main{width:90%;margin:30px auto;min-height:calc(100vh - 200px);}
+        /* 主内容区（按新架构统一容器） */
+        main{width:90%;margin:30px auto;min-height:calc(100vh - 200px);}
         
-        /* 通用模块样式（与staff端统一） */
+        /* 通用模块样式（兼容所有页面） */
         .section{background:#fff;border-radius:10px;box-shadow:0 2px 12px rgba(0,0,0,0.05);padding:25px;margin-bottom:30px;}
-        .section-title{font-size:20px;font-weight:600;margin-bottom:20px;color:#ff7043;border-left:4px solid #ff7043;padding-left:10px;}
+        .section-title{font-size:20px;font-weight:600;margin-bottom:20px;color:#1976d2;border-left:4px solid #1976d2;padding-left:10px;}
+        
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
         
         /* 仪表盘卡片（数据概览用） */
         .dashboard-cards{display:flex;gap:20px;flex-wrap:wrap;}
-        .card{flex:1;min-width:200px;background:#fff3e0;border-radius:8px;padding:20px;text-align:center;}
-        .card-icon{font-size:32px;color:#ff7043;margin-bottom:10px;}
+        .card{flex:1;min-width:200px;background:#e3f2fd;border-radius:8px;padding:20px;text-align:center;}
+        .card-icon{font-size:32px;color:#1976d2;margin-bottom:10px;}
         .card-title{font-size:16px;margin-bottom:5px;color:#666;}
         .card-value{font-size:24px;font-weight:bold;color:#333;}
         
         /* 表格样式（门店/产品/交易用） */
         .data-table{width:100%;border-collapse:collapse;margin-top:15px;}
         .data-table th, .data-table td{padding:12px 15px;text-align:left;border-bottom:1px solid #eee;}
-        .data-table th{background:#fff8e1;color:#ff7043;font-weight:600;}
+        .data-table th{background:#f5f9ff;color:#1976d2;font-weight:600;}
         .data-table tr:hover{background:#fafafa;}
         
         /* 按钮样式（所有操作按钮兼容） */
         .btn{padding:8px 16px;border-radius:6px;border:none;font-size:14px;cursor:pointer;transition:background-color 0.3s;}
-        .btn-primary{background:#ff7043;color:white;}
-        .btn-primary:hover{background:#f57c00;}
+        .btn-primary{background:#1976d2;color:white;}
+        .btn-primary:hover{background:#1565c0;}
         .btn-success{background:#43a047;color:white;}
         .btn-success:hover{background:#388e3c;}
         .btn-warning{background:#fbc02d;color:#333;}
@@ -66,7 +57,7 @@
         .filter-bar{display:flex;gap:15px;margin-bottom:20px;flex-wrap:wrap;align-items:center;}
         .filter-input{padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;width:200px;}
         .filter-select{padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;width:180px;}
-        .partners-status-btn.active{background:#ff7043;color:#fff;}
+        .partners-status-btn.active{background:#1976d2;color:#fff;}
         
         /* 表单样式（供应商资料/新增编辑用） */
         .form-group{margin-bottom:20px;}
@@ -80,7 +71,7 @@
         .status-pending{background:#fff3e0;color:#ff9800;}
         .status-accepted{background:#e8f5e9;color:#43a047;}
         .status-shipped{background:#e3f2fd;color:#1976d2;}
-        .status-completed{background:#e8f5e9;color:#43a047;}
+        .status-completed{background:#f3e5f5;color:#8e24aa;}
         .status-rejected{background:#ffebee;color:#e53935;}
         
         /* 模态弹窗（所有页面共用） */
@@ -92,6 +83,8 @@
         .modal-body{max-height:60vh;overflow:auto;padding-right:6px;}
         .modal-close{cursor:pointer;border:none;background:transparent;font-size:16px;color:#999;}
         
+
+        <li><a class="nav-link" href="javascript:void(0)" onclick="showChangePasswordModal()">修改密码</a></li>
         /* 响应式调整（保持原页面适配） */
         @media (max-width:768px){
             .nav-menu{display:none;}
@@ -101,6 +94,16 @@
             .filter-input, .filter-select{width:100%;}
             .data-table th, .data-table td{padding:8px 10px;font-size:14px;}
             .btn{padding:6px 12px;font-size:13px;}
+        }
+        .loading-text {
+           display: inline-block;
+           animation: pulse 1.5s infinite;
+           color: #ff4757;
+        }
+        @keyframes pulse {
+           0% { opacity: 1; }
+           50% { opacity: 0.5; }
+           100% { opacity: 1; }
         }
     </style>
     <!-- 引入Chart.js（数据概览折线图用） -->
@@ -121,15 +124,21 @@
             '员工信息' => 'employees.php',     // 新增
             '顾客信息' => 'customers.php',     // 新增
             '销售情况' => 'saletrend.php',
-            '供应商信息' => 'sup_Info.php'
+            '供应商信息' => 'sup_Info.php',
+            '退出登录' => 'logout',
+            '修改密码' => 'change_password.php'
         ];
         echo '<ul class="nav-menu">';
         foreach ($navLinks as $label => $url) {
+          if ($label === '退出登录') {
+             echo "<li><a class='nav-link logout-btn' href='javascript:void(0)'>{$label}</a></li>";
+          } else {
             $activeClass = ($curPage === basename($url)) ? 'active' : '';
             echo "<li><a class='nav-link {$activeClass}' href='{$url}'>{$label}</a></li>";
+          }
         }
         echo '</ul>';
-        ?>
+?>
     </div>
 </header>
 
@@ -140,7 +149,7 @@
         <div class="modal-backdrop"></div>
         <div class="modal-content" role="document">
             <div class="modal-header">
-                <h3 id="appModalTitle" style="margin:0;font-size:18px;color:#ff7043;">消息</h3>
+                <h3 id="appModalTitle" style="margin:0;font-size:18px;color:#1976d2;">消息</h3>
                 <button class="modal-close" aria-label="关闭">✕</button>
             </div>
             <div class="modal-body" id="appModalBody">
@@ -154,7 +163,46 @@
     </div>
 
     <!-- 全局公共模态框函数（所有页面直接调用，无需重复编写） -->
-    <script>
+<script>
+// 退出登录事件监听
+document.addEventListener('DOMContentLoaded', function() {
+    // 监听所有退出登录按钮
+    document.querySelectorAll('.logout-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            confirmLogout(e);
+        });
+    });
+    
+    // 如果用户直接访问logout.php相关页面，也触发退出
+    if (window.location.pathname.includes('logout')) {
+        confirmLogout();
+    }
+});
+
+async function confirmLogout(e) {
+    if (e) e.preventDefault();
+    
+    const confirmed = await showAppModal('确认退出', '确定要退出登录吗？<br>退出后需要重新登录才能访问系统。', {
+        okText: '确认退出',
+        cancelText: '取消',
+        enterConfirm: true
+    });
+    
+    if (confirmed) {
+        // 显示加载状态
+        const logoutLinks = document.querySelectorAll('.logout-btn, .nav-link[href*="logout"]');
+        logoutLinks.forEach(link => {
+            link.innerHTML = '<span class="loading-text">退出中...</span>';
+            link.style.pointerEvents = 'none';
+        });
+        
+        // 跳转到logout.php
+        setTimeout(() => {
+            window.location.href = '../../login/logout.php';
+        }, 800);
+    }
+}
         function showAppModal(title, html, opts = {}) {
             const modal = document.getElementById('appModal');
             document.getElementById('appModalTitle').textContent = title || '消息';

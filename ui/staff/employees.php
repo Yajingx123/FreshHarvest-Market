@@ -10,7 +10,7 @@ if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== tru
 
 $servername = "localhost";
 $username = "root";
-$password = "NewRootPwd123!";
+$password = "8049023544Aaa?";
 $dbname = "mydb";
 
 $staffMembers = [];
@@ -26,12 +26,11 @@ if ($conn->connect_error) {
     if ($branchId === null) {
         $error_message = "无法确定当前门店，请重新登录。";
     } else {
-        $sql = "SELECT s.staff_ID, s.position, s.phone AS staff_phone, s.status,
-                       u.first_name, u.last_name, u.user_email, u.user_telephone
-                FROM Staff s
-                LEFT JOIN User u ON s.user_name = u.user_name
-                WHERE s.branch_ID = ?
-                ORDER BY FIELD(s.position,'Manager','Sales','Deliveryman'), s.staff_ID";
+        $sql = "SELECT staff_ID, position, staff_phone, status,
+                       first_name, last_name, user_email, user_telephone
+                FROM v_staff_branch_employees
+                WHERE branch_ID = ?
+                ORDER BY FIELD(position,'Manager','Sales','Deliveryman'), staff_ID";
 
         if ($stmt = $conn->prepare($sql)) {
             $stmt->bind_param("i", $branchId);

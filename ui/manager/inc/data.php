@@ -60,12 +60,9 @@ function getTransactionsData() {
                     'productName' => $row['productName'],
                     'batchId' => $row['batchId'],
                     'type' => $row['direction'],
-                    'txn_type' => $row['type'],
                     'qty' => $row['qty'],
                     'unit' => $row['unit'],
                     'note' => $row['note'],
-                    'source' => $row['source_name'] ?? '',
-                    'destination' => $row['destination_name'] ?? '',
                 ];
             }
         }
@@ -142,9 +139,29 @@ function getEmployeeById($id) {
                 default: $statusText = $row['status_raw'] ?? '未知';
             }
             
+            // 从用户名获取姓和名
+            $firstName = '';
+            $lastName = '';
+            
+            // 从完整姓名中解析姓和名（假设格式为"姓 名"）
+            if (!empty($row['name'])) {
+                $nameParts = explode(' ', $row['name']);
+                if (count($nameParts) >= 2) {
+                    $firstName = $nameParts[0]; // 姓
+                    $lastName = $nameParts[1];  // 名
+                } else {
+                    // 如果只有一个名字，全部当作姓
+                    $firstName = $row['name'];
+                    $lastName = '';
+                }
+            }
+            
             return [
                 'id' => $row['id'],
                 'name' => $row['name'],
+                'username' => $row['username'],
+                'first_name' => $firstName,
+                'last_name' => $lastName,
                 'role' => $row['role'],
                 'salary' => $row['salary'],
                 'start_date' => date('Y-m-d', strtotime($row['start_date'])),
@@ -154,7 +171,6 @@ function getEmployeeById($id) {
                 'phone' => $row['phone'] ?? $row['staff_phone'],
                 'branch_name' => $row['branch_name'],
                 'branch_id' => $row['branch_id'],
-                'username' => $row['username'],
             ];
         }
         return null;
@@ -192,21 +208,41 @@ function saveEmployee($data) {
         // 开始事务
         $conn->begin_transaction();
         
+        // 从表单数据中获取用户名、姓、名
+        $username = $data['username'] ?? '';
+        $firstName = $data['first_name'] ?? '';
+        $lastName = $data['last_name'] ?? '';
+        
         if ($data['is_new']) {
-            // 新增员工
-            // 1. 先在 User 表中创建用户
+            // ========== 新增员工 ==========
+            if (empty($username)) {
+                throw new Exception("用户名不能为空");
+            }
+            
+            if (empty($firstName) || empty($lastName)) {
+                throw new Exception("姓氏和名字不能为空");
+            }
+            
+            // 1. 检查用户名是否已存在
+            $checkSql = "SELECT user_name FROM User WHERE user_name = ?";
+            $checkStmt = $conn->prepare($checkSql);
+            $checkStmt->bind_param("s", $username);
+            $checkStmt->execute();
+            $checkResult = $checkStmt->get_result();
+            if ($checkResult->num_rows > 0) {
+                throw new Exception("用户名已存在，请选择其他用户名");
+            }
+            $checkStmt->close();
+            
+            // 2. 在 User 表中创建用户
             $userSql = "INSERT INTO User (user_name, password_hash, user_type, user_email, user_telephone, first_name, last_name, is_active) 
                        VALUES (?, ?, 'staff', ?, ?, ?, ?, TRUE)";
-            $stmt = $conn->prepare($userSql);
-            // 生成用户名和密码
-            $username = strtolower(preg_replace('/\s+/', '', $data['name'])) . rand(100, 999);
-            $passwordHash = password_hash('123456', PASSWORD_DEFAULT); // 默认密码
-            // 拆分姓和名
-            $nameParts = explode(' ', $data['name']);
-            $firstName = $nameParts[0] ?? '';
-            $lastName = $nameParts[1] ?? $firstName;
+            $userStmt = $conn->prepare($userSql);
             
-            $stmt->bind_param("ssssss", 
+            // 使用 md5 加密密码（与你现有的登录逻辑保持一致）
+            $passwordHash = md5('Test1234'); // 默认密码
+            
+            $userStmt->bind_param("ssssss", 
                 $username,
                 $passwordHash,
                 $data['email'],
@@ -214,68 +250,14 @@ function saveEmployee($data) {
                 $firstName,
                 $lastName
             );
-            $stmt->execute();
+            
+            if (!$userStmt->execute()) {
+                throw new Exception("创建用户失败: " . $userStmt->error);
+            }
             $userId = $conn->insert_id;
+            $userStmt->close();
             
-           $branchId = str_replace('BR-', '', $data['branch_id']);
-           $statusRaw = '';
-           switch ($data['status']) {
-              case '在职': $statusRaw = 'active'; break;
-              case '休假': $statusRaw = 'on_leave'; break;
-              case '离职': $statusRaw = 'terminated'; break;
-              default: $statusRaw = 'active';
-            }
-            $hireDate = $data['start_date'];  // 直接使用输入的日期
-
-           if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hireDate)) {
-               throw new Exception("无效的日期格式,请使用YYYY-MM-DD");
-            }
-
-            $dateParts = explode('-', $hireDate);
-            $year = intval($dateParts[0]);
-            $month = intval($dateParts[1]);
-            $day = intval($dateParts[2]);
-
-           if (!checkdate($month, $day, $year)) {
-               throw new Exception("日期不存在，请检查年、月、日是否有效");
-            }
-
-            $staffSql = "INSERT INTO Staff (branch_ID, user_name, position, phone, salary, hire_date, status) 
-               VALUES (?, ?, ?, ?, ?, ?, ?)";
-            $staffStmt = $conn->prepare($staffSql);
-            $staffStmt->bind_param("isssdss", 
-               $branchId,
-               $username,
-                $data['role'],
-                $data['phone'],
-               $data['salary'],
-                $hireDate,
-               $statusRaw
-            );
-            $staffStmt->execute();
-            $staffId = $conn->insert_id;
-            
-        } else {
-            // 更新员工信息
-            // 1. 更新 User 表
-            $nameParts = explode(' ', $data['name']);
-            $firstName = $nameParts[0] ?? '';
-            $lastName = $nameParts[1] ?? $firstName;
-            
-            $userSql = "UPDATE User 
-                       SET user_email = ?, user_telephone = ?, first_name = ?, last_name = ?
-                       WHERE user_name = (SELECT user_name FROM Staff WHERE staff_ID = ?)";
-            $stmt = $conn->prepare($userSql);
-            $stmt->bind_param("ssssi", 
-                $data['email'],
-                $data['phone'],
-                $firstName,
-                $lastName,
-                $data['id']
-            );
-            $stmt->execute();
-            
-            // 2. 更新 Staff 表
+            // 3. 在 Staff 表中创建员工记录
             $branchId = str_replace('BR-', '', $data['branch_id']);
             $statusRaw = '';
             switch ($data['status']) {
@@ -285,27 +267,121 @@ function saveEmployee($data) {
                 default: $statusRaw = 'active';
             }
             
-            $staffSql = "UPDATE Staff 
-                        SET branch_ID = ?, position = ?, phone = ?, salary = ?, hire_date = ?, status = ?
-                        WHERE staff_ID = ?";
-            $staffStmt = $conn->prepare($staffSql);
-
-            $hireDate = $data['start_date'];  // 直接使用输入的日期
-
-           if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hireDate)) {
-               throw new Exception("无效的日期格式,请使用YYYY-MM-DD");
+            $hireDate = $data['start_date'];
+            
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hireDate)) {
+                throw new Exception("无效的日期格式，请使用YYYY-MM-DD");
             }
-
+            
             $dateParts = explode('-', $hireDate);
             $year = intval($dateParts[0]);
             $month = intval($dateParts[1]);
             $day = intval($dateParts[2]);
-
-           if (!checkdate($month, $day, $year)) {
-               throw new Exception("日期不存在，请检查年、月、日是否有效");
+            
+            if (!checkdate($month, $day, $year)) {
+                throw new Exception("日期不存在，请检查年、月、日是否有效");
             }
             
-            $staffStmt->bind_param("isssssi", 
+            $staffSql = "INSERT INTO Staff (user_name, branch_ID, position, phone, salary, hire_date, status) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?)";
+            $staffStmt = $conn->prepare($staffSql);
+            $staffStmt->bind_param("sissdss", 
+                $username,
+                $branchId,
+                $data['role'],
+                $data['phone'],
+                $data['salary'],
+                $hireDate,
+                $statusRaw
+            );
+            
+            if (!$staffStmt->execute()) {
+                throw new Exception("创建员工记录失败: " . $staffStmt->error);
+            }
+            $staffId = $conn->insert_id;
+            $staffStmt->close();
+            
+        } else {
+            // ========== 更新员工信息 ==========
+            // 1. 先获取原有的用户名（如果表单没有提供新的用户名，则使用原有的）
+            $getUsernameSql = "SELECT user_name FROM Staff WHERE staff_ID = ?";
+            $getUsernameStmt = $conn->prepare($getUsernameSql);
+            $getUsernameStmt->bind_param("i", $data['id']);
+            $getUsernameStmt->execute();
+            $getUsernameResult = $getUsernameStmt->get_result();
+            $existingEmployee = $getUsernameResult->fetch_assoc();
+            $getUsernameStmt->close();
+            
+            $currentUsername = $existingEmployee['user_name'] ?? '';
+            
+            // 如果提供了新用户名且不同于原用户名，检查是否已存在
+            if (!empty($username) && $username !== $currentUsername) {
+                $checkSql = "SELECT user_name FROM User WHERE user_name = ?";
+                $checkStmt = $conn->prepare($checkSql);
+                $checkStmt->bind_param("s", $username);
+                $checkStmt->execute();
+                $checkResult = $checkStmt->get_result();
+                if ($checkResult->num_rows > 0) {
+                    throw new Exception("用户名已存在，请选择其他用户名");
+                }
+                $checkStmt->close();
+            }
+            
+            // 2. 更新 User 表
+            $userSql = "UPDATE User 
+                       SET user_name = ?, user_email = ?, user_telephone = ?, first_name = ?, last_name = ?
+                       WHERE user_name = ?";
+            $userStmt = $conn->prepare($userSql);
+            
+            // 如果提供了新用户名，使用新用户名，否则保持原用户名
+            $newUsername = !empty($username) ? $username : $currentUsername;
+            
+            $userStmt->bind_param("ssssss", 
+                $newUsername,
+                $data['email'],
+                $data['phone'],
+                $firstName,
+                $lastName,
+                $currentUsername  // WHERE条件：原来的用户名
+            );
+            
+            if (!$userStmt->execute()) {
+                throw new Exception("更新用户信息失败: " . $userStmt->error);
+            }
+            $userStmt->close();
+            
+            // 3. 更新 Staff 表
+            $branchId = str_replace('BR-', '', $data['branch_id']);
+            $statusRaw = '';
+            switch ($data['status']) {
+                case '在职': $statusRaw = 'active'; break;
+                case '休假': $statusRaw = 'on_leave'; break;
+                case '离职': $statusRaw = 'terminated'; break;
+                default: $statusRaw = 'active';
+            }
+            
+            $hireDate = $data['start_date'];
+            
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hireDate)) {
+                throw new Exception("无效的日期格式，请使用YYYY-MM-DD");
+            }
+            
+            $dateParts = explode('-', $hireDate);
+            $year = intval($dateParts[0]);
+            $month = intval($dateParts[1]);
+            $day = intval($dateParts[2]);
+            
+            if (!checkdate($month, $day, $year)) {
+                throw new Exception("日期不存在，请检查年、月、日是否有效");
+            }
+            
+            $staffSql = "UPDATE Staff 
+                        SET user_name = ?, branch_ID = ?, position = ?, phone = ?, salary = ?, hire_date = ?, status = ?
+                        WHERE staff_ID = ?";
+            $staffStmt = $conn->prepare($staffSql);
+            
+            $staffStmt->bind_param("sissdssi", 
+                $newUsername,  // 更新后的用户名
                 $branchId,
                 $data['role'],
                 $data['phone'],
@@ -314,7 +390,11 @@ function saveEmployee($data) {
                 $statusRaw,
                 $data['id']
             );
-            $staffStmt->execute();
+            
+            if (!$staffStmt->execute()) {
+                throw new Exception("更新员工信息失败: " . $staffStmt->error);
+            }
+            $staffStmt->close();
         }
         
         // 提交事务
@@ -491,30 +571,17 @@ function getCustomersData() {
         
         // 简化查询：只获取基本信息
         $sql = "
-        SELECT 
-            c.customer_ID as id,
-            CONCAT(u.first_name, ' ', u.last_name) as name,
-            c.phone,
-            c.email,
-            DATE(c.created_at) as registered,
-            c.loyalty_level,
-            -- 统计订单信息
-            COUNT(DISTINCT co.order_ID) as order_count,
-            COALESCE(SUM(co.total_amount), 0) as total_spent
-        FROM 
-            Customer c
-            JOIN User u ON c.user_name = u.user_name
-            LEFT JOIN CustomerOrder co ON c.customer_ID = co.customer_ID
-        GROUP BY 
-            c.customer_ID, 
-            u.first_name, 
-            u.last_name, 
-            c.phone, 
-            c.email, 
-            c.created_at,
-            c.loyalty_level
-        ORDER BY 
-            c.customer_ID ASC";
+    SELECT 
+        customer_ID as id,
+        full_name as name,
+        phone,
+        email,
+        registered_date as registered,
+        loyalty_level,
+        order_count,
+        total_spent
+    FROM v_customer_profile
+    ORDER BY customer_ID ASC";
         
         $result = $conn->query($sql);
         
@@ -722,23 +789,20 @@ function getOrderProductDetails($orderId) {
 function getBranchOrdersWithDetails($branchId) {
     global $conn;
     try {
-        $sql = "SELECT 
-                co.order_ID,
-                -- 从User表拼接客户姓名（first_name + last_name）
-                CONCAT(u.first_name, ' ', u.last_name) AS customer_name,
-                co.order_date,
-                co.final_amount,
-                co.total_amount,
-                co.status AS order_status,  -- 订单状态（CustomerOrder表的status字段）
-                co.branch_ID
-                FROM CustomerOrder co
-                -- 关联Customer表（通过customer_ID）
-                LEFT JOIN Customer c ON co.customer_ID = c.customer_ID
-                -- 关联User表（通过user_name，获取姓名）
-                LEFT JOIN User u ON c.user_name = u.user_name
-                WHERE co.branch_ID = ? 
-                  AND co.status = 'Completed'  -- 可根据需求调整订单状态
-                ORDER BY co.order_date DESC";
+        // 按分支查询已完成订单
+         $sql = "SELECT 
+            order_ID,
+            customer_name,
+            order_date,
+            final_amount,
+            total_amount,
+            order_status,
+            branch_ID,
+            discount_amount
+        FROM BranchAllOrders
+        WHERE branch_ID = ? 
+          AND order_status = 'Completed'
+        ORDER BY order_date DESC";
 
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("i", $branchId);
@@ -896,42 +960,6 @@ function getAlertSummary() {
         error_log("获取预警统计失败: " . $e->getMessage());
         return [];
     }
-}
-
-// 经理端：产品库存（按门店汇总，使用视图）
-function getManagerProductInventoryByBranch() {
-    global $conn;
-    $data = [];
-    try {
-        $sql = "SELECT * FROM v_manager_product_inventory_by_branch";
-        $result = $conn->query($sql);
-        if ($result && $result->num_rows > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $data[] = $row;
-            }
-        }
-    } catch (Exception $e) {
-        error_log("获取产品库存汇总失败: " . $e->getMessage());
-    }
-    return $data;
-}
-
-// 经理端：产品供应商进货价与售价（使用视图）
-function getManagerProductSupplierPricing() {
-    global $conn;
-    $data = [];
-    try {
-        $sql = "SELECT * FROM v_manager_product_supplier_pricing";
-        $result = $conn->query($sql);
-        if ($result && $result->num_rows > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $data[] = $row;
-            }
-        }
-    } catch (Exception $e) {
-        error_log("获取供应商售价失败: " . $e->getMessage());
-    }
-    return $data;
 }
 
 /**
@@ -1098,20 +1126,27 @@ function getRecentYears($limit = 5) {
     return $years;
 }
 
-function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $category_id) {
+function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $category_id, $sale_quantity) {
     global $conn;
     
     try {
         // 1. 生成SKU（产品编号）
-        $sku = generateProductSKU($category_id, $name);
+        $sku = generateProductSKU($category_id, $name,$sale_quantity);
+        if($sku == ''){
+            return [
+            'success' => false,
+            'message' => '添加产品失败: sku重复,可以考虑进货.'
+        ];
+        }
         // 2. 开始事务
         $conn->begin_transaction();
-        
+
+        $full_product_name = $name . ' ' . $sale_quantity . $unit;
         // 3. 插入产品到products表
         $sql = "INSERT INTO products (sku, product_name, unit_price, unit, description, category_id, status) 
                 VALUES (?, ?, ?, ?, ?, ?, 'active')";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssdssi", $sku, $name, $price, $unit, $description, $category_id);
+        $stmt->bind_param("ssdssi", $sku, $full_product_name, $price, $unit, $description, $category_id);
         $stmt->execute();
         
         $product_id = $conn->insert_id; // 获取刚插入的产品ID
@@ -1124,12 +1159,6 @@ function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $c
             $attrStmt->bind_param("is", $product_id, $spec);
             $attrStmt->execute();
             $attrStmt->close();
-        }
-        
-        // 5. 如果有供应商信息（关联供应商）
-        if (!empty($supplier)) {
-            // 这里可以根据需要将供应商关联到产品
-            // 可能需要创建产品-供应商关联表，或者记录在notes中
         }
         
         // 6. 提交事务
@@ -1153,14 +1182,18 @@ function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $c
 }
 
 // 生成SKU的函数
-function generateProductSKU($category_id, $product_name = '') {
+function generateProductSKU($category_id, $product_name = '',$sale_quantity = '') {
     global $conn;
     
     // 根据分类生成前缀
     $prefixes = [
-        2 => 'FRU', // 果蔬 Fruit & Vegetable
-        3 => 'MEAT', // 肉禽蛋 Meat & Egg
-        4 => 'SEA'  // 水产 Aquatic
+        5 => 'VEG',
+        6 => 'FRU',
+        7 => 'MEAT',
+        8 => 'EGG',
+        9 => 'FISH',
+        10 => 'SHRIMP',
+        11 => 'SEA'
     ];
     
     $prefix = $prefixes[$category_id] ?? 'PD';
@@ -1206,11 +1239,10 @@ function generateProductSKU($category_id, $product_name = '') {
     
     $count = $data['count'] + 1;
     
-    // 生成SKU：前缀-分类ID-产品缩写-序号（4位数字）
+    // 生成SKU：前缀-产品缩写-序号（2位数字）
     $sku = $prefix . '-' . 
-           str_pad($category_id, 2, '0', STR_PAD_LEFT) . '-' .
            $name_abbr . '-' .
-           str_pad($count, 4, '0', STR_PAD_LEFT);
+           str_pad($sale_quantity, 2, '0', STR_PAD_LEFT);
     
     // 确保SKU唯一
     $checkSql = "SELECT product_ID FROM products WHERE sku = ?";
@@ -1220,12 +1252,7 @@ function generateProductSKU($category_id, $product_name = '') {
     $checkResult = $checkStmt->get_result();
     
     if ($checkResult->num_rows > 0) {
-        // 如果重复，添加时间戳后缀
-        $sku = $prefix . '-' . 
-               str_pad($category_id, 2, '0', STR_PAD_LEFT) . '-' .
-               $name_abbr . '-' .
-               str_pad($count, 4, '0', STR_PAD_LEFT) . '-' .
-               date('mdHi');
+        $sku = '';
     }
     
     $checkStmt->close();
@@ -1240,7 +1267,7 @@ function getProductCategories() {
     try {
         // 只获取果蔬、肉禽蛋、水产这几个父类
         $sql = "SELECT category_id, category_name FROM Categories 
-                WHERE category_id IN (2, 3, 4) 
+                WHERE category_id IN (5, 6, 7, 8, 9, 10, 11) 
                 ORDER BY category_id";
         $result = $conn->query($sql);
         
@@ -1254,6 +1281,103 @@ function getProductCategories() {
     }
     
     return $categories;
+}
+
+function buildCategoryTree() {
+    global $conn;
+    $hierarchy = [];
+    
+    try {
+        // 获取所有分类，按层级排序
+        $sql = "SELECT category_id, category_name, parent_category_id 
+                FROM Categories 
+                ORDER BY 
+                    CASE WHEN parent_category_id IS NULL THEN 0 ELSE 1 END,
+                    parent_category_id,
+                    category_id";
+        $result = $conn->query($sql);
+        
+        if ($result && $result->num_rows > 0) {
+            $allCategories = [];
+            while ($row = $result->fetch_assoc()) {
+                $allCategories[] = $row;
+            }
+            
+            // 构建层次结构
+            foreach ($allCategories as $cat) {
+                $catId = $cat['category_id'];
+                $parentId = $cat['parent_category_id'];
+                
+                if ($parentId === null) {
+                    // 第一级分类
+                    $hierarchy[$catId] = [
+                        'name' => $cat['category_name'],
+                        'children' => []
+                    ];
+                } else {
+                    // 遍历第一级分类
+                    foreach ($hierarchy as $topId => &$topCat) {
+                        if ($topId == $parentId) {
+                            // 第二级分类
+                            $topCat['children'][$catId] = [
+                                'name' => $cat['category_name'],
+                                'children' => []
+                            ];
+                            break;
+                        } else {
+                            // 检查是否属于某个第二级分类
+                            foreach ($topCat['children'] as $secondId => &$secondCat) {
+                                if ($secondId == $parentId) {
+                                    // 第三级分类
+                                    $secondCat['children'][$catId] = $cat['category_name'];
+                                    break 2; // 跳出两层循环
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("构建分类树失败: " . $e->getMessage());
+    }
+    
+    return $hierarchy;
+}
+// 经理端：产品库存（按门店汇总，使用视图）
+function getManagerProductInventoryByBranch() {
+    global $conn;
+    $data = [];
+    try {
+        $sql = "SELECT * FROM v_manager_product_inventory_by_branch";
+        $result = $conn->query($sql);
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+        }
+    } catch (Exception $e) {
+        error_log("获取产品库存汇总失败: " . $e->getMessage());
+    }
+    return $data;
+}
+
+// 经理端：产品供应商进货价与售价（使用视图）
+function getManagerProductSupplierPricing() {
+    global $conn;
+    $data = [];
+    try {
+        $sql = "SELECT * FROM v_manager_product_supplier_pricing";
+        $result = $conn->query($sql);
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+        }
+    } catch (Exception $e) {
+        error_log("获取供应商售价失败: " . $e->getMessage());
+    }
+    return $data;
 }
 
 // 初始化数据

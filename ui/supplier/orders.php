@@ -565,9 +565,6 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
             fetch(`orders.php?view=${orderId}`)
                 .then(response => response.text())
                 .then(data => {
-                    // 这里需要后端返回订单详情的HTML
-                    // 我们可以直接重定向到带view参数的新页面，或者使用AJAX获取JSON数据
-                    // 为了简化，我们可以直接跳转到新页面
                     window.location.href = `orders.php?view=${orderId}`;
                 })
                 .catch(error => {
@@ -614,7 +611,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                                         <td>${item.sku}</td>
                                         <td>¥${(Number(item.supplier_price) || 0).toFixed(2)}</td>
                                         <td>${item.unit || '件'}</td>
-                                        <td>¥${parseFloat(item.total_cost).toFixed(2)}</td>
+                                        <td>¥${parseFloat(item.supplier_price).toFixed(2)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -661,7 +658,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                     <div class="order-summary">
                         <div class="summary-item">
                             <span class="summary-label">商品总价：</span>
-                            <span class="summary-value">¥${subtotal.toFixed(2)}</span>
+                            <span class="summary-value">¥${parseFloat(order.total_amount).toFixed(2)}</span>
                         </div>
                         <div class="summary-item">
                             <span class="summary-label">订单总额：</span>

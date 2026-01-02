@@ -5,6 +5,7 @@ require_once __DIR__ . '/inc/data.php';    // 数据逻辑
 require_once __DIR__ . '/inc/header.php';  // 页头
 
 $categories=getProductCategories();
+$categoryHierarchy = buildCategoryTree(); // 获取分类树结构
 $suppliers = getSuppliersFromDB(); 
 $inventoryByBranch = getManagerProductInventoryByBranch();
 $productSupplierPricing = getManagerProductSupplierPricing();
@@ -76,6 +77,7 @@ $productSupplierPricing = getManagerProductSupplierPricing();
         background: #fff8e1;
         color: #ff7043;
     }
+`;
 </style>
 <section class="section">
     <h2 class="section-title">货品信息</h2>
@@ -154,8 +156,69 @@ const suppliersData = <?= json_encode($suppliers, JSON_UNESCAPED_UNICODE) ?>;
 const inventoryByBranch = <?= json_encode($inventoryByBranch, JSON_UNESCAPED_UNICODE) ?>;
 const supplierPricing = <?= json_encode($productSupplierPricing, JSON_UNESCAPED_UNICODE) ?>;
 
+const categoryHierarchy = <?= json_encode($categoryHierarchy, JSON_UNESCAPED_UNICODE) ?>;
+
 // 当前编辑的产品ID
 let currentEditProductId = null;
+
+
+
+// 从分类ID查找其第二级父类
+function findSecondLevelParent(categoryId) {
+    const id = parseInt(categoryId);
+    
+    // 遍历第一级（生鲜）
+    for (const [topId, topCategory] of Object.entries(categoryHierarchy)) {
+        // 遍历第二级（果蔬、肉禽蛋、水产）
+        for (const [secondId, secondCategory] of Object.entries(topCategory.children)) {
+            // 检查是否是第三级
+            if (secondCategory.children && secondCategory.children[id]) {
+                return {
+                    secondLevelId: parseInt(secondId),
+                    secondLevelName: secondCategory.name,
+                    thirdLevelName: secondCategory.children[id]
+                };
+            }
+        }
+    }
+    return null;
+}
+
+// 获取某个第二级分类下的所有第三级子类
+function getThirdLevelCategories(secondLevelId) {
+    const id = parseInt(secondLevelId);
+    const result = [];
+    
+    // 遍历第一级
+    for (const [topId, topCategory] of Object.entries(categoryHierarchy)) {
+        // 遍历第二级
+        for (const [secondId, secondCategory] of Object.entries(topCategory.children)) {
+            if (parseInt(secondId) === id && secondCategory.children) {
+                // 获取该第二级下的所有第三级
+                for (const [thirdId, thirdName] of Object.entries(secondCategory.children)) {
+                    result.push({
+                        id: parseInt(thirdId),
+                        name: thirdName
+                    });
+                }
+                return result;
+            }
+        }
+    }
+    return [];
+}
+
+// 根据供应商的category字段（第二级名称）找到对应的第二级ID
+function findSecondLevelIdByCategoryName(categoryName) {
+    for (const [topId, topCategory] of Object.entries(categoryHierarchy)) {
+        for (const [secondId, secondCategory] of Object.entries(topCategory.children)) {
+            if (secondCategory.name === categoryName) {
+                return parseInt(secondId);
+            }
+        }
+    }
+    return null;
+}
 
 // HTML转义函数
 function escapeHtml(s) {
@@ -215,9 +278,22 @@ function renderTransactions() {
 
     // 筛选流水数据
     let filteredTx = transactions;
+    
     if (typeFilter) {
-        filteredTx = filteredTx.filter(tx => (tx.txn_type || '').toLowerCase() === typeFilter);
+        // 使用中文类型映射
+        const typeMap = {
+            'sale': '售卖',
+            'adjustment': '调整', 
+            'purchase': '进货'
+        };
+        
+        // 根据显示的中文类型筛选
+        filteredTx = filteredTx.filter(tx => {
+            const txType = resolveTransactionLabel(tx);
+            return txType === typeMap[typeFilter];
+        });
     }
+    
     if (searchQuery) {
         filteredTx = filteredTx.filter(tx => {
             const searchStr = `${tx.productName || ''} ${tx.productId || ''} ${tx.batchId || ''} ${tx.note || ''}`.toLowerCase();
@@ -229,7 +305,6 @@ function renderTransactions() {
         tb.innerHTML = '<tr><td colspan="9" style="color:#666;padding:12px;text-align:center;">暂无流水记录</td></tr>';
         return;
     }
-
     // 渲染流水行
     filteredTx.forEach(tx => {
         const product = products.find(p => p.id === tx.productId) || {};
@@ -404,6 +479,12 @@ function closeManagerModal() {
     if (mask) mask.style.display = 'none';
 }
 
+// 填充所有第三级分类到下拉列表
+function populateAllThirdLevelCategories(selectElement) {
+    const categories = getAllThirdLevelCategories();
+    updateCategorySelect(categories, selectElement); // 使用复用函数
+}
+
 // 产品筛选逻辑
 function applyProductFilter() {
     const searchQuery = (document.getElementById('productSearchInput') || {}).value.trim().toLowerCase();
@@ -417,125 +498,22 @@ function applyProductFilter() {
 
     renderProductList(filteredProducts);
 }
-
-// 打开编辑弹窗
-function openEditModal(productId) {
-    currentEditProductId = productId;
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
-
-    // 生成编辑表单
-    const formHtml = `
-        <style>
-            #editModalContent {
-                max-height: 400px; /* 限制弹窗内容最大高度 */
-                overflow-y: auto; /* 添加垂直滚动 */
-                padding-right: 8px; /* 为滚动条留出空间 */
+function getAllThirdLevelCategories() {
+    const result = [];
+    for (const [topId, topCategory] of Object.entries(categoryHierarchy)) {
+        for (const [secondId, secondCategory] of Object.entries(topCategory.children)) {
+            if (secondCategory.children) {
+                for (const [thirdId, thirdName] of Object.entries(secondCategory.children)) {
+                    result.push({
+                        id: parseInt(thirdId),
+                        name: thirdName
+                    });
+                }
             }
-            #editModalContent::-webkit-scrollbar {
-                width: 6px;
-            }
-            #editModalContent::-webkit-scrollbar-track {
-                background: #f1f1f1;
-                border-radius: 3px;
-            }
-            #editModalContent::-webkit-scrollbar-thumb {
-                background: #c1c1c1;
-                border-radius: 3px;
-            }
-            #editModalContent::-webkit-scrollbar-thumb:hover {
-                background: #a8a8a8;
-            }
-        </style>
-        
-        <div style="display:flex;gap:15px; margin-bottom:15px;">
-            <!-- 图片预览与上传 -->
-            <div style="width:140px; height:140px; border:1px dashed #ddd; border-radius:4px; overflow:hidden; position:relative; flex-shrink:0;">
-                <img id="previewImage" src="${escapeHtml(product.image || '')}" alt="产品图片" 
-                     style="width:100%; height:100%; object-fit:cover; display:${product.image ? 'block' : 'none'};">
-                <div id="imagePlaceholder" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#999; ${product.image ? 'display:none' : ''}">
-                    点击上传图片
-                </div>
-                <input type="file" id="imageUpload" accept="image/*" 
-                       style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
-            </div>
-            <div style="flex:1;">
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">产品ID</label>
-                    <input type="text" id="editProductId" value="${escapeHtml(product.id)}" 
-                           style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px; background:#f9f9f9;" readonly>
-                    <small style="color:#666; font-size:11px;">产品ID不可修改</small>
-                </div>
-                <div style="margin-bottom:12px;">
-                    <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">产品名称 <span style="color:red;">*</span></label>
-                    <input type="text" id="editProductName" value="${escapeHtml(product.name || '')}" 
-                           style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px;" required>
-                </div>
-            </div>
-        </div>
-
-        <div style="margin-bottom:12px;">
-            <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">产品描述</label>
-            <textarea id="editProductDesc" rows="2" 
-                      style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; resize:vertical; font-size:13px; min-height:60px;">${escapeHtml(product.description || '')}</textarea>
-        </div>
-
-        <div style="display:flex; gap:15px; margin-bottom:12px;">
-            <div style="flex:1;">
-                <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">产品分类</label>
-                <!-- 改为只读显示 -->
-                <input type="text" id="editProductSpec" value="${escapeHtml(product.spec || '')}" 
-                       style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px; background:#f9f9f9;" readonly>
-            </div>
-            <div style="flex:1;">
-                <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">单位 <span style="color:red;">*</span></label>
-                <input type="text" id="editProductUnit" value="${escapeHtml(product.unit || '')}" 
-                       style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px;" required>
-            </div>
-        </div>
-
-        <div style="margin-bottom:12px;">
-            <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">产品状态</label>
-            <!-- 改为只读显示 -->
-            <input type="text" id="editProductStatus" value="${escapeHtml(product.statusText || '')}" 
-                   style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px; background:#f9f9f9;" readonly>
-        </div>
-
-        <div style="margin-bottom:12px;">
-            <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">单价（可选）</label>
-            <input type="number" step="0.01" id="editProductPrice" value="${escapeHtml(product.price ? product.price.replace('¥', '') : '')}" 
-                   style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px;">
-        </div>
-
-        <div style="margin-bottom:12px;">
-            <label style="display:block; margin-bottom:4px; font-weight:500; color:#333; font-size:14px;">供应商（可选）</label>
-            <select id="editProductSupplier" style="width:100%; padding:6px 8px; border:1px solid #ddd; border-radius:4px; font-size:13px;">
-                <option value="">-- 选择供应商 --</option>
-                ${partnersList.map(partner => `
-                    <option value="${escapeHtml(partner.id)}" ${product.supplier === partner.id ? 'selected' : ''}>
-                        ${escapeHtml(partner.name)} (${escapeHtml(partner.id)})
-                    </option>
-                `).join('')}
-            </select>
-        </div>
-    `;
-
-    // 填充表单内容并显示弹窗
-    document.getElementById('editModalContent').innerHTML = formHtml;
-    
-    // 修改弹窗容器尺寸（减小弹窗）
-    const modalDialog = document.querySelector('#productEditModal > div');
-    if (modalDialog) {
-        modalDialog.style.width = '500px'; // 减小宽度（从600px改为500px）
-        modalDialog.style.maxHeight = '85vh'; // 限制最大高度为视口的85%
+        }
     }
-    
-    document.getElementById('productEditModal').style.display = 'flex';
-
-    // 绑定图片上传预览事件
-    bindImageUploadPreview();
+    return result;
 }
-
 // 绑定图片上传预览
 function bindImageUploadPreview() {
     const uploadInput = document.getElementById('imageUpload');
@@ -563,8 +541,235 @@ function bindImageUploadPreview() {
         reader.readAsDataURL(file);
     });
 }
+function showNotification(type, message, duration = 3000, callback) {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <div class="notification-icon">${type === 'success' ? '✓' : type === 'error' ? '✗' : '!'}</div>
+        <div class="notification-content">${message}</div>
+        <button class="notification-close">&times;</button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // 自动移除
+    const timer = setTimeout(() => {
+        notification.remove();
+        if (callback) callback();
+    }, duration);
+    
+    // 点击关闭
+    notification.querySelector('.notification-close').addEventListener('click', () => {
+        clearTimeout(timer);
+        notification.remove();
+        if (callback) callback();
+    });
+}
+function getThirdLevelCategoriesForEdit() {
+    const categories = getAllThirdLevelCategories();
+    const currentProduct = products.find(p => p.id === currentEditProductId);
+    const currentCategoryId = currentProduct ? currentProduct.category_id : '';
+    
+    return categories.map(cat => 
+        `<option value="${escapeHtml(cat.id)}" ${currentCategoryId == cat.id ? 'selected' : ''}>
+            ${escapeHtml(cat.name)}
+        </option>`
+    ).join('');
+}
 
-// 保存编辑内容
+function populateAllSuppliers(selectElement) {
+    const currentValue = selectElement.value;
+    const originalOptions = Array.from(selectElement.options);
+    const defaultOption = originalOptions[0]; // 保留空选项
+    
+    selectElement.innerHTML = '';
+    selectElement.appendChild(defaultOption);
+    
+    suppliersData.forEach(supplier => {
+        const option = document.createElement('option');
+        option.value = supplier.id;
+        option.textContent = `${supplier.name} (${supplier.category || ''})`;
+        selectElement.appendChild(option);
+    });
+    
+    if (currentValue) {
+        selectElement.value = currentValue;
+    }
+}
+
+// 编辑表单：根据选择的分类筛选供应商
+function filterSuppliersBySelectedCategoryForEdit() {
+    const categoryId = document.getElementById('editProductCategory')?.value;
+    const supplierSelect = document.getElementById('editProductSupplier');
+    
+    if (!supplierSelect) return;
+    
+    if (!categoryId) {
+        populateAllSuppliersForEdit(supplierSelect);
+        return;
+    }
+    
+    const parentInfo = findSecondLevelParent(categoryId);
+    if (!parentInfo) {
+        populateAllSuppliersForEdit(supplierSelect);
+        return;
+    }
+    
+    const secondLevelName = parentInfo.secondLevelName;
+    const filteredSuppliers = suppliersData.filter(supplier => 
+        supplier.category === secondLevelName
+    );
+    
+    updateSupplierSelectForEdit(filteredSuppliers, supplierSelect);
+}
+function updateSupplierSelect(suppliers, selectElement) {
+    const currentValue = selectElement.value;
+    const originalOptions = Array.from(selectElement.options);
+    const defaultOption = originalOptions[0]; // 保留空选项
+    
+    selectElement.innerHTML = '';
+    selectElement.appendChild(defaultOption);
+    
+    suppliers.forEach(supplier => {
+        const option = document.createElement('option');
+        option.value = supplier.id;
+        option.textContent = `${supplier.name} (${supplier.category || ''})`;
+        selectElement.appendChild(option);
+    });
+    
+    // 如果当前选择的供应商不符合筛选条件，清空选择
+    if (currentValue) {
+        const selectedSupplier = suppliersData.find(s => s.id == currentValue);
+        if (selectedSupplier && !suppliers.find(s => s.id == currentValue)) {
+            selectElement.value = '';
+        } else {
+            selectElement.value = currentValue;
+        }
+    }
+}
+// 编辑表单：根据选择的供应商筛选分类
+function filterCategoriesBySelectedSupplierForEdit() {
+    const supplierId = document.getElementById('editProductSupplier')?.value;
+    const categorySelect = document.getElementById('editProductCategory');
+    
+    if (!categorySelect) return;
+    
+    if (!supplierId) {
+        populateAllThirdLevelCategoriesForEdit(categorySelect);
+        return;
+    }
+    
+    const selectedSupplier = suppliersData.find(s => s.id == supplierId);
+    if (!selectedSupplier || !selectedSupplier.category) {
+        populateAllThirdLevelCategoriesForEdit(categorySelect);
+        return;
+    }
+    
+    const secondLevelId = findSecondLevelIdByCategoryName(selectedSupplier.category);
+    if (!secondLevelId) {
+        populateAllThirdLevelCategoriesForEdit(categorySelect);
+        return;
+    }
+    
+    const availableCategories = getThirdLevelCategories(secondLevelId);
+    updateCategorySelectForEdit(availableCategories, categorySelect);
+}
+
+// 编辑表单：填充所有供应商
+function populateAllSuppliersForEdit(selectElement) {
+    const currentValue = selectElement.value;
+    const originalOptions = Array.from(selectElement.options);
+    const defaultOption = originalOptions[0];
+    
+    selectElement.innerHTML = '';
+    selectElement.appendChild(defaultOption);
+    
+    suppliersData.forEach(supplier => {
+        const option = document.createElement('option');
+        option.value = supplier.id;
+        option.textContent = `${supplier.name} (${supplier.category || ''})`;
+        selectElement.appendChild(option);
+    });
+    
+    if (currentValue) {
+        selectElement.value = currentValue;
+    }
+}
+
+// 编辑表单：填充所有第三级分类
+function populateAllThirdLevelCategoriesForEdit(selectElement) {
+    const categories = getAllThirdLevelCategories();
+    const currentValue = selectElement.value;
+    
+    const originalOptions = Array.from(selectElement.options);
+    const defaultOption = originalOptions[0];
+    
+    selectElement.innerHTML = '';
+    selectElement.appendChild(defaultOption);
+    
+    categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.name;
+        selectElement.appendChild(option);
+    });
+    
+    if (currentValue) {
+        selectElement.value = currentValue;
+    }
+}
+
+// 编辑表单：更新供应商选择
+function updateSupplierSelectForEdit(suppliers, selectElement) {
+    const currentValue = selectElement.value;
+    const originalOptions = Array.from(selectElement.options);
+    const defaultOption = originalOptions[0];
+    
+    selectElement.innerHTML = '';
+    selectElement.appendChild(defaultOption);
+    
+    suppliers.forEach(supplier => {
+        const option = document.createElement('option');
+        option.value = supplier.id;
+        option.textContent = `${supplier.name} (${supplier.category || ''})`;
+        selectElement.appendChild(option);
+    });
+    
+    if (currentValue) {
+        const selectedSupplier = suppliersData.find(s => s.id == currentValue);
+        if (selectedSupplier && !suppliers.find(s => s.id == currentValue)) {
+            selectElement.value = '';
+        } else {
+            selectElement.value = currentValue;
+        }
+    }
+}
+
+
+function updateCategorySelectForEdit(categories, selectElement) {
+    const currentValue = selectElement.value;
+    const originalOptions = Array.from(selectElement.options);
+    const defaultOption = originalOptions[0];
+    
+    selectElement.innerHTML = '';
+    selectElement.appendChild(defaultOption);
+    
+    categories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.name;
+        selectElement.appendChild(option);
+    });
+    
+    if (currentValue) {
+        const parentInfo = findSecondLevelParent(currentValue);
+        if (parentInfo && !categories.find(c => c.id == currentValue)) {
+            selectElement.value = '';
+        } else {
+            selectElement.value = currentValue;
+        }
+    }
+}
 // 保存编辑内容
 function saveEditProduct() {
     if (!currentEditProductId) return;
@@ -670,10 +875,29 @@ const html = `
                     <input type="number" step="0.01" name="price" id="pf_price" class="form-control" value="0">
                 </div>
                 <div class="form-col">
-                    <label class="form-label">单位 <span style="color:red;">*</span></label>
-                    <input type="text" name="unit" id="pf_unit" class="form-control" value="份" required>
+                  <label class="form-label">单位 <span style="color:red;">*</span></label>
+                  <select name="unit" id="pf_unit" class="form-control" required>
+                     <option value="">选择单位</option>
+                     <option value="g">g</option>
+                     <option value="kg">kg</option>
+                     <option value="只">只</option>
+                     <option value="个">个</option>
+                     <option value="枚">枚</option>
+                     <option value="斤">斤</option>
+                     <option value="公斤">公斤</option>
+                     <option value="盒">盒</option>
+                     <option value="包">包</option>
+                     <option value="袋">袋</option>
+                     <option value="份" selected>份</option>
+                    </select>
                 </div>
-            </div>
+
+          <div class="form-col">
+               <label class="form-label">售卖量 <span style="color:red;">*</span></label>
+               <input type="number" name="sale_quantity" id="pf_sale_quantity" 
+                 class="form-control" min="1" required value="1">
+          </div>
+             </div>
             <div class="form-group">
                 <label class="form-label">产品类型 <span style="color:red;">*</span></label>
                 <select name="category_id" id="pf_category" class="form-control" required onchange="filterSuppliersByCategory()">
@@ -702,9 +926,10 @@ const html = `
 
         const form = document.getElementById('addProductForm');
         const formData = new FormData(form);
-        formData.append('action', 'add_product'); // 添加action标识
+        formData.append('action', 'add_product');
+        formData.append('sale_quantity', document.getElementById('pf_sale_quantity').value);
+        formData.append('unit', document.getElementById('pf_unit').value);
         
-        // 使用AJAX提交到后端
         try {
             const response = await fetch('add_goods.php', {
                 method: 'POST',
@@ -713,15 +938,19 @@ const html = `
             
             const result = await response.json();
             
-            if (result.success) {
-                // 添加成功，重新加载页面或刷新数据
-                alert(result.message + ',SKU:' + result.sku);
-                location.reload(); // 简单刷新页面
-            } else {
-                alert('添加失败：' + result.error);
-            }
+           if (result.success) {
+             showNotification('success', 
+              result.message + '<br><small>SKU: ' + result.sku + '</small>',
+              3000, // 3秒后自动关闭
+              function() {
+                location.reload(); // 刷新页面
+             }
+           );
+          } else {
+            showNotification('error', result.error || '添加失败', 5000);
+          }
         } catch (error) {
-            alert('网络错误，请重试');
+            showNotification('error', '网络错误，请重试', 2000);
         }
     }
 });
@@ -749,7 +978,6 @@ function bindAllEvents() {
 let allSuppliers = [];
 let allCategories = [];
 
-// 初始化供应商数据（需要从PHP获取）
 // 初始化供应商数据
 function initSupplierData() {
     // 使用专门的供应商数据而不是 partnersList
@@ -770,93 +998,90 @@ function initSupplierData() {
 }
 
 // 根据产品类型筛选供应商
+// 替换右边的 filterSuppliersByCategory 函数
 function filterSuppliersByCategory() {
     const categoryId = document.getElementById('pf_category')?.value;
-    const categorySelect = document.getElementById('pf_category');
     const supplierSelect = document.getElementById('pf_supplier');
     
-    if (!categorySelect || !supplierSelect) return;
+    if (!supplierSelect) return;
     
     if (!categoryId) {
-        // 如果没有选择产品类型，显示所有供应商
-        populateSupplierOptions(allSuppliers, supplierSelect);
+        // 显示所有供应商
+        populateAllSuppliers(supplierSelect);
         return;
     }
     
-    // 获取选中的分类名称
-    const selectedCategory = allCategories.find(cat => cat.id == categoryId);
-    if (!selectedCategory) return;
+    // 找到第二级父类
+    const parentInfo = findSecondLevelParent(categoryId);
+    if (!parentInfo) {
+        populateAllSuppliers(supplierSelect);
+        return;
+    }
     
-    // 筛选能提供该类型的供应商
-    const filteredSuppliers = allSuppliers.filter(supplier => 
-        supplier.category === selectedCategory.name
+    const secondLevelName = parentInfo.secondLevelName;
+    
+    // 筛选能提供该第二级品类的供应商
+    const filteredSuppliers = suppliersData.filter(supplier => 
+        supplier.category === secondLevelName
     );
     
-    populateSupplierOptions(filteredSuppliers, supplierSelect);
-    
-    // 如果当前选择的供应商不符合条件，清空选择
-    const selectedSupplierId = supplierSelect.value;
-    const selectedSupplier = allSuppliers.find(s => s.id == selectedSupplierId);
-    if (selectedSupplier && selectedSupplier.category !== selectedCategory.name) {
-        supplierSelect.value = '';
-    }
+    updateSupplierSelect(filteredSuppliers, supplierSelect);
 }
 
-// 根据供应商筛选产品类型
 function filterCategoriesBySupplier() {
     const supplierId = document.getElementById('pf_supplier')?.value;
     const categorySelect = document.getElementById('pf_category');
-    const supplierSelect = document.getElementById('pf_supplier');
     
-    if (!categorySelect || !supplierSelect) return;
+    if (!categorySelect) return;
     
     if (!supplierId) {
-        // 如果没有选择供应商，显示所有类型
-        populateCategoryOptions(allCategories, categorySelect);
+        // 显示所有第三级分类
+        populateAllThirdLevelCategories(categorySelect);
         return;
     }
     
     // 获取选中的供应商
-    const selectedSupplier = allSuppliers.find(s => s.id == supplierId);
-    if (!selectedSupplier) return;
-    
-    // 筛选该供应商能提供的产品类型
-    const filteredCategories = allCategories.filter(category => 
-        category.name === selectedSupplier.category
-    );
-    
-    populateCategoryOptions(filteredCategories, categorySelect);
-    
-    // 如果当前选择的产品类型不符合条件，清空选择
-    const selectedCategoryId = categorySelect.value;
-    const selectedCategory = allCategories.find(cat => cat.id == selectedCategoryId);
-    if (selectedCategoryId && selectedCategory.name !== selectedSupplier.category) {
-        categorySelect.value = '';
+    const selectedSupplier = suppliersData.find(s => s.id == supplierId);
+    if (!selectedSupplier || !selectedSupplier.category) {
+        populateAllThirdLevelCategories(categorySelect);
+        return;
     }
+    
+    const secondLevelId = findSecondLevelIdByCategoryName(selectedSupplier.category);
+    if (!secondLevelId) {
+        populateAllThirdLevelCategories(categorySelect);
+        return;
+    }
+    const availableCategories = getThirdLevelCategories(secondLevelId);
+    
+    updateCategorySelect(availableCategories, categorySelect);
 }
 
-// 填充供应商下拉列表
-function populateSupplierOptions(suppliers, selectElement) {
+function updateCategorySelect(categories, selectElement) {
     const currentValue = selectElement.value;
     const originalOptions = Array.from(selectElement.options);
-    const defaultOption = originalOptions[0]; // 保留第一个选项（空选项）
+    const defaultOption = originalOptions[0]; // 保留空选项
     
     selectElement.innerHTML = '';
     selectElement.appendChild(defaultOption);
     
-    suppliers.forEach(supplier => {
+    categories.forEach(category => {
         const option = document.createElement('option');
-        option.value = supplier.id;
-        option.textContent = supplier.name;
+        option.value = category.id;
+        option.textContent = category.name;
         selectElement.appendChild(option);
     });
     
-    // 保持之前的选择（如果仍然在列表中）
+    // 如果当前选择的分类不符合筛选条件，清空选择
     if (currentValue) {
-        selectElement.value = currentValue;
+        const parentInfo = findSecondLevelParent(currentValue);
+        if (parentInfo && !categories.find(c => c.id == currentValue)) {
+            selectElement.value = '';
+        } else {
+            selectElement.value = currentValue;
+        }
     }
 }
-
 // 填充分类下拉列表
 function populateCategoryOptions(categories, selectElement) {
     const currentValue = selectElement.value;
@@ -880,10 +1105,135 @@ function populateCategoryOptions(categories, selectElement) {
 }
 
 // 在页面加载完成后初始化
-// 在页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     console.log('页面加载完成，开始初始化数据'); // 调试
-    
+    // 添加CSS样式
+    const notificationCSS = `
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            min-width: 300px;
+            max-width: 400px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            padding: 16px;
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+            border-left: 4px solid #ccc;
+        }
+
+        .notification-success {
+            border-left-color: #10b981;
+        }
+
+        .notification-error {
+            border-left-color: #ef4444;
+        }
+
+        .notification-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+            font-weight: bold;
+        }
+
+        .notification-success .notification-icon {
+            background: #d1fae5;
+            color: #10b981;
+        }
+
+        .notification-error .notification-icon {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+
+        .notification-content {
+            flex: 1;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 8px;
+            line-height: 1;
+        }
+
+        .notification-close:hover {
+            color: #6b7280;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9998;
+        }
+
+        .loading-modal {
+            background: white;
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            text-align: center;
+            min-width: 200px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        .loading-text {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    `;
+
+    const style = document.createElement('style');
+    style.textContent = notificationCSS;
+    document.head.appendChild(style);
     // 初始化供应商数据
     initSupplierData();
     
@@ -891,7 +1241,6 @@ document.addEventListener('DOMContentLoaded', function() {
     applyProductFilter();
     renderTransactions();
     bindAllEvents();
-    
     console.log('数据初始化完成'); // 调试
 });
 </script>

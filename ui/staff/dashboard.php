@@ -13,7 +13,7 @@ if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== tru
 // 数据库配置
 $servername = "localhost";
 $username = "root";
-$password = "NewRootPwd123!";
+$password = "8049023544Aaa?";
 $dbname = "mydb";
 
 // 连接数据库
@@ -28,16 +28,10 @@ $staff_branch_id = $_SESSION['staff_branch_id'];
 
 // 查询待补货商品数（与库存管理页面一致：总库存 < 动态阈值则预警）
 $sql_restock = "
-    SELECT COUNT(*) AS restock_count FROM (
-        SELECT
-            product_ID,
-            SUM(quantity_on_hand) AS total_stock,
-            SUM(quantity_received) AS total_received
-        FROM Inventory
-        WHERE branch_ID = ?
-        GROUP BY product_ID
-    ) agg
-    WHERE total_stock < GREATEST(10, CEIL(GREATEST(total_stock, total_received) * 0.3))
+    SELECT COUNT(*) AS restock_count
+    FROM v_staff_inventory_restock_stats
+    WHERE branch_ID = ?
+      AND total_stock < GREATEST(10, CEIL(GREATEST(total_stock, total_received) * 0.3))
 ";
 $stmt_restock = $conn->prepare($sql_restock);
 $stmt_restock->bind_param("i", $staff_branch_id);
@@ -80,36 +74,41 @@ if (isset($_GET['debug']) && $_GET['debug'] == '1') {
 }
 
 // 查询今日成交订单数
-$sql_orders_today = "SELECT COUNT(*) AS orders_today
-                    FROM CustomerOrder
+$sql_orders_today = "SELECT COALESCE(orders_count, 0) AS orders_today
+                    FROM v_staff_order_daily_summary
                     WHERE branch_ID = ?
-                      AND DATE(order_date) = ?
+                      AND order_day = ?
                       AND status = 'Completed'";
 $stmt_orders_today = $conn->prepare($sql_orders_today);
 $stmt_orders_today->bind_param("is", $staff_branch_id, $today);
 $stmt_orders_today->execute();
 $result_orders_today = $stmt_orders_today->get_result();
-$orders_today = (int)($result_orders_today->fetch_assoc()['orders_today'] ?? 0);
+$row_orders_today = $result_orders_today->fetch_assoc();
+$orders_today = (int)($row_orders_today['orders_today'] ?? 0);
 
 // 查询在职员工数
-$sql_staff_count = "SELECT COUNT(*) as staff_count FROM Staff WHERE branch_ID = ? AND status = 'active'";
+$sql_staff_count = "SELECT COALESCE(staff_count, 0) as staff_count
+                    FROM v_staff_branch_active_staff_count
+                    WHERE branch_ID = ?";
 $stmt_staff_count = $conn->prepare($sql_staff_count);
 $stmt_staff_count->bind_param("i", $staff_branch_id);
 $stmt_staff_count->execute();
 $result_staff_count = $stmt_staff_count->get_result();
-$staff_count = $result_staff_count->fetch_assoc()['staff_count'];
+$row_staff_count = $result_staff_count->fetch_assoc();
+$staff_count = (int)($row_staff_count['staff_count'] ?? 0);
 
 // 查询门店收益（今日总金额）
-$sql_revenue_today = "SELECT COALESCE(SUM(total_amount), 0) AS revenue_today
-                      FROM CustomerOrder
+$sql_revenue_today = "SELECT COALESCE(revenue_total, 0) AS revenue_today
+                      FROM v_staff_order_daily_summary
                       WHERE branch_ID = ?
-                        AND DATE(order_date) = ?
+                        AND order_day = ?
                         AND status = 'Completed'";
 $stmt_revenue_today = $conn->prepare($sql_revenue_today);
 $stmt_revenue_today->bind_param("is", $staff_branch_id, $today);
 $stmt_revenue_today->execute();
 $result_revenue_today = $stmt_revenue_today->get_result();
-$revenue_today = (float)($result_revenue_today->fetch_assoc()['revenue_today'] ?? 0);
+$row_revenue_today = $result_revenue_today->fetch_assoc();
+$revenue_today = (float)($row_revenue_today['revenue_today'] ?? 0);
 
 // 最近7天（含今天）的日期标签与序列（按“日期”而不是“周几”，避免显示与数据对不上）
 $end_date = $today; // 今日
@@ -126,12 +125,11 @@ for ($i = 6; $i >= 0; $i--) {
 }
 
 // 订单量（最近7天按日期汇总）
-$sql_week_orders = "SELECT DATE(order_date) AS order_day, COUNT(*) AS cnt
-                    FROM CustomerOrder
+$sql_week_orders = "SELECT order_day, orders_count AS cnt
+                    FROM v_staff_order_daily_summary
                     WHERE branch_ID = ?
-                      AND DATE(order_date) BETWEEN ? AND ?
-                      AND status = 'Completed'
-                    GROUP BY DATE(order_date)";
+                      AND order_day BETWEEN ? AND ?
+                      AND status = 'Completed'";
 $stmt_week_orders = $conn->prepare($sql_week_orders);
 $stmt_week_orders->bind_param("iss", $staff_branch_id, $start_date, $end_date);
 $stmt_week_orders->execute();
@@ -142,12 +140,11 @@ while ($row = $result_week_orders->fetch_assoc()) {
 }
 
 // 收益（最近7天按日期汇总）
-$sql_week_revenue = "SELECT DATE(order_date) AS order_day, COALESCE(SUM(total_amount), 0) AS amt
-                     FROM CustomerOrder
+$sql_week_revenue = "SELECT order_day, COALESCE(revenue_total, 0) AS amt
+                     FROM v_staff_order_daily_summary
                      WHERE branch_ID = ?
-                       AND DATE(order_date) BETWEEN ? AND ?
-                       AND status = 'Completed'
-                     GROUP BY DATE(order_date)";
+                       AND order_day BETWEEN ? AND ?
+                       AND status = 'Completed'";
 $stmt_week_revenue = $conn->prepare($sql_week_revenue);
 $stmt_week_revenue->bind_param("iss", $staff_branch_id, $start_date, $end_date);
 $stmt_week_revenue->execute();

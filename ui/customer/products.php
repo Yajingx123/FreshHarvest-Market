@@ -9,7 +9,6 @@ $searchKeyword = $_GET['search'] ?? '';
 
 $products = getProductsByCategoryAndSearch($selectedCategory, $searchKeyword);
 
-// 存储商品详情数据
 $productsWithBranches = [];
 if (!empty($products)) { // 判断$products是否非空
     foreach ($products as $product) {
@@ -497,6 +496,17 @@ if (!empty($products)) { // 判断$products是否非空
         color: #333;
         font-weight: 500;
     }
+    .branch-item {
+      margin-bottom: 8px; 
+      padding-bottom: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .branch-item:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
 
     @media (max-width: 768px) {
         .store-select {
@@ -650,11 +660,118 @@ if (!empty($products)) { // 判断$products是否非空
         const modalProductInfo = document.getElementById('modalProductInfo');
         const modalProductImg = document.getElementById('modalProductImg');
         const closeModal = document.getElementById('closeModal');
-        const searchInput = document.getElementById('searchInput');
-        const searchIcon = document.getElementById('searchIcon');
-        const sortSelect = document.getElementById('sortSelect');
-        const productGrid = document.getElementById('productGrid');
-        
+
+        // 创建全局函数用于获取门店库存详情
+        async function getStoreStockInfo(productId, storeId) {
+            try {
+                const response = await fetch('stock_handler.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `action=get_store_stock&product_id=${productId}&store_id=${storeId}`
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    return data.stock_info;
+                }
+                return null;
+            } catch (error) {
+                console.error('获取库存信息失败:', error);
+                return null;
+            }
+        }
+        document.addEventListener('change', function(e) {
+            if (e.target && e.target.id === 'branchSelect') {
+                const branchSelect = e.target;
+                const productId = branchSelect.getAttribute('data-product-id');
+                const storeId = branchSelect.value;
+                
+                // 显示加载中
+                const stockInfoElement = document.getElementById('storeStockInfo');
+                const quantityInput = document.getElementById('quantity');
+                const maxQuantityText = document.getElementById('maxQuantityText');
+                
+                if (stockInfoElement) {
+                    stockInfoElement.textContent = '加载中...';
+                }
+                
+                // 动态获取库存信息
+                getStoreStockInfo(productId, storeId).then(stockInfo => {
+                    if (stockInfo) {
+                        const availableStock = stockInfo.available_stock_in_store || 0;
+                        
+                        // 更新显示
+                        if (stockInfoElement) {
+                            stockInfoElement.textContent = availableStock;
+                        }
+                        
+                        // 更新数量输入框
+                        if (quantityInput) {
+                            quantityInput.max = availableStock;
+                            // 如果当前数量超过库存，自动调整
+                            if (parseInt(quantityInput.value) > availableStock) {
+                                quantityInput.value = availableStock;
+                            }
+                        }
+                        
+                        // 更新提示文本
+                        if (maxQuantityText) {
+                            maxQuantityText.textContent = `最多可购 ${availableStock} 件`;
+                        }
+                    }
+                });
+            }
+        });
+
+// 修改弹窗显示逻辑，当用户选择门店时动态获取库存
+document.addEventListener('DOMContentLoaded', function() {
+    // 监听门店选择变化
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.id === 'branchSelect') {
+            const branchSelect = e.target;
+            const productId = branchSelect.getAttribute('data-product-id');
+            const storeId = branchSelect.value;
+            
+            // 显示加载中
+            const stockInfoElement = document.getElementById('storeStockInfo');
+            const quantityInput = document.getElementById('quantity');
+            const maxQuantityText = document.getElementById('maxQuantityText');
+            
+            if (stockInfoElement) {
+                stockInfoElement.textContent = '加载中...';
+            }
+            
+            // 动态获取库存信息
+            getStoreStockInfo(productId, storeId).then(stockInfo => {
+                if (stockInfo) {
+                    const availableStock = stockInfo.available_stock_in_store || 0;
+                    
+                    // 更新显示
+                    if (stockInfoElement) {
+                        stockInfoElement.textContent = availableStock;
+                    }
+                    
+                    // 更新数量输入框
+                    if (quantityInput) {
+                        quantityInput.max = availableStock;
+                        // 如果当前数量超过库存，自动调整
+                        if (parseInt(quantityInput.value) > availableStock) {
+                            quantityInput.value = availableStock;
+                        }
+                    }
+                    
+                    // 更新提示文本
+                    if (maxQuantityText) {
+                        maxQuantityText.textContent = `最多可购 ${availableStock} 件`;
+                    }
+                }
+            });
+        }
+    });
+});
+
         // 点击商品卡片显示详情
         document.querySelectorAll('.product-card').forEach(card => {
             card.addEventListener('click', function() {
@@ -662,22 +779,25 @@ if (!empty($products)) { // 判断$products是否非空
                 const product = productDetails.find(p => p.id == productId);
                 
                 if (product) {
-                    // 存储产品的门店ID（关键）
-                    const storeId = product.store_id || 1; // 兜底为1，防止空值
-                    
                     // 构建门店选择下拉框
-                    let branchSelect = '<div class="product-detail-item"><label>选择门店：</label><select id="branchSelect" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 200px;">';
+                    let branchSelectHtml = '';
                     if (product.branches && product.branches.length > 0) {
-                        product.branches.forEach(branch => {
-                            branchSelect += `<option value="${branch.id}">${branch.name}</option>`;
-                        });
-                    } else {
-                        branchSelect += '<option value="1">默认门店</option>';
+                        branchSelectHtml = `<div class="product-detail-item">
+                            <label>选择门店：</label>
+                            <select id="branchSelect" data-product-id="${productId}" 
+                                    style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 250px;">
+                                ${product.branches.map(branch => 
+                                    `<option value="${branch.id}" 
+                                             data-available="${branch.available_stock}">
+                                        ${branch.name} (库存: ${branch.available_stock})
+                                    </option>`
+                                ).join('')}
+                            </select>
+                        </div>`;
                     }
-                    branchSelect += '</select></div>';
                     
                     // 构建弹窗内容
-                    modalProductImg.textContent = '📦'; // 可以替换为实际的产品图标
+                    modalProductImg.textContent = '📦';
                     modalProductInfo.innerHTML = `
                         <h3 class="modal-product-name">${htmlEscape(product.name)}</h3>
                         <div class="modal-product-price">
@@ -690,14 +810,31 @@ if (!empty($products)) { // 判断$products是否非空
                             <span>${htmlEscape(product.category)}</span>
                         </div>
                         <div class="product-detail-item">
-                            <label>库存状态：</label>
-                            <span>${htmlEscape(product.stock_status)}</span>
+                            <label>全公司库存：</label>
+                            <span>${product.stock} (${product.stock_status})</span>
                         </div>
+                        
+                        ${branchSelectHtml}
+                        
                         <div class="product-detail-item">
-                            <label>可购数量：</label>
-                            <span>${product.stock}</span>
+                            <label>门店库存：</label>
+                            <span id="storeStockInfo">${product.branches.length > 0 ? product.branches[0].available_stock : 0}</span>
                         </div>
-                        ${branchSelect}
+                        
+                        ${product.branches.length > 0 ? `
+                         <div class="branch-info">
+                            <h4>各门店库存情况：</h4>
+                            ${product.branches.map(branch => `
+                            <div class="branch-item">
+                        <div>
+                        <div class="branch-name">${htmlEscape(branch.name)}</div>
+                              ${branch.address ? `<div class="branch-address">${htmlEscape(branch.address)}</div>` : ''}
+                        </div>
+                           <div class="branch-stock">${branch.available_stock} 件</div>
+                        </div>
+                        `).join(' ')}
+                       </div>
+                      ` : ''}
                         
                         <div class="product-description">
                             <h4>产品详情</h4>
@@ -706,14 +843,18 @@ if (!empty($products)) { // 判断$products是否非空
                         
                         <!-- 数量控制 -->
                         <div class="quantity-control">
-                            <button class="quantity-btn" onclick="changeQuantity(-1, ${product.stock})">-</button>
-                            <input type="number" id="quantity" value="1" min="1" max="${product.stock}" style="width: 60px; text-align: center; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
-                            <button class="quantity-btn" onclick="changeQuantity(1, ${product.stock})">+</button>
-                            <span style="margin-left: 10px; color: #666;">最多可购 ${product.stock} 件</span>
+                            <button class="quantity-btn" onclick="changeQuantity(-1)">-</button>
+                            <input type="number" id="quantity" value="1" min="1" 
+                                   max="${product.branches.length > 0 ? product.branches[0].available_stock : 0}" 
+                                   style="width: 60px; text-align: center; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+                            <button class="quantity-btn" onclick="changeQuantity(1)">+</button>
+                            <span style="margin-left: 10px; color: #666;" id="maxQuantityText">
+                                最多可购 ${product.branches.length > 0 ? product.branches[0].available_stock : 0} 件
+                            </span>
                         </div>
                         
                         <!-- 加入购物车按钮 -->
-                        <button class="add-to-cart-btn" onclick="addToCart(${productId}, document.getElementById('quantity').value, ${storeId})" style="margin-top: 15px;">
+                        <button class="add-to-cart-btn" onclick="addToCart(${productId}, document.getElementById('quantity').value)" style="margin-top: 15px;">
                             加入购物车
                         </button>
                     `;
@@ -725,9 +866,18 @@ if (!empty($products)) { // 判断$products是否非空
         });
         
         // 数量控制函数
-        function changeQuantity(change, maxStock) {
+        function changeQuantity(change) {
             const quantityInput = document.getElementById('quantity');
             if (!quantityInput) return;
+            
+            // 获取当前选中的门店库存
+            const branchSelect = document.getElementById('branchSelect');
+            let maxStock = 0;
+            
+            if (branchSelect) {
+                const selectedOption = branchSelect.options[branchSelect.selectedIndex];
+                maxStock = parseInt(selectedOption.getAttribute('data-available')) || 0;
+            }
             
             let current = parseInt(quantityInput.value);
             current += change;
@@ -739,16 +889,25 @@ if (!empty($products)) { // 判断$products是否非空
         }
         
         // 加入购物车函数
-        function addToCart(productId, quantity, storeId) {
+        function addToCart(productId, quantity) {
             const branchSelect = document.getElementById('branchSelect');
-            const selectedBranchId = branchSelect ? branchSelect.value : storeId;
+            const selectedBranchId = branchSelect ? branchSelect.value : 1;
+            
+            // 验证库存
+            const selectedOption = branchSelect ? branchSelect.options[branchSelect.selectedIndex] : null;
+            const availableStock = selectedOption ? parseInt(selectedOption.getAttribute('data-available')) || 0 : 0;
+            
+            if (quantity > availableStock) {
+                alert(`库存不足！当前门店可用库存为 ${availableStock} 件`);
+                return;
+            }
             
             const formData = new FormData();
             formData.append('action', 'add_to_cart');
             formData.append('product_id', productId);
             formData.append('quantity', quantity);
-            formData.append('branch_id', selectedBranchId); // 传递门店ID到后端
-
+            formData.append('branch_id', selectedBranchId);
+            
             fetch('cart_handler.php', {
                 method: 'POST',
                 body: formData,
@@ -757,7 +916,6 @@ if (!empty($products)) { // 判断$products是否非空
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // 显示"已加入购物车"信息
                     modalProductInfo.innerHTML = `
                         <div class="cart-success-message">
                             <div class="cart-success-icon">✓</div>
@@ -765,7 +923,6 @@ if (!empty($products)) { // 判断$products是否非空
                         </div>
                     `;
                     
-                    // 1秒后关闭弹窗
                     setTimeout(closeModalFunc, 1000);
                 } else {
                     alert('加入购物车失败：' + data.message);
@@ -797,6 +954,17 @@ if (!empty($products)) { // 判断$products是否非空
         // 排序功能
         sortSelect.addEventListener('change', function() {
             const sortValue = this.value;
+            const currentCategory = <?php echo json_encode($selectedCategory); ?>;
+            const searchKeyword = <?php echo json_encode($searchKeyword); ?>;
+    
+            if (sortValue === 'default') {
+              let url = `products.php?category=${encodeURIComponent(currentCategory)}`;
+              if (searchKeyword) {
+                  url += `&search=${encodeURIComponent(searchKeyword)}`;
+               }
+              window.location.href = url;
+              return;
+            }
             const products = Array.from(productGrid.querySelectorAll('.product-card'));
             
             if (products.length === 0) return;
