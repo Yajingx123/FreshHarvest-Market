@@ -2,7 +2,7 @@
 function getDBConnection() {
     $servername = "localhost";
     $username = "root";
-    $password = "NewRootPwd123!"; // 统一为当前root密码
+    $password = "8049023544Aaa?"; // 统一为当前root密码
     $dbname = "mydb";
     
     $conn = new mysqli($servername, $username, $password, $dbname);
@@ -443,24 +443,29 @@ function getPendingOrderCount($supplierId) {
 }
 
 /**
- * 退出登录处理
+ * 获取供应商能提供的产品总数
+ * @param int $supplierId 供应商ID
+ * @return int 产品数量
  */
-function logout() {
-    session_start();
-    $_SESSION = [];
-    if (ini_get("session.use_cookies")) {
-        $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000,
-            $params["path"], $params["domain"],
-            $params["secure"], $params["httponly"]
-        );
-    }
-    session_destroy();
-    header("Location: login.php");
-    exit;
+function getSupplierProductCount() {
+    $conn = getDBConnection();
+    $supplierId = getCurrentSupplierId();
+    $query = "SELECT COUNT(DISTINCT product_ID) as product_count 
+              FROM SupplierProduct 
+              WHERE supplier_ID = ?";
+    
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param("i", $supplierId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    
+    $stmt->close();
+    $conn->close();
+    
+    return $row['product_count'] ?? 0;
 }
 
-// 处理退出请求
 if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     logout();
 }

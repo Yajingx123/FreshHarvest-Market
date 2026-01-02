@@ -16,7 +16,7 @@
     // 数据库配置
     $servername = "localhost";
     $username = "root";
-    $password = "NewRootPwd123!";
+    $password = "8049023544Aaa?";
     $dbname = "mydb";
 
     // 连接数据库

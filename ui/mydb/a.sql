@@ -11,6 +11,7 @@ DROP TABLE IF EXISTS `mydb`.`Branch` ;
 DROP TABLE IF EXISTS `mydb`.`User` ;
 DROP TABLE IF EXISTS `mydb`.`Customer` ;
 DROP TABLE IF EXISTS `mydb`.`Supplier` ;
+DROP TABLE IF EXISTS `mydb`.`SupplierProduct`;
 DROP TABLE IF EXISTS `mydb`.`Staff` ;
 DROP TABLE IF EXISTS `mydb`.`PurchaseOrder` ;
 DROP TABLE IF EXISTS `mydb`.`CustomerOrder` ;
@@ -18,9 +19,9 @@ DROP TABLE IF EXISTS `mydb`.`Inventory` ;
 DROP TABLE IF EXISTS `mydb`.`StockItem` ;
 DROP TABLE IF EXISTS `mydb`.`OrderItem` ;
 DROP TABLE IF EXISTS `mydb`.`PurchaseItem` ;
-DROP TABLE IF EXISTS `mydb`.`SupplierProduct` ;
 DROP TABLE IF EXISTS `mydb`.`StockItemCertificate` ;
 SET FOREIGN_KEY_CHECKS=1;
+
 
 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
@@ -61,7 +62,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`products` (
   `unit_price` DECIMAL(10,2) NOT NULL,
   `unit` VARCHAR(20) NULL,
   `description` TEXT NULL,  
-  `category_id`    INT NOT NULL,
+  `category_id` INT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`product_ID`),
   CONSTRAINT `fk_products_category`
@@ -155,7 +156,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`Customer` (
   `user_name` VARCHAR(45) , 
   `phone` VARCHAR(20) NULL,
   `email` VARCHAR(100) NULL UNIQUE,
-  `gender` VARCHAR(20) NULL,
+  `gender` ENUM('Male', 'Female'),
   `address` VARCHAR(200) NULL,
   `accu_cost` DECIMAL(10,2) NULL,
   `loyalty_level` ENUM('Regular', 'VIP', 'VVIP') DEFAULT 'Regular',
@@ -217,9 +218,6 @@ CREATE TABLE IF NOT EXISTS `mydb`.`SupplierProduct` (
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
-
-
-
 -- -----------------------------------------------------
 -- Table `mydb`.`Staff`
 -- -----------------------------------------------------
@@ -239,21 +237,9 @@ CREATE TABLE IF NOT EXISTS `mydb`.`Staff` (
     FOREIGN KEY (`user_name`)
     REFERENCES `mydb`.`User` (`user_name`)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_Staff_branch_id`
-    FOREIGN KEY (`branch_ID`)
-    REFERENCES `mydb`.`Branch` (`branch_ID`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
+    ON UPDATE NO ACTION
+) ENGINE = InnoDB;
 
--- 添加外键约束
-ALTER TABLE `mydb`.`Branch`
-ADD CONSTRAINT `fk_branch_manager`
-FOREIGN KEY (`manager_ID`)
-REFERENCES `mydb`.`Staff` (`staff_ID`)
-ON DELETE SET NULL  
-ON UPDATE CASCADE; 
 
 -- -----------------------------------------------------
 -- Table `mydb`.`PurchaseOrder`
@@ -326,7 +312,6 @@ CREATE TABLE IF NOT EXISTS `mydb`.`Inventory` (
   `unit_cost` DECIMAL(10,2) NOT NULL,
   `received_date` DATE NULL,
   `order_ID` INT NULL,
-  `date_produced` DATE NULL,
   `date_expired` DATE NULL,
   PRIMARY KEY (`batch_ID`),
   CONSTRAINT `fk_inventory_branch_id`
@@ -470,9 +455,80 @@ CREATE TABLE IF NOT EXISTS `mydb`.`StockItemCertificate` (
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
+-- 在添加循环外键约束之前，禁用外键检查
+SET FOREIGN_KEY_CHECKS=0;
+
+ALTER TABLE `mydb`.`Staff`
+ADD CONSTRAINT `fk_Staff_branch_id`
+FOREIGN KEY (`branch_ID`)
+REFERENCES `mydb`.`Branch` (`branch_ID`)
+ON DELETE SET NULL
+ON UPDATE CASCADE;
+
+ALTER TABLE `mydb`.`Branch`
+ADD CONSTRAINT `fk_branch_manager`
+FOREIGN KEY (`manager_ID`)
+REFERENCES `mydb`.`Staff` (`staff_ID`)
+ON DELETE SET NULL  
+ON UPDATE CASCADE;
+
+-- 重新启用外键检查
+SET FOREIGN_KEY_CHECKS=1;
+
+-- ========================
+-- 📊 为你的数据库添加索引
+-- ========================
 
 
+-- 1. 产品表索引
+CREATE INDEX idx_products_name ON products(product_name);
+CREATE INDEX idx_products_sku ON products(sku);
+CREATE INDEX idx_products_category ON products(category_id);
+CREATE INDEX idx_products_status ON products(status);
 
+-- 2. 客户订单表索引
+CREATE INDEX idx_customerorder_date ON CustomerOrder(order_date);
+CREATE INDEX idx_customerorder_customer ON CustomerOrder(customer_id);
+CREATE INDEX idx_customerorder_status ON CustomerOrder(status);
+CREATE INDEX idx_customerorder_branch ON CustomerOrder(branch_id);
+CREATE INDEX idx_customerorder_date_status ON CustomerOrder(order_date, status);
+
+-- 3. 库存表索引
+CREATE INDEX idx_inventory_product ON Inventory(product_ID);
+CREATE INDEX idx_inventory_branch ON Inventory(branch_ID);
+CREATE INDEX idx_inventory_batch ON Inventory(batch_ID);
+CREATE INDEX idx_inventory_product_branch ON Inventory(product_ID, branch_ID);
+CREATE INDEX idx_inventory_expiry ON Inventory(date_expired);
+
+-- 4. 库存明细表索引
+CREATE INDEX idx_stockitem_batch ON StockItem(batch_ID);
+CREATE INDEX idx_stockitem_status ON StockItem(status);
+CREATE INDEX idx_stockitem_product ON StockItem(product_ID);
+CREATE INDEX idx_stockitem_order ON StockItem(customer_order_ID);
+CREATE INDEX idx_stockitem_batch_status ON StockItem(batch_ID, status);
+
+-- 5. 采购订单表索引
+CREATE INDEX idx_purchaseorder_supplier ON PurchaseOrder(supplier_ID);
+CREATE INDEX idx_purchaseorder_branch ON PurchaseOrder(branch_ID);
+CREATE INDEX idx_purchaseorder_date ON PurchaseOrder(date);
+CREATE INDEX idx_purchaseorder_status ON PurchaseOrder(status);
+
+-- 6. 用户表索引
+CREATE INDEX idx_user_username ON User(user_name);
+CREATE INDEX idx_user_email ON User(user_email);
+CREATE INDEX idx_user_type ON User(user_type);
+
+-- 7. 客户表索引
+CREATE INDEX idx_customer_email ON Customer(email);
+CREATE INDEX idx_customer_loyalty ON Customer(loyalty_level);
+
+-- 8. 订单明细表索引
+CREATE INDEX idx_orderitem_order ON OrderItem(order_ID);
+CREATE INDEX idx_orderitem_product ON OrderItem(product_ID);
+
+-- 9. 供应商产品表索引
+CREATE INDEX idx_supplierproduct_product ON SupplierProduct(product_ID);
+CREATE INDEX idx_supplierproduct_supplier ON SupplierProduct(supplier_ID);
 
 
 

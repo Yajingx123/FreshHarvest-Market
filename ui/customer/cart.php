@@ -12,7 +12,6 @@ $result = $stmt->get_result();
 $cart_item = $result->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
 
-// AJAX交易处理
 if (isset($_POST['action']) && $_POST['action'] === 'checkout_ajax') {
     header('Content-Type: application/json');
     
@@ -30,234 +29,80 @@ if (isset($_POST['action']) && $_POST['action'] === 'checkout_ajax') {
         exit;
     }
     
-    // 获取购物车数据
+    // 获取购物车数据（仅用于验证）
     $cart_data = getShoppingCartData($customer_id);
+    
+    // 调试信息
+    error_log("结账请求 - customer_id: $customer_id, cart_id: " . ($cart_data['cart_id'] ?? 'null'));
+    error_log("购物车项目数: " . count($cart_data['items']));
 
-    // 替换原有的多重验证
+    // 简单验证
     if (!$cart_data['cart_id']) {
-       echo json_encode(['success' => false, 'error' => '购物车不存在']);
-       exit;
+        echo json_encode(['success' => false, 'error' => '购物车不存在']);
+        exit;
     }
 
-    // 更严格的商品数量验证
-    $actual_item_count = count($cart_data['items']);
-    if ($actual_item_count <= 0) {
-       echo json_encode(['success' => false, 'error' => '购物车无商品']);
-       exit;
-    }
-
-    // 验证是否有实际商品数量
-     $total_quantity = array_sum(array_column($cart_data['items'], 'quantity'));
-     if ($total_quantity <= 0) {
-       echo json_encode(['success' => false, 'error' => '商品数量不能为零']);
-      exit;
+    if (count($cart_data['items']) <= 0) {
+        echo json_encode(['success' => false, 'error' => '购物车无商品']);
+        exit;
     }
     
     $cart_id = $cart_data['cart_id'];
     $conn = getDBConnection();
-    $conn->autocommit(false); // 开始事务
     
     try {
-        $query = "SELECT * FROM v_wishlist_products WHERE customer_id = ?";
-        $stmt = $conn->prepare($query);
-        $stmt->bind_param("i", $customer_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $cart_items = $result->fetch_all(MYSQLI_ASSOC);
+        // 调用存储过程
+        $stmt = $conn->prepare("CALL ProcessCustomerOrder(?, ?, ?, @success, @message, @order_id)");
+        $stmt->bind_param("isi", $customer_id, $shipping_address, $cart_id);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("存储过程执行失败: " . $conn->error);
+        }
+        
         $stmt->close();
         
-        // 再次验证购物车物品
-        if (empty($cart_items)) {
-            throw new Exception('购物车为空');
+        // 获取结果
+        $result = $conn->query("SELECT @success as success, @message as message, @order_id as order_id");
+        
+        if (!$result) {
+            throw new Exception("无法获取存储过程结果: " . $conn->error);
         }
         
-        // 2. 检查库存并锁定库存
-      foreach ($cart_items as $item) {
-      $branch_id = $item['branch_id'] ?? 1;
-      $product_id = $item['product_id'];
-      $required_quantity = $item['quantity'];
-    
-       // 检查库存视图（此时locked_inventory已包含购物车锁定的数量）
-       $inventory_query = "SELECT current_stock AS quantity_on_hand, locked_inventory
-          FROM v_inventory_management 
-          WHERE product_ID = ? AND branch_ID = ?"; 
-
-      $inventory_stmt = $conn->prepare($inventory_query);
-      $inventory_stmt->bind_param("ii", $item['product_id'], $branch_id); 
-      $inventory_stmt->execute();
-      $inventory_result = $inventory_stmt->get_result();
-
-       if ($inventory_result->num_rows == 0) {
-        throw new Exception("商品 {$item['product_name']} 库存信息不存在");
-      }
-      }
+        $row = $result->fetch_assoc();
+        $result->close();
         
-        $total_amount = $cart_data['total_amount'];
-        $final_amount = calculateFinalAmount($customer_id, $total_amount);
-        
-        $branch_id = $cart_items[0]['branch_id'] ?? 1;
-        
-        // 5. 更新订单状态
-        $update_order_query = "
-            UPDATE CustomerOrder 
-            SET status = 'Completed', 
-                total_amount = ?, 
-                final_amount = ?,
-                shipping_address = ?,
-                order_date = NOW()
-            WHERE order_ID = ?
-        ";
-        $update_stmt = $conn->prepare($update_order_query);
-        $update_stmt->bind_param("ddsi", $total_amount,$final_amount,$shipping_address, $cart_id);
-        $update_stmt->execute();
-        
-        if ($update_stmt->affected_rows <= 0) {
-            throw new Exception("订单状态更新失败");
+        if (!$row) {
+            throw new Exception("存储过程无返回结果");
         }
-        $update_stmt->close();
-
-        $update_customer_query = "
-          UPDATE customer 
-          SET accu_cost = accu_cost + ? 
-          WHERE customer_ID = ?
-        ";
-        $update_customer_stmt = $conn->prepare($update_customer_query);
-        $update_customer_stmt->bind_param("di", $final_amount, $customer_id);
-        $update_customer_stmt->execute();
-        $update_customer_stmt->close();
-
-        $query_accu = "SELECT accu_cost, loyalty_level FROM customer WHERE customer_ID = ?";
-        $stmt_accu = $conn->prepare($query_accu);
-        $stmt_accu->bind_param("i", $customer_id);
-        $stmt_accu->execute();
-        $result_accu = $stmt_accu->get_result();
-        $customer_data = $result_accu->fetch_assoc();
-        $stmt_accu->close();
-
-        $new_accu_cost = $customer_data['accu_cost'];
-
-        $current_level = $customer_data['loyalty_level']; 
-        $new_level = $current_level; // 默认值为当前等级
-        if ($new_accu_cost >= 200) {
-             $new_level = 'VVIP';
-        } elseif ($new_accu_cost >= 100) {
-             $new_level = 'VIP';
-        }
-
-         $update_level_query = "
-            UPDATE customer 
-            SET loyalty_level = ? 
-            WHERE customer_ID = ? AND loyalty_level != ?
-        ";
-        $update_level_stmt = $conn->prepare($update_level_query);
-        $update_level_stmt->bind_param("sis", $new_level, $customer_id, $new_level);
-        $update_level_stmt->execute();
-        $update_level_stmt->close();
         
-        // 6. 更新库存和商品状态
-        foreach ($cart_items as $item) {
-         $product_id = $item['product_id'];
-         $quantity = $item['quantity'];
-         $branch_id = $item['branch_id']; // 确保有值
-         $customer_order_id = $cart_id;
-         if (empty($customer_order_id)) {
-           throw new Exception("订单ID不存在");
-         }
-         $item_id = $item['item_id']; // 关键修改：从当前购物车项获取item_id
-         if (empty($item_id)) {
-           throw new Exception("商品ID: {$item['product_id']} 的购物车项ID不存在");
-         }
-         $item_ids = [$item_id];
-
-        // 2. 更新当前商品对应的StockItem
-         if (!empty($item_ids)) {
-            $placeholders = implode(',', array_fill(0, count($item_ids), '?'));
-            $update_stockitem_query = "
-                UPDATE StockItem 
-                SET status = 'sold',
-                    customer_order_ID = ?
-                WHERE item_ID IN ($placeholders)
-            ";
-            $update_stmt = $conn->prepare($update_stockitem_query);
-            $params = array_merge([$customer_order_id], $item_ids);
-            $types = 'i' . str_repeat('s', count($item_ids)); // 假设item_ID是字符串
-            $update_stmt->bind_param($types, ...$params);
-            $update_stmt->execute();
-            $update_stmt->close();
-         } else {
-            // 没有找到对应的OrderItem，可能是数据关联错误
-            throw new Exception("商品ID: $product_id 未找到待处理的订单项");
-         }
-
-        // 3. 更新当前商品的OrderItem状态为completed
-         $update_order_item_query = "
-            UPDATE OrderItem 
-            SET status = 'completed'
-            WHERE order_id = ? 
-              AND product_id = ?
-              AND status = 'pending'
-        ";
-         $update_item_stmt = $conn->prepare($update_order_item_query);
-         $update_item_stmt->bind_param("ii", $customer_order_id, $product_id); // 用订单ID而非cart_id
-         $update_item_stmt->execute();
-         $update_item_stmt->close();
-
-        // 4. 最后更新库存（确保前面的状态更新成功后再扣减）
-         $update_inventory_query = "
-            UPDATE Inventory 
-            SET quantity_on_hand = quantity_on_hand - ?,
-                locked_inventory = locked_inventory - ?
-            WHERE product_ID = ? 
-              AND branch_ID = ?
-         ";
-         $update_inventory_stmt = $conn->prepare($update_inventory_query);
-         $update_inventory_stmt->bind_param("iiii", $quantity, $quantity, $product_id, $branch_id);
-         $update_inventory_stmt->execute();
-         $update_inventory_stmt->close();
-    }
+        // 记录详细的返回信息
+        error_log("存储过程返回 - success: " . ($row['success'] ? 'true' : 'false') . 
+                  ", message: " . $row['message'] . 
+                  ", order_id: " . $row['order_id']);
         
-        foreach ($cart_items as $item) {
-          $item_ID = $item['item_id'];
-         // 记录订单日志
-          $log_query = "
-          INSERT INTO StockItemCertificate (
-               item_ID,
-               transaction_type, 
-               transaction_id,
-               note,
-               `date`
-            ) VALUES (
-              ?, 
-              'sale',
-               ?,
-               CONCAT('customer_id:', ?, '; action:completed; item:', ?),
-               NOW()
-            )";
-           $log_stmt = $conn->prepare($log_query);
-           // 绑定参数：s(字符串,item_ID) + i(整数,cart_id) + i(整数,customer_id) + s(字符串,item_ID)
-           $log_stmt->bind_param("siis", $item_ID, $cart_id, $customer_id, $item_ID);
-           $log_stmt->execute();
-           $log_stmt->close();
-           // 提交事务
-           $conn->commit();
-        }
-
-// 然后再返回成功响应
-echo json_encode([
-    'success' => true,
-    'order_id' => $cart_id,
-    'message' => '订单提交成功'
-]);
+        // 返回存储过程的结果
+        echo json_encode([
+            'success' => (bool)$row['success'],
+            'message' => $row['message'],
+            'order_id' => $row['order_id']
+        ]);
         
+    } catch (mysqli_sql_exception $e) {
+        error_log("结账异常: " . $e->getMessage());
+        echo json_encode([
+            'success' => false,
+            'error' => '数据库错误：' . $e->getMessage()
+        ]);
     } catch (Exception $e) {
-        // 回滚事务
-        $conn->rollback();
+        error_log("结账错误: " . $e->getMessage());
         echo json_encode([
             'success' => false,
             'error' => $e->getMessage()
         ]);
     } finally {
-        $conn->close();
+        if ($conn) {
+            $conn->close();
+        }
     }
     exit;
 }
@@ -861,35 +706,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <form class="account-form">
                 <div class="form-group">
                     <label class="form-label" for="receiver-name">收件人</label>
-                    <input type="text" id="receiver-name" class="form-input" 
+                    <input type="text" id="receiver-name" class="form-input" readonly 
        value="<?php echo htmlspecialchars($customer_info['full_name'] ?? ''); ?>">
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label" for="receiver-phone">联系电话</label>
-                    <input type="text" id="receiver-phone" class="form-input" 
+                    <input type="text" id="receiver-phone" class="form-input" readonly 
        value="<?php echo htmlspecialchars($customer_info['customer_phone'] ?? $customer_info['phone'] ?? ''); ?>">
                 </div>
 
                 <div class="form-group">
                     <label class="form-label" for="receiver-email">邮箱地址</label>
-                    <input type="text" id="receiver-email" class="form-input" 
+                    <input type="text" id="receiver-email" class="form-input" readonly 
        value="<?php echo htmlspecialchars($customer_info['email'] ?? ''); ?>">
                 </div>
-                
-                <div class="form-group">
-                    <label class="form-label" for="receiver-province">所在地区</label>
-                    <select id="receiver-province" class="form-input">
-                        <option value="北京" selected>北京市</option>
-                        <option value="上海">上海市</option>
-                        <option value="广东">广东省</option>
-                        <option value="江苏">江苏省</option>
-                    </select>
-                </div>
-                
                 <div class="form-group">
                     <label class="form-label" for="receiver-address">详细地址</label>
-                    <input type="text" id="receiver-address" class="form-input" value="朝阳区建国路88号8号楼1单元501室">
+                    <input type="text" id="receiver-address" class="form-input" readonly value="<?php echo htmlspecialchars($customer_info['address'] ?? ''); ?>">
                 </div>
                 
                 <div class="form-group">
@@ -1030,6 +864,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script>
     // 弹窗相关元素
+document.addEventListener('DOMContentLoaded', function() {
+    // 弹窗相关元素
     const checkoutModal = document.getElementById('checkoutModal');
     const successModal = document.getElementById('successModal');
     const checkoutBtn = document.querySelector('.checkout-btn');
@@ -1038,8 +874,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     const paymentOptions = document.querySelectorAll('.payment-option');
     const countdownElement = document.getElementById('countdown');
 
+    // 检查元素是否存在
+    if (!checkoutBtn) {
+        console.error('结算按钮未找到！');
+        return;
+    }
+    
+    console.log('结算按钮找到，开始绑定事件...');
+
     // 打开结算弹窗
     checkoutBtn.addEventListener('click', function() {
+        console.log('结算按钮被点击');
         populateOrderDetails();
         checkoutModal.classList.add('active');
     });
@@ -1075,7 +920,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 获取表单数据
         const receiverName = document.getElementById('receiver-name').value;
         const receiverPhone = document.getElementById('receiver-phone').value;
-        const receiverProvince = document.getElementById('receiver-province').value;
         const receiverAddress = document.getElementById('receiver-address').value;
         const receiverNote = document.getElementById('receiver-note').value;
     
@@ -1084,22 +928,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             alert('请填写完整的收货信息');
             return;
         }
+        
         // 检查购物车项目
         const cartItems = document.querySelectorAll('.cart-item');
         if (cartItems.length === 0) {
-          alert('购物车为空，无法提交订单');
-          this.disabled = false;
-          this.textContent = '提交订单';
-          return;
+            alert('购物车为空，无法提交订单');
+            this.disabled = false;
+            this.textContent = '提交订单';
+            return;
         }
     
-        const shippingAddress = `${receiverProvince} ${receiverAddress} (${receiverName}, ${receiverPhone}) 备注: ${receiverNote}`;
+        // 修改这里：移除省份字段，因为HTML中没有这个字段
+        const shippingAddress = `${receiverAddress} (${receiverName}, ${receiverPhone}) 备注: ${receiverNote}`;
     
         // 显示加载状态
         this.disabled = true;
         this.textContent = '处理中...';
     
-        
         // AJAX提交订单
         fetch('cart.php', {
             method: 'POST',
@@ -1112,96 +957,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             })
         })
         .then(response => response.text())
-        // 替换原有的submitOrderBtn点击事件处理中的then部分
         .then(text => {
-          console.log('完整响应内容:', text);
-          try {
-             const data = JSON.parse(text);
-            if (data.success) {
-              // 关闭结算弹窗
-              checkoutModal.classList.remove('active');
-              document.getElementById('success-order-id').textContent = data.order_id || '未知';
-              // 显示成功弹窗
-              successModal.classList.add('active');
-              
-              // 倒计时功能
-              let countdown = 3;
-              countdownElement.textContent = countdown;
-              const countdownInterval = setInterval(() => {
-                  countdown--;
-                  countdownElement.textContent = countdown;
-                  if (countdown <= 0) {
-                      clearInterval(countdownInterval);
-                      window.location.reload();
-                  }
-              }, 1000);
-              
-            } else {
-              alert(data.error || '订单提交失败');
-            }
-          } catch (e) {
-              console.error('JSON解析失败:', e);
-            alert('服务器响应格式错误');
+            console.log('完整响应内容:', text);
+            try {
+                const data = JSON.parse(text);
+                if (data.success) {
+                    // 关闭结算弹窗
+                    checkoutModal.classList.remove('active');
+                    document.getElementById('success-order-id').textContent = data.order_id || '未知';
+                    // 显示成功弹窗
+                    successModal.classList.add('active');
+                    
+                    // 倒计时功能
+                    let countdown = 3;
+                    countdownElement.textContent = countdown;
+                    const countdownInterval = setInterval(() => {
+                        countdown--;
+                        countdownElement.textContent = countdown;
+                        if (countdown <= 0) {
+                            clearInterval(countdownInterval);
+                            window.location.reload();
+                        }
+                    }, 1000);
+                    
+                } else {
+                    alert(data.error || '订单提交失败');
+                }
+            } catch (e) {
+                console.error('JSON解析失败:', e);
+                alert('服务器响应格式错误');
             }
         })
-       .finally(() => {
-        // 恢复按钮状态
-          this.disabled = false;
-           this.textContent = '提交订单';
+        .finally(() => {
+            // 恢复按钮状态
+            this.disabled = false;
+            this.textContent = '提交订单';
         });
     });
+});
 
-    // 填充订单详情
-    function populateOrderDetails() {
-        const orderItemsContainer = document.getElementById('order-items');
-        const shippingInfoContainer = document.getElementById('shipping-info');
-        const orderTotalContainer = document.getElementById('order-total');
-        
-        // 清空现有内容
-        orderItemsContainer.innerHTML = '';
-        
-        // 获取购物车项目
-        const cartItems = document.querySelectorAll('.cart-item');
-        if (cartItems.length === 0) {
-            orderItemsContainer.innerHTML = '<p>购物车为空</p>';
-            return;
-        }
-        
-        // 填充商品明细
-        cartItems.forEach(item => {
-            const name = item.querySelector('.cart-item-name').textContent;
-            const price = item.querySelector('.cart-item-price').textContent.replace('¥', '');
-            const quantity = item.querySelector('.quantity-input').value;
-            const itemTotal = (parseFloat(price) * parseInt(quantity)).toFixed(2);
-            
-            const itemElement = document.createElement('div');
-            itemElement.style.padding = '8px 0';
-            itemElement.style.display = 'flex';
-            itemElement.style.justifyContent = 'space-between';
-            itemElement.innerHTML = `
-                <span>${name} x ${quantity}</span>
-                <span>¥${itemTotal}</span>
-            `;
-            orderItemsContainer.appendChild(itemElement);
-        });
-        
-        // 填充收货信息
-        const receiverName = document.getElementById('receiver-name').value;
-        const receiverPhone = document.getElementById('receiver-phone').value;
-        const receiverProvince = document.getElementById('receiver-province').value;
-        const receiverAddress = document.getElementById('receiver-address').value;
-        const receiverNote = document.getElementById('receiver-note').value;
-        
-        shippingInfoContainer.innerHTML = `
-            <p>收件人：${receiverName}</p>
-            <p>联系电话：${receiverPhone}</p>
-            <p>地址：${receiverProvince} ${receiverAddress}</p>
-            <p>备注：${receiverNote}</p>
-        `;
-        
-        // 填充总金额
-        orderTotalContainer.textContent = document.querySelector('.total-amount span').textContent;
+// 填充订单详情
+function populateOrderDetails() {
+    const orderItemsContainer = document.getElementById('order-items');
+    const shippingInfoContainer = document.getElementById('shipping-info');
+    const orderTotalContainer = document.getElementById('order-total');
+    
+    // 清空现有内容
+    orderItemsContainer.innerHTML = '';
+    
+    // 获取购物车项目
+    const cartItems = document.querySelectorAll('.cart-item');
+    if (cartItems.length === 0) {
+        orderItemsContainer.innerHTML = '<p>购物车为空</p>';
+        return;
     }
+    
+    // 填充商品明细
+    cartItems.forEach(item => {
+        const name = item.querySelector('.cart-item-name').textContent;
+        const price = item.querySelector('.cart-item-price').textContent.replace('¥', '');
+        const quantity = item.querySelector('.quantity-input').value;
+        const itemTotal = (parseFloat(price) * parseInt(quantity)).toFixed(2);
+        
+        const itemElement = document.createElement('div');
+        itemElement.style.padding = '8px 0';
+        itemElement.style.display = 'flex';
+        itemElement.style.justifyContent = 'space-between';
+        itemElement.innerHTML = `
+            <span>${name} x ${quantity}</span>
+            <span>¥${itemTotal}</span>
+        `;
+        orderItemsContainer.appendChild(itemElement);
+    });
+    
+    // 填充收货信息 - 修改这里，移除省份字段
+    const receiverName = document.getElementById('receiver-name').value;
+    const receiverPhone = document.getElementById('receiver-phone').value;
+    const receiverAddress = document.getElementById('receiver-address').value;
+    const receiverNote = document.getElementById('receiver-note').value;
+    
+    shippingInfoContainer.innerHTML = `
+        <p>收件人：${receiverName}</p>
+        <p>联系电话：${receiverPhone}</p>
+        <p>地址：${receiverAddress}</p>
+        <p>备注：${receiverNote}</p>
+    `;
+    
+    // 填充总金额
+    orderTotalContainer.textContent = document.querySelector('.total-amount span').textContent;
+}
 </script>
 
 </main>

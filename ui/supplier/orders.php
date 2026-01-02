@@ -614,7 +614,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                                         <td>${item.sku}</td>
                                         <td>¥${(Number(item.supplier_price) || 0).toFixed(2)}</td>
                                         <td>${item.unit || '件'}</td>
-                                        <td>¥${parseFloat(item.total_cost).toFixed(2)}</td>
+                                        <td>¥${(Number(item.supplier_price) || 0).toFixed(2)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -661,7 +661,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                     <div class="order-summary">
                         <div class="summary-item">
                             <span class="summary-label">商品总价：</span>
-                            <span class="summary-value">¥${subtotal.toFixed(2)}</span>
+                            <span class="summary-value">${order.total_amount ? '¥' + parseFloat(order.total_amount).toFixed(2) : '¥' + subtotal.toFixed(2)}</span>
                         </div>
                         <div class="summary-item">
                             <span class="summary-label">订单总额：</span>

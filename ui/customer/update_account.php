@@ -30,8 +30,8 @@ if (checkUsernameExists($data['username'], $customer_id)) {
 }
 
 // 性别验证
-if (!in_array($data['gender'], ['Men', 'Woman'])) {
-    $errors[] = '性别只能是Men或Woman';
+if (!in_array($data['gender'], ['Male', 'Female'])) {
+    $errors[] = '性别只能是Male或Female';
 }
 
 // 电话号码验证

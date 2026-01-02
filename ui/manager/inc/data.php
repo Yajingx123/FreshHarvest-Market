@@ -1098,20 +1098,27 @@ function getRecentYears($limit = 5) {
     return $years;
 }
 
-function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $category_id) {
+function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $category_id, $sale_quantity) {
     global $conn;
     
     try {
         // 1. 生成SKU（产品编号）
-        $sku = generateProductSKU($category_id, $name);
+        $sku = generateProductSKU($category_id, $name,$sale_quantity);
+        if($sku == ''){
+            return [
+            'success' => false,
+            'message' => '添加产品失败: sku重复,可以考虑进货.'
+        ];
+        }
         // 2. 开始事务
         $conn->begin_transaction();
-        
+
+        $full_product_name = $name . ' ' . $sale_quantity . $unit;
         // 3. 插入产品到products表
         $sql = "INSERT INTO products (sku, product_name, unit_price, unit, description, category_id, status) 
                 VALUES (?, ?, ?, ?, ?, ?, 'active')";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssdssi", $sku, $name, $price, $unit, $description, $category_id);
+        $stmt->bind_param("ssdssi", $sku, $full_product_name, $price, $unit, $description, $category_id);
         $stmt->execute();
         
         $product_id = $conn->insert_id; // 获取刚插入的产品ID
@@ -1124,12 +1131,6 @@ function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $c
             $attrStmt->bind_param("is", $product_id, $spec);
             $attrStmt->execute();
             $attrStmt->close();
-        }
-        
-        // 5. 如果有供应商信息（关联供应商）
-        if (!empty($supplier)) {
-            // 这里可以根据需要将供应商关联到产品
-            // 可能需要创建产品-供应商关联表，或者记录在notes中
         }
         
         // 6. 提交事务
@@ -1153,14 +1154,18 @@ function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $c
 }
 
 // 生成SKU的函数
-function generateProductSKU($category_id, $product_name = '') {
+function generateProductSKU($category_id, $product_name = '',$sale_quantity = '') {
     global $conn;
     
     // 根据分类生成前缀
     $prefixes = [
-        2 => 'FRU', // 果蔬 Fruit & Vegetable
-        3 => 'MEAT', // 肉禽蛋 Meat & Egg
-        4 => 'SEA'  // 水产 Aquatic
+        5 => 'VEG',
+        6 => 'FRU',
+        7 => 'MEAT',
+        8 => 'EGG',
+        9 => 'FISH',
+        10 => 'SHRIMP',
+        11 => 'SEA'
     ];
     
     $prefix = $prefixes[$category_id] ?? 'PD';
@@ -1206,11 +1211,10 @@ function generateProductSKU($category_id, $product_name = '') {
     
     $count = $data['count'] + 1;
     
-    // 生成SKU：前缀-分类ID-产品缩写-序号（4位数字）
+    // 生成SKU：前缀-产品缩写-序号（2位数字）
     $sku = $prefix . '-' . 
-           str_pad($category_id, 2, '0', STR_PAD_LEFT) . '-' .
            $name_abbr . '-' .
-           str_pad($count, 4, '0', STR_PAD_LEFT);
+           str_pad($sale_quantity, 2, '0', STR_PAD_LEFT);
     
     // 确保SKU唯一
     $checkSql = "SELECT product_ID FROM products WHERE sku = ?";
@@ -1220,12 +1224,7 @@ function generateProductSKU($category_id, $product_name = '') {
     $checkResult = $checkStmt->get_result();
     
     if ($checkResult->num_rows > 0) {
-        // 如果重复，添加时间戳后缀
-        $sku = $prefix . '-' . 
-               str_pad($category_id, 2, '0', STR_PAD_LEFT) . '-' .
-               $name_abbr . '-' .
-               str_pad($count, 4, '0', STR_PAD_LEFT) . '-' .
-               date('mdHi');
+        $sku = '';
     }
     
     $checkStmt->close();
@@ -1240,7 +1239,7 @@ function getProductCategories() {
     try {
         // 只获取果蔬、肉禽蛋、水产这几个父类
         $sql = "SELECT category_id, category_name FROM Categories 
-                WHERE category_id IN (2, 3, 4) 
+                WHERE category_id IN (5, 6, 7, 8, 9, 10, 11) 
                 ORDER BY category_id";
         $result = $conn->query($sql);
         
@@ -1254,6 +1253,68 @@ function getProductCategories() {
     }
     
     return $categories;
+}
+
+function buildCategoryTree() {
+    global $conn;
+    $hierarchy = [];
+    
+    try {
+        // 获取所有分类，按层级排序
+        $sql = "SELECT category_id, category_name, parent_category_id 
+                FROM Categories 
+                ORDER BY 
+                    CASE WHEN parent_category_id IS NULL THEN 0 ELSE 1 END,
+                    parent_category_id,
+                    category_id";
+        $result = $conn->query($sql);
+        
+        if ($result && $result->num_rows > 0) {
+            $allCategories = [];
+            while ($row = $result->fetch_assoc()) {
+                $allCategories[] = $row;
+            }
+            
+            // 构建层次结构
+            foreach ($allCategories as $cat) {
+                $catId = $cat['category_id'];
+                $parentId = $cat['parent_category_id'];
+                
+                if ($parentId === null) {
+                    // 第一级分类
+                    $hierarchy[$catId] = [
+                        'name' => $cat['category_name'],
+                        'children' => []
+                    ];
+                } else {
+                    // 遍历第一级分类
+                    foreach ($hierarchy as $topId => &$topCat) {
+                        if ($topId == $parentId) {
+                            // 第二级分类
+                            $topCat['children'][$catId] = [
+                                'name' => $cat['category_name'],
+                                'children' => []
+                            ];
+                            break;
+                        } else {
+                            // 检查是否属于某个第二级分类
+                            foreach ($topCat['children'] as $secondId => &$secondCat) {
+                                if ($secondId == $parentId) {
+                                    // 第三级分类
+                                    $secondCat['children'][$catId] = $cat['category_name'];
+                                    break 2; // 跳出两层循环
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("构建分类树失败: " . $e->getMessage());
+    }
+    
+    return $hierarchy;
 }
 
 // 初始化数据

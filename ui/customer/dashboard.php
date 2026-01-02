@@ -8,7 +8,6 @@ require_once __DIR__ . '/inc/data.php';    // 包含data.php
 $customerId = $_SESSION['customer_id'] ?? null;
 
 
-// 初始化数据
 $cartCount = 0;
 $favoriteProducts = [];
 $recentOrders = [];
@@ -22,11 +21,18 @@ if ($customerId) {
 
 $randomProducts = getRandomProducts();
 $productsWithDetails = [];
+// 在获取产品详情的地方，确保获取门店库存信息
 foreach ($randomProducts as $p) {
     $product = getProductDetails($p['product_ID']);
     if ($product) {
         $product['stock'] = $product['stock'] ?? 0;
         $product['branches'] = getProductBranches($product['id']);
+        
+        if (!empty($product['branches'])) {
+            $firstBranch = $product['branches'][0];
+            $product['branch_stock_info'] = getProductStockInStore($product['id'], $firstBranch['id']);
+        }
+        
         $productsWithDetails[] = $product;
     }
 }
@@ -521,61 +527,160 @@ foreach ($randomProducts as $p) {
             </div>
             
             <!-- 商品详情展开区域 - 优化排版 -->
-            <div class="product-details" id="details-<?php echo $index; ?>">
-                <!-- 商品详情内容 -->
-                <div class="product-details-content-wrapper">
-                    <div class="product-details-header">
-                        <h4><?php echo htmlspecialchars($product['name']); ?></h4>
-                        <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
+            <!-- 商品详情展开区域 - 修改后的版本 -->
+<div class="product-details" id="details-<?php echo $index; ?>">
+    <div class="product-details-content-wrapper">
+        <div class="product-details-header">
+            <h4><?php echo htmlspecialchars($product['name']); ?></h4>
+            <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
+        </div>
+        
+        <div class="product-details-content">
+            <div class="product-info-group">
+                <p class="product-info-item"><strong>分类:</strong> <?php echo htmlspecialchars($product['category'] ?? '未分类'); ?></p>
+                <p class="product-info-item"><strong>库存状态:</strong> <?php echo htmlspecialchars($product['stock_status'] ?? '正常'); ?></p>
+                <p class="product-info-item"><strong>可购数量:</strong> <span id="storeStockInfo-<?php echo $index; ?>">
+                    <?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] ?? 0 : 0; ?>
+                </span></p>
+            </div>
+            
+            <!-- 门店选择区域 -->
+            <div class="branch-select-container">
+                <label for="branchSelect-<?php echo $index; ?>">选择门店</label>
+                <select id="branchSelect-<?php echo $index; ?>" 
+                        class="branch-select"
+                        data-product-id="<?php echo $product['id']; ?>"
+                        data-index="<?php echo $index; ?>"
+                        style="width: 100%;">
+                    <?php if ($product['branches'] && count($product['branches']) > 0): ?>
+                        <?php foreach ($product['branches'] as $branch): ?>
+                            <option value="<?php echo $branch['id']; ?>" 
+                                    data-available="<?php echo $branch['available_stock']; ?>">
+                                <?php echo $branch['name']; ?> (库存: <?php echo $branch['available_stock']; ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <option value="1">默认门店</option>
+                    <?php endif; ?>
+                </select>
+            </div>
+            
+            <!-- 门店库存详情（类似 products.php 的显示） -->
+            <?php if ($product['branches'] && count($product['branches']) > 0): ?>
+            <div class="branch-info">
+                <h5>各门店库存情况：</h5>
+                <?php foreach ($product['branches'] as $branch): ?>
+                <div class="branch-item" style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
+                    <div>
+                        <div class="branch-name"><?php echo htmlspecialchars($branch['name']); ?></div>
+                        <?php if (!empty($branch['address'])): ?>
+                        <div class="branch-address" style="font-size: 12px; color: #666;"><?php echo htmlspecialchars($branch['address']); ?></div>
+                        <?php endif; ?>
                     </div>
-                    
-                    <div class="product-details-content">
-                        <div class="product-info-group">
-                            <p class="product-info-item"><strong>分类:</strong> <?php echo htmlspecialchars($product['category'] ?? '未分类'); ?></p>
-                            <p class="product-info-item"><strong>库存状态:</strong> <?php echo htmlspecialchars($product['stock_status'] ?? '正常'); ?></p>
-                            <p class="product-info-item"><strong>可购数量:</strong> <?php echo $product['stock']; ?></p>
-                        </div>
-                        
-                        <div class="branch-select-container">
-                            <label for="branchSelect-<?php echo $index; ?>">选择门店</label>
-                            <select id="branchSelect-<?php echo $index; ?>" style="width: 100%;">
-                                <?php if ($product['branches'] && count($product['branches']) > 0): ?>
-                                    <?php foreach ($product['branches'] as $branch): ?>
-                                        <option value="<?php echo $branch['id']; ?>"><?php echo $branch['name']; ?></option>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <option value="1">默认门店</option>
-                                <?php endif; ?>
-                            </select>
-                        </div>
-                        
-                        <div class="product-actions">
-                            <div class="quantity-control">
-                                <button class="quantity-btn" onclick="changeQty(-1, <?php echo $product['stock']; ?>, <?php echo $index; ?>)">-</button>
-                                <input type="number" id="buyQty-<?php echo $index; ?>" value="1" min="1" max="<?php echo $product['stock']; ?>" style="width: 50px; text-align: center;">
-                                <button class="quantity-btn" onclick="changeQty(1, <?php echo $product['stock']; ?>, <?php echo $index; ?>)">+</button>
-                            </div>
-                            
-                            <button class="add-to-cart-btn" 
-                               onclick="addToCart(<?php echo $product['id']; ?>, document.getElementById('buyQty-<?php echo $index; ?>').value, document.getElementById('branchSelect-<?php echo $index; ?>').value, <?php echo $index; ?>)">
-                                加入购物车
-                            </button>
-                        </div>
+                    <div class="branch-stock" style="color: <?php echo $branch['available_stock'] > 0 ? '#2d884d' : '#ff4d4f'; ?>;">
+                        <?php echo $branch['available_stock']; ?> 件
                     </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+            
+            <div class="product-actions">
+                <div class="quantity-control">
+                    <button class="quantity-btn" onclick="changeQty(-1, <?php echo $index; ?>)">-</button>
+                    <input type="number" id="buyQty-<?php echo $index; ?>" value="1" min="1" max="<?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] : 0; ?>" style="width: 50px; text-align: center;">
+                    <button class="quantity-btn" onclick="changeQty(1, <?php echo $index; ?>)">+</button>
+                    <span style="margin-left: 10px; color: #666; font-size: 12px;" id="maxQuantityText-<?php echo $index; ?>">
+                        最多可购 <?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] : 0; ?> 件
+                    </span>
                 </div>
                 
-                <!-- 加入成功提示（默认隐藏） -->
-                <div class="success-message">
-                    <i>✓</i>
-                    <div>加入成功！</div>
-                </div>
+                <button class="add-to-cart-btn" 
+                       onclick="addToCart(<?php echo $product['id']; ?>, document.getElementById('buyQty-<?php echo $index; ?>').value, document.getElementById('branchSelect-<?php echo $index; ?>').value, <?php echo $index; ?>)">
+                    加入购物车
+                </button>
             </div>
+        </div>
+    </div>
+    
+    <!-- 加入成功提示 -->
+    <div class="success-message">
+        <i>✓</i>
+        <div>加入成功！</div>
+    </div>
+</div>
             <?php endforeach; ?>
         </div>
     </div>
 </div> 
 
 <script>
+async function getStoreStockInfo(productId, storeId) {
+    try {
+        const response = await fetch('stock_handler.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `action=get_store_stock&product_id=${productId}&store_id=${storeId}`
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            return data.stock_info;
+        }
+        return null;
+    } catch (error) {
+        console.error('获取库存信息失败:', error);
+        return null;
+    }
+}
+
+// 在 document.addEventListener 或 product-details 生成后添加
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.classList.contains('branch-select')) {
+        const branchSelect = e.target;
+        const productId = branchSelect.getAttribute('data-product-id');
+        const storeId = branchSelect.value;
+        const index = branchSelect.getAttribute('data-index');
+        
+        // 获取库存信息元素
+        const stockInfoElement = document.getElementById(`storeStockInfo-${index}`);
+        const quantityInput = document.getElementById(`buyQty-${index}`);
+        const maxQuantityText = document.getElementById(`maxQuantityText-${index}`);
+        
+        if (stockInfoElement) {
+            stockInfoElement.textContent = '加载中...';
+        }
+        
+        // 动态获取库存信息
+        getStoreStockInfo(productId, storeId).then(stockInfo => {
+            if (stockInfo) {
+                const availableStock = stockInfo.available_stock_in_store || 0;
+                
+                // 更新显示
+                if (stockInfoElement) {
+                    stockInfoElement.textContent = availableStock;
+                }
+                
+                // 更新数量输入框
+                if (quantityInput) {
+                    quantityInput.max = availableStock;
+                    // 如果当前数量超过库存，自动调整
+                    if (parseInt(quantityInput.value) > availableStock) {
+                        quantityInput.value = availableStock;
+                    }
+                }
+                
+                // 更新提示文本
+                if (maxQuantityText) {
+                    maxQuantityText.textContent = `最多可购 ${availableStock} 件`;
+                }
+            }
+        });
+    }
+});
+
 // 商品详情展开/收起功能
 document.querySelectorAll('.quick-add-btn').forEach(button => {
     button.addEventListener('click', function(e) {
@@ -631,10 +736,14 @@ function changeQty(change, maxStock, index) {
 // 加入购物车函数
 function addToCart(productId, quantity, storeId, index) {
     const formData = new FormData();
+    const branchSelect = document.getElementById(`branchSelect-${index}`);
+    const selectedBranchId = branchSelect ? branchSelect.value : storeId;
+
+    
     formData.append('action', 'add_to_cart');
     formData.append('product_id', productId);
     formData.append('quantity', quantity);
-    formData.append('branch_id', storeId); // 传递门店ID到后端
+    formData.append('branch_id', selectedBranchId); // 传递门店ID到后端
 
     fetch('cart_handler.php', {
         method: 'POST',

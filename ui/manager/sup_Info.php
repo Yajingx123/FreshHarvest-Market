@@ -64,18 +64,6 @@ $suppliersData = getSuppliersFromDB();
     </div>
 </div>
 
-<!-- 确认删除弹窗 -->
-<div id="deleteConfirmModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;display:none;">
-    <div style="background:#fff;width:400px;border-radius:8px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.15);">
-        <h3 style="margin-top:0;margin-bottom:16px;color:#333;">确认删除</h3>
-        <p id="deleteConfirmMessage" style="margin-bottom:20px;color:#666;">确定要删除这个供应商吗？此操作不可恢复！</p>
-        <div style="display:flex;justify-content:flex-end;gap:10px;">
-            <button id="cancelDeleteBtn" class="btn btn-default">取消</button>
-            <button id="confirmDeleteBtn" class="btn btn-danger">确认删除</button>
-        </div>
-    </div>
-</div>
-
 <!-- 供应商详情弹窗（新增的优化功能） -->
 <div id="supplierDetailModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;display:none;">
     <div style="background:#fff;width:800px;max-height:80vh;overflow:auto;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.15);">
@@ -168,7 +156,6 @@ function renderSuppliersTable() {
                 <div class="action-buttons">
                     <button class="btn btn-primary btn-view" title="查看详情">查看</button>
                     <button class="btn btn-warning btn-edit" title="编辑信息">编辑</button>
-                    <button class="btn btn-danger btn-delete" title="删除">删除</button>
                 </div>
             </td>
         </tr>
@@ -407,15 +394,6 @@ function editSupplier(supplierId) {
     document.getElementById('supplierModal').style.display = 'flex';
 }
 
-// 删除供应商
-function deleteSupplier(supplierId) {
-    const supplier = suppliersData.find(s => s.id == supplierId);
-    if (!supplier) return;
-    
-    currentDeleteSupplierId = supplierId;
-    document.getElementById('deleteConfirmMessage').textContent = `确定要删除供应商 "${supplier.name}" 吗？此操作不可恢复！`;
-    document.getElementById('deleteConfirmModal').style.display = 'flex';
-}
 
 // 邮箱验证函数
 function isValidEmail(email) {
@@ -501,36 +479,7 @@ function saveSupplier() {
     closeSupplierModal();
 }
 
-// 确认删除供应商（AJAX版本）
-function confirmDeleteSupplier() {
-    if (!currentDeleteSupplierId) return;
-    
-    // 发送AJAX请求删除供应商
-    const formData = new FormData();
-    formData.append('action', 'delete_supplier');
-    formData.append('supplier_id', currentDeleteSupplierId);
-    
-    fetch('supplier_ajax.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            // 重新加载页面以获取最新数据
-            window.location.reload();
-        } else {
-            alert('删除失败: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('删除供应商失败:', error);
-        alert('删除失败，请检查网络连接');
-    });
-    
-    closeDeleteConfirmModal();
-}
+
 
 // 高级搜索过滤
 function applyFilters() {
