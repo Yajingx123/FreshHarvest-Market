@@ -15,7 +15,7 @@ SELECT
     p.product_name,
     p.sku,
     p.description,
-    sp.price AS supplier_price,
+    sp.price AS price,
     p.unit_price AS retail_price,
     p.unit,
     c.category_name,

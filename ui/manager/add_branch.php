@@ -28,8 +28,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             global $conn;
             $conn->begin_transaction();
 
-            // 插入门店数据
-            // 插入门店数据前先查询经理电话
             $managerPhone = '';
             if ($managerId > 0) {
                 // 查询经理的联系电话

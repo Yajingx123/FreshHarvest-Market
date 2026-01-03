@@ -1,9 +1,61 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <?php
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    ?>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - <?php echo $pageTitle ?? '顾客端'; ?></title>
+    <title>Fresh Select Fresh Produce - <?php echo $pageTitle ?? 'Customer'; ?></title>
+    <script>
+        (function() {
+            const userKey = <?php echo json_encode('customer:' . ($_SESSION['customer_id'] ?? '')); ?>;
+            if (!userKey || userKey.endsWith(':')) {
+                return;
+            }
+            if (!window.name) {
+                window.name = 'fhwin_' + Math.random().toString(36).slice(2) + Date.now();
+            }
+            const token = window.name;
+            const activeKey = 'fh_active_window_' + userKey;
+            const now = Date.now();
+            let state = null;
+            try {
+                state = JSON.parse(localStorage.getItem(activeKey) || 'null');
+            } catch (e) {
+                state = null;
+            }
+            if (state && state.token && state.token !== token && now - state.last < 10000) {
+                alert('该账号已在其他窗口登录，请关闭当前窗口或使用原窗口。');
+                window.location.href = '../login/login.php';
+                return;
+            }
+            localStorage.setItem(activeKey, JSON.stringify({ token, last: now }));
+            setInterval(function() {
+                localStorage.setItem(activeKey, JSON.stringify({ token, last: Date.now() }));
+            }, 5000);
+
+            function clearActiveKey() {
+                try {
+                    const current = JSON.parse(localStorage.getItem(activeKey) || 'null');
+                    if (current && current.token === token) {
+                        localStorage.removeItem(activeKey);
+                    }
+                } catch (e) {
+                }
+            }
+
+            window.addEventListener('pagehide', function() {
+                clearActiveKey();
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon('../login/logout.php?beacon=1');
+                }
+            });
+        })();
+    </script>
     <style>
         * {
             margin: 0;
@@ -85,17 +137,17 @@
     <!-- 顶部导航栏 -->
     <header class="header">
         <div class="nav-container">
-            <a href="dashboard.php" class="logo">鲜选生鲜</a>
+            <a href="dashboard.php" class="logo">Fresh Select Fresh Produce.</a>
             <ul class="nav-menu">
-                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php">仪表盘</a></li>
-                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'products.php' ? 'active' : ''; ?>" href="products.php">产品选择</a></li>
+                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php">Dashboard</a></li>
+                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'products.php' ? 'active' : ''; ?>" href="products.php">Products Select</a></li>
                 <li class="nav-item">
                     <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'cart.php' ? 'active' : ''; ?>" href="cart.php">
-                        购物车 <span class="badge">3</span>
+                        Shopping cart <span class="badge">3</span>
                     </a>
                 </li>
-                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'orders.php' ? 'active' : ''; ?>" href="orders.php">我的订单</a></li>
-                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'account.php' ? 'active' : ''; ?>" href="account.php">个人账户</a></li>
+                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'orders.php' ? 'active' : ''; ?>" href="orders.php">My orders</a></li>
+                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'account.php' ? 'active' : ''; ?>" href="account.php">Accounts</a></li>
             </ul>
         </div>
     </header>

@@ -3,7 +3,9 @@
 
 <?php
 // 获取当前用户ID
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once __DIR__ . '/inc/data.php';    // 包含data.php
 $customerId = $_SESSION['customer_id'] ?? null;
 
@@ -452,20 +454,20 @@ foreach ($randomProducts as $p) {
 <div class="dashboard-container">
     <div class="main-content">
         <section id="dashboard" class="dashboard">
-            <h2 class="section-title">📊 我的仪表盘</h2>
+            <h2 class="section-title">📊 My dashboard</h2>
             <div class="dashboard-cards">
                 <div class="card">
                     <div class="card-icon">🛒</div>
-                    <div class="card-title">购物车数量</div>
+                    <div class="card-title">Shopping cart counts</div>
                     <div class="card-value"><?php echo $cartCount; ?></div>
                 </div>
                 <div class="card">
                     <div class="card-icon">😋</div>
-                    <div class="card-title">您最喜爱的产品</div>
+                    <div class="card-title">Your favorite products</div>
                     <div class="card-value">
                         <?php
                         if (empty($favoriteProducts)) {
-                            echo '无';
+                            echo 'Empty!';
                         } else {
                             $names = array_column($favoriteProducts, 'product_name');
                             echo implode('、', $names);
@@ -477,12 +479,12 @@ foreach ($randomProducts as $p) {
         </section>
 
         <section class="dashboard">
-            <h2 class="section-title">📦 最近订单</h2>
+            <h2 class="section-title">📦 Recent orders</h2>
             <ul class="order-list">
                 <?php if (empty($recentOrders)): ?>
                     <li class="order-item">
                         <div class="order-info">
-                            <div class="order-name">暂无订单记录</div>
+                            <div class="order-name">No orders</div>
                         </div>
                     </li>
                 <?php else: ?>
@@ -504,16 +506,16 @@ foreach ($randomProducts as $p) {
     <div class="delivery-section">
         <h2 class="section-title">🚚 配送说明</h2>
         <p style="line-height: 1.6; color: #666; font-size: 14px; margin-top: 10px;">
-            今日订单截止时间:18:00<br>
-            次日达区域：市区及近郊<br>
-            满59元免配送费<br>
-            客服热线:400-123-4567
+            Today's order deadline:18:00<br>
+            Next-day delivery area: urban areas and nearby suburbs<br>
+            Free delivery for orders over 59 yuan<br>
+            Customer service hotline :400-123-4567
         </p>
     </div>
 
     <!-- 推荐商品模块 -->
     <div class="recommendation-section sidebar-section">
-        <h3 class="section-title">推荐商品</h3>
+        <h3 class="section-title">Recommended products</h3>
         <div class="recommendation-list">
             <?php foreach ($productsWithDetails as $index => $product): ?>
             <!-- 商品项 -->
@@ -523,11 +525,9 @@ foreach ($randomProducts as $p) {
                     <div class="product-name"><?php echo htmlspecialchars($product['name']); ?></div>
                     <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
                 </div>
-                <button class="quick-add-btn" data-id="<?php echo $product['id']; ?>" data-index="<?php echo $index; ?>">显示详情</button>
+                <button class="quick-add-btn" data-id="<?php echo $product['id']; ?>" data-index="<?php echo $index; ?>">Show details</button>
             </div>
             
-            <!-- 商品详情展开区域 - 优化排版 -->
-            <!-- 商品详情展开区域 - 修改后的版本 -->
 <div class="product-details" id="details-<?php echo $index; ?>">
     <div class="product-details-content-wrapper">
         <div class="product-details-header">
@@ -537,16 +537,16 @@ foreach ($randomProducts as $p) {
         
         <div class="product-details-content">
             <div class="product-info-group">
-                <p class="product-info-item"><strong>分类:</strong> <?php echo htmlspecialchars($product['category'] ?? '未分类'); ?></p>
-                <p class="product-info-item"><strong>库存状态:</strong> <?php echo htmlspecialchars($product['stock_status'] ?? '正常'); ?></p>
-                <p class="product-info-item"><strong>可购数量:</strong> <span id="storeStockInfo-<?php echo $index; ?>">
+                <p class="product-info-item"><strong>Category:</strong> <?php echo htmlspecialchars($product['category'] ?? 'No'); ?></p>
+                <p class="product-info-item"><strong>Inventory status:</strong> <?php echo htmlspecialchars($product['stock_status'] ?? 'Normal'); ?></p>
+                <p class="product-info-item"><strong>Quantity:</strong> <span id="storeStockInfo-<?php echo $index; ?>">
                     <?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] ?? 0 : 0; ?>
                 </span></p>
             </div>
             
             <!-- 门店选择区域 -->
             <div class="branch-select-container">
-                <label for="branchSelect-<?php echo $index; ?>">选择门店</label>
+                <label for="branchSelect-<?php echo $index; ?>">Select a store</label>
                 <select id="branchSelect-<?php echo $index; ?>" 
                         class="branch-select"
                         data-product-id="<?php echo $product['id']; ?>"
@@ -556,11 +556,11 @@ foreach ($randomProducts as $p) {
                         <?php foreach ($product['branches'] as $branch): ?>
                             <option value="<?php echo $branch['id']; ?>" 
                                     data-available="<?php echo $branch['available_stock']; ?>">
-                                <?php echo $branch['name']; ?> (库存: <?php echo $branch['available_stock']; ?>)
+                                <?php echo $branch['name']; ?> (Inventory: <?php echo $branch['available_stock']; ?>)
                             </option>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <option value="1">默认门店</option>
+                        <option value="1">Default store</option>
                     <?php endif; ?>
                 </select>
             </div>
@@ -568,7 +568,7 @@ foreach ($randomProducts as $p) {
             <!-- 门店库存详情（类似 products.php 的显示） -->
             <?php if ($product['branches'] && count($product['branches']) > 0): ?>
             <div class="branch-info">
-                <h5>各门店库存情况：</h5>
+                <h5>Inventory status of each store:</h5>
                 <?php foreach ($product['branches'] as $branch): ?>
                 <div class="branch-item" style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
                     <div>
@@ -578,7 +578,7 @@ foreach ($randomProducts as $p) {
                         <?php endif; ?>
                     </div>
                     <div class="branch-stock" style="color: <?php echo $branch['available_stock'] > 0 ? '#2d884d' : '#ff4d4f'; ?>;">
-                        <?php echo $branch['available_stock']; ?> 件
+                        <?php echo $branch['available_stock']; ?> 
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -587,17 +587,17 @@ foreach ($randomProducts as $p) {
             
             <div class="product-actions">
                 <div class="quantity-control">
-                    <button class="quantity-btn" onclick="changeQty(-1, <?php echo $index; ?>)">-</button>
+                    
                     <input type="number" id="buyQty-<?php echo $index; ?>" value="1" min="1" max="<?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] : 0; ?>" style="width: 50px; text-align: center;">
-                    <button class="quantity-btn" onclick="changeQty(1, <?php echo $index; ?>)">+</button>
+                    
                     <span style="margin-left: 10px; color: #666; font-size: 12px;" id="maxQuantityText-<?php echo $index; ?>">
-                        最多可购 <?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] : 0; ?> 件
+                        Maximum available for purchase <?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] : 0; ?> 
                     </span>
                 </div>
                 
                 <button class="add-to-cart-btn" 
                        onclick="addToCart(<?php echo $product['id']; ?>, document.getElementById('buyQty-<?php echo $index; ?>').value, document.getElementById('branchSelect-<?php echo $index; ?>').value, <?php echo $index; ?>)">
-                    加入购物车
+                    Add to cart
                 </button>
             </div>
         </div>
@@ -606,7 +606,7 @@ foreach ($randomProducts as $p) {
     <!-- 加入成功提示 -->
     <div class="success-message">
         <i>✓</i>
-        <div>加入成功！</div>
+        <div>Join Success!</div>
     </div>
 </div>
             <?php endforeach; ?>
@@ -631,7 +631,7 @@ async function getStoreStockInfo(productId, storeId) {
         }
         return null;
     } catch (error) {
-        console.error('获取库存信息失败:', error);
+        console.error('Failed to obtain inventory information:', error);
         return null;
     }
 }
@@ -650,7 +650,7 @@ document.addEventListener('change', function(e) {
         const maxQuantityText = document.getElementById(`maxQuantityText-${index}`);
         
         if (stockInfoElement) {
-            stockInfoElement.textContent = '加载中...';
+            stockInfoElement.textContent = 'Loading...';
         }
         
         // 动态获取库存信息
@@ -674,7 +674,7 @@ document.addEventListener('change', function(e) {
                 
                 // 更新提示文本
                 if (maxQuantityText) {
-                    maxQuantityText.textContent = `最多可购 ${availableStock} 件`;
+                    maxQuantityText.textContent = `Maximum available for purchase ${availableStock} `;
                 }
             }
         });
@@ -769,12 +769,12 @@ function addToCart(productId, quantity, storeId, index) {
                 successMsg.style.display = 'none';
             }, 1000);
         } else {
-            alert('加入购物车失败：' + data.message);
+            alert('Failed to add to cart:' + data.message);
         }
     })
     .catch(error => {
-        console.error('请求错误：', error);
-        alert('加入购物车时发生网络错误');
+        console.error('Request error:', error);
+        alert('A network error occurred when adding to the shopping cart.');
     });
 }
 
@@ -786,7 +786,7 @@ function htmlEscape(str) {
 </script>
 
 <div class="dashboard-footer">
-    鲜选生鲜 © 2023 版权所有 | 新鲜直达 品质保证
+    Fresh Selection Fresh © 2023 All rights reserved: Fresh Delivery, Quality guaranteed
 </div>
 
 </main>

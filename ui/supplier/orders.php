@@ -2,11 +2,6 @@
 session_start();
 require_once __DIR__ . '/inc/data.php';
 
-$servername = "localhost";
-$username = "root";
-$password = "NewRootPwd123!";
-$dbname = "mydb";
-
 if (!isset($_SESSION['supplier_logged_in']) || $_SESSION['supplier_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();

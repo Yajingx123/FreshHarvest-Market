@@ -1,17 +1,5 @@
 <?php
-function getDBConnection() {
-    $servername = "localhost";
-    $username = "root";
-    $password = "NewRootPwd123!"; // 统一为当前root密码
-    $dbname = "mydb";
-    
-    $conn = new mysqli($servername, $username, $password, $dbname);
-    if ($conn->connect_error) {
-        die("数据库连接失败: " . $conn->connect_error);
-    }
-    $conn->set_charset("utf8mb4");
-    return $conn;
-}
+require_once __DIR__ . '/../../config/db_connect.php';
 
 function getCurrentSupplierId() {
     return isset($_SESSION['supplier_id']) ? (int)$_SESSION['supplier_id'] : 0;
@@ -126,41 +114,6 @@ function getPurchaseOrderDetail($orderId) {
         $order['items'][] = $row;
     }
     $stmt->close();
-
-    // 获取退货信息
-    $stmt = $conn->prepare("
-        SELECT
-            p.product_name,
-            p.sku,
-            COUNT(*) AS return_qty,
-            COALESCE(pi.unit_cost, inv.unit_cost, sp.price, 0) AS unit_cost
-        FROM StockItemCertificate c
-        JOIN StockItem si ON c.item_ID = si.item_ID
-        JOIN products p ON si.product_ID = p.product_ID
-        LEFT JOIN PurchaseItem pi ON pi.item_ID = si.item_ID
-        LEFT JOIN Inventory inv ON inv.batch_ID = si.batch_ID AND inv.branch_ID = si.branch_ID
-        LEFT JOIN SupplierProduct sp ON sp.product_ID = si.product_ID AND sp.supplier_ID = ?
-        WHERE c.transaction_type = 'return'
-          AND si.purchase_order_ID = ?
-        GROUP BY p.product_ID, p.product_name, p.sku, unit_cost
-        ORDER BY p.product_name ASC
-    ");
-    $stmt->bind_param("ii", $supplierId, $orderId);
-    $stmt->execute();
-    $order['returns'] = [];
-    $refundTotal = 0.0;
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $qty = (int)($row['return_qty'] ?? 0);
-        $unitCost = (float)($row['unit_cost'] ?? 0);
-        $row['refund_amount'] = $qty * $unitCost;
-        $refundTotal += $row['refund_amount'];
-        $order['returns'][] = $row;
-    }
-    $stmt->close();
-    $order['refund_total'] = $refundTotal;
-    $orderTotal = (float)($order['total_amount'] ?? 0);
-    $order['final_amount'] = max($orderTotal, 0);
     
     return $order;
 }
@@ -174,7 +127,7 @@ function getSupplierProducts($supplierId) {
     if (!$supplierId) {
         return $products;
     }
-    $stmt = $conn->prepare("SELECT product_ID, product_name, sku, description, supplier_price AS price FROM v_supplier_products WHERE supplier_ID = ? ORDER BY product_name");
+    $stmt = $conn->prepare("SELECT product_ID, product_name, sku, description, price FROM v_supplier_products WHERE supplier_ID = ? ORDER BY product_name");
     if (!$stmt) {
         return $products;
     }
@@ -499,6 +452,52 @@ function getSupplierProductCount() {
     $conn->close();
     
     return $row['product_count'] ?? 0;
+}
+
+function updateSupplierPassword($username, $newPassword) {
+    $conn = getDBConnection();
+    
+    if (!$conn) {
+        error_log("数据库连接失败");
+        return false;
+    }
+    
+    // 使用MD5加密（与其他页面保持一致）
+    $hashedPassword = md5($newPassword);
+    
+    try {
+        // 更新User表中的密码
+        $sql = "UPDATE User SET password_hash = ? WHERE user_name = ?";
+        $stmt = $conn->prepare($sql);
+        
+        if (!$stmt) {
+            error_log("准备查询失败: " . $conn->error);
+            return false;
+        }
+        
+        $stmt->bind_param("ss", $hashedPassword, $username);
+        
+        if ($stmt->execute()) {
+            $affectedRows = $stmt->affected_rows;
+            $stmt->close();
+            
+            if ($affectedRows > 0) {
+                error_log("成功更新供应商{$username}的密码");
+                return true;
+            } else {
+                error_log("未找到用户名为{$username}的用户");
+                return false;
+            }
+        } else {
+            error_log("执行更新失败: " . $stmt->error);
+            $stmt->close();
+            return false;
+        }
+        
+    } catch (Exception $e) {
+        error_log("更新密码过程中发生异常: " . $e->getMessage());
+        return false;
+    }
 }
 
 if (isset($_GET['action']) && $_GET['action'] == 'logout') {

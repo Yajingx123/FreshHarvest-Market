@@ -2,12 +2,15 @@
 // file path: login/logout.php
 
 session_start();
+require_once __DIR__ . '/../config/db_connect.php';
 
-// 根据用户角色显示不同的退出消息
-$role = $_SESSION['user_role'] ?? '';
+// 保存当前用户的角色信息用于显示消息
+$current_role = $_SESSION['user_role'] ?? '';
+$current_user_id = $_SESSION['user_id'] ?? null;
+$current_session_id = session_id();
 $message = '';
 
-switch ($role) {
+switch ($current_role) {
     case 'customer':
         $message = '顾客账户已安全退出';
         break;
@@ -24,26 +27,29 @@ switch ($role) {
         $message = '已安全退出登录';
 }
 
-// 清除所有会话变量
-$_SESSION = array();
-
-// 如果需要彻底销毁会话，同时删除会话cookie
-if (ini_get("session.use_cookies")) {
-    $params = session_get_cookie_params();
-    setcookie(session_name(), '', time() - 42000,
-        $params["path"], $params["domain"],
-        $params["secure"], $params["httponly"]
-    );
+if (!empty($current_user_id)) {
+    $conn = getDBConnection();
+    if ($conn) {
+        $updateSql = "UPDATE User SET login_session_id = NULL WHERE user_ID = ? AND login_session_id = ?";
+        $stmt = $conn->prepare($updateSql);
+        if ($stmt) {
+            $stmt->bind_param("is", $current_user_id, $current_session_id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        $conn->close();
+    }
 }
 
-// 销毁会话
+$_SESSION = array();
+
 session_destroy();
 
-// 开启新会话，仅存储退出消息
-session_start();
-$_SESSION['logout_success'] = $message;
+if (isset($_GET['beacon']) && $_GET['beacon'] === '1') {
+    http_response_code(204);
+    exit();
+}
 
-// 重定向到登录页面
-header('Location: login.php');
+header('Location: login.php?logout=' . urlencode($message));
 exit();
 ?>

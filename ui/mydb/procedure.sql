@@ -157,16 +157,13 @@ CREATE PROCEDURE staff_adjust_inventory(
     IN p_new_quantity INT,
     IN p_reason VARCHAR(20),
     IN p_staff_id INT,
-    IN p_expected_quantity INT,
-    IN p_note VARCHAR(200)
+    IN p_expected_quantity INT
 )
 BEGIN
     DECLARE v_product_id INT;
     DECLARE v_received_date DATE;
     DECLARE v_expiry_date DATE;
     DECLARE v_current_qty INT;
-    DECLARE v_unit_cost DECIMAL(10,2);
-    DECLARE v_order_id INT;
     DECLARE v_delta INT;
     DECLARE v_next_index INT DEFAULT 0;
     DECLARE v_last_item VARCHAR(60);
@@ -174,7 +171,6 @@ BEGIN
     DECLARE v_target_status VARCHAR(20);
     DECLARE v_item_id VARCHAR(60);
     DECLARE v_remaining INT DEFAULT 0;
-    DECLARE v_return_qty INT DEFAULT 0;
     DECLARE done INT DEFAULT 0;
 
     DECLARE cur_items CURSOR FOR
@@ -191,8 +187,6 @@ BEGIN
         ROLLBACK;
         SET @stock_adjust_reason = NULL;
         SET @stock_adjust_staff_id = NULL;
-        SET @stock_adjust_note = NULL;
-        SET @skip_stockitem_certificate = NULL;
         RESIGNAL;
     END;
 
@@ -209,13 +203,9 @@ BEGIN
     START TRANSACTION;
     SET @stock_adjust_reason = p_reason;
     SET @stock_adjust_staff_id = p_staff_id;
-    SET @stock_adjust_note = NULLIF(TRIM(p_note), '');
-    IF p_reason IN ('return', 'adjustment') THEN
-        SET @skip_stockitem_certificate = 1;
-    END IF;
 
-    SELECT product_ID, received_date, date_expired, quantity_on_hand, unit_cost, order_ID
-    INTO v_product_id, v_received_date, v_expiry_date, v_current_qty, v_unit_cost, v_order_id
+    SELECT product_ID, received_date, date_expired, quantity_on_hand
+    INTO v_product_id, v_received_date, v_expiry_date, v_current_qty
     FROM Inventory
     WHERE batch_ID = p_batch_id
       AND branch_ID = p_branch_id
@@ -225,10 +215,6 @@ BEGIN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Batch not found';
     END IF;
 
-    IF p_reason = 'return' AND (@stock_adjust_note IS NULL OR @stock_adjust_note = '') THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Return reason required';
-    END IF;
-
     IF p_expected_quantity IS NOT NULL AND p_expected_quantity <> v_current_qty THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Quantity mismatch';
     END IF;
@@ -236,10 +222,6 @@ BEGIN
     SET v_delta = p_new_quantity - v_current_qty;
     IF v_delta = 0 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Quantity unchanged';
-    END IF;
-
-    IF p_reason = 'return' AND p_new_quantity > v_current_qty THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Return must reduce stock';
     END IF;
 
     SET v_target_status = CASE p_reason
@@ -336,28 +318,11 @@ BEGIN
                 v_target_status
             );
             SET v_remaining = v_remaining - 1;
-            INSERT IGNORE INTO tmp_adjust_items (item_ID) VALUES (v_item_id);
         END WHILE;
 
         UPDATE StockItem
         SET status = v_target_status
         WHERE item_ID IN (SELECT item_ID FROM tmp_adjust_items);
-
-        IF p_reason IN ('return', 'adjustment') THEN
-            INSERT INTO StockItemCertificate (
-                item_ID,
-                transaction_type,
-                date,
-                transaction_ID,
-                note
-            )
-            SELECT item_ID,
-                   p_reason,
-                   NOW(),
-                   p_staff_id,
-                   @stock_adjust_note
-            FROM tmp_adjust_items;
-        END IF;
 
         DROP TEMPORARY TABLE IF EXISTS tmp_adjust_items;
     END IF;
@@ -367,20 +332,9 @@ BEGIN
     WHERE batch_ID = p_batch_id
       AND branch_ID = p_branch_id;
 
-    IF p_reason = 'return' THEN
-        SET v_return_qty = v_current_qty - p_new_quantity;
-        IF v_return_qty > 0 AND v_order_id IS NOT NULL THEN
-            UPDATE PurchaseOrder
-            SET total_amount = GREATEST(total_amount - (v_return_qty * v_unit_cost), 0)
-            WHERE purchase_order_ID = v_order_id;
-        END IF;
-    END IF;
-
     COMMIT;
     SET @stock_adjust_reason = NULL;
     SET @stock_adjust_staff_id = NULL;
-    SET @stock_adjust_note = NULL;
-    SET @skip_stockitem_certificate = NULL;
 END$$
 
 

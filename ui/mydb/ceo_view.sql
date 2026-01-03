@@ -195,6 +195,8 @@ SELECT
 FROM SupplierProduct sp
 JOIN products p ON sp.product_ID = p.product_ID
 JOIN Supplier s ON sp.supplier_ID = s.supplier_ID;
+
+
 -- 10. Expiry Alerts View
 CREATE OR REPLACE VIEW v_expiry_alerts AS
 SELECT 

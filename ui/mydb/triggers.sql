@@ -25,22 +25,18 @@ AFTER INSERT ON StockItem
 FOR EACH ROW
 BEGIN
     DECLARE v_unit_cost DECIMAL(10,2);
-    IF @skip_stockitem_certificate IS NOT NULL AND @skip_stockitem_certificate = 1 THEN
-        -- skip logging; handled by stored procedure
-    ELSEIF @stock_adjust_reason IS NOT NULL AND @stock_adjust_reason <> '' THEN
+    IF @stock_adjust_reason IS NOT NULL AND @stock_adjust_reason <> '' THEN
         INSERT INTO StockItemCertificate (
             item_ID,
             transaction_type,
             date,
-            transaction_ID,
-            note
+            transaction_ID
         )
         VALUES (
             NEW.item_ID,
             @stock_adjust_reason,
             NOW(),
-            @stock_adjust_staff_id,
-            @stock_adjust_note
+            @stock_adjust_staff_id
         );
     ELSEIF NEW.purchase_order_ID IS NOT NULL
        AND NEW.customer_order_ID IS NULL
@@ -89,24 +85,20 @@ CREATE TRIGGER trg_stockitem_after_update_adjustment
 AFTER UPDATE ON StockItem
 FOR EACH ROW
 BEGIN
-    IF @skip_stockitem_certificate IS NOT NULL AND @skip_stockitem_certificate = 1 THEN
-        -- skip logging; handled by stored procedure
-    ELSEIF @stock_adjust_reason IS NOT NULL
+    IF @stock_adjust_reason IS NOT NULL
        AND @stock_adjust_reason <> ''
        AND NEW.status <> OLD.status THEN
         INSERT INTO StockItemCertificate (
             item_ID,
             transaction_type,
             date,
-            transaction_ID,
-            note
+            transaction_ID
         )
         VALUES (
             NEW.item_ID,
             @stock_adjust_reason,
             NOW(),
-            @stock_adjust_staff_id,
-            @stock_adjust_note
+            @stock_adjust_staff_id
         );
     END IF;
 END //
