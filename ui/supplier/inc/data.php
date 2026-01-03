@@ -2,7 +2,7 @@
 function getDBConnection() {
     $servername = "localhost";
     $username = "root";
-    $password = "8049023544Aaa?"; // 统一为当前root密码
+    $password = "NewRootPwd123!"; // 统一为当前root密码
     $dbname = "mydb";
     
     $conn = new mysqli($servername, $username, $password, $dbname);
@@ -126,6 +126,41 @@ function getPurchaseOrderDetail($orderId) {
         $order['items'][] = $row;
     }
     $stmt->close();
+
+    // 获取退货信息
+    $stmt = $conn->prepare("
+        SELECT
+            p.product_name,
+            p.sku,
+            COUNT(*) AS return_qty,
+            COALESCE(pi.unit_cost, inv.unit_cost, sp.price, 0) AS unit_cost
+        FROM StockItemCertificate c
+        JOIN StockItem si ON c.item_ID = si.item_ID
+        JOIN products p ON si.product_ID = p.product_ID
+        LEFT JOIN PurchaseItem pi ON pi.item_ID = si.item_ID
+        LEFT JOIN Inventory inv ON inv.batch_ID = si.batch_ID AND inv.branch_ID = si.branch_ID
+        LEFT JOIN SupplierProduct sp ON sp.product_ID = si.product_ID AND sp.supplier_ID = ?
+        WHERE c.transaction_type = 'return'
+          AND si.purchase_order_ID = ?
+        GROUP BY p.product_ID, p.product_name, p.sku, unit_cost
+        ORDER BY p.product_name ASC
+    ");
+    $stmt->bind_param("ii", $supplierId, $orderId);
+    $stmt->execute();
+    $order['returns'] = [];
+    $refundTotal = 0.0;
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $qty = (int)($row['return_qty'] ?? 0);
+        $unitCost = (float)($row['unit_cost'] ?? 0);
+        $row['refund_amount'] = $qty * $unitCost;
+        $refundTotal += $row['refund_amount'];
+        $order['returns'][] = $row;
+    }
+    $stmt->close();
+    $order['refund_total'] = $refundTotal;
+    $orderTotal = (float)($order['total_amount'] ?? 0);
+    $order['final_amount'] = max($orderTotal, 0);
     
     return $order;
 }
@@ -139,7 +174,7 @@ function getSupplierProducts($supplierId) {
     if (!$supplierId) {
         return $products;
     }
-    $stmt = $conn->prepare("SELECT product_ID, product_name, sku, description, price FROM v_supplier_products WHERE supplier_ID = ? ORDER BY product_name");
+    $stmt = $conn->prepare("SELECT product_ID, product_name, sku, description, supplier_price AS price FROM v_supplier_products WHERE supplier_ID = ? ORDER BY product_name");
     if (!$stmt) {
         return $products;
     }

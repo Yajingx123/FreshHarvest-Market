@@ -4,23 +4,13 @@ require_once __DIR__ . '/inc/data.php';
 
 $servername = "localhost";
 $username = "root";
-$password = "8049023544Aaa?";
+$password = "NewRootPwd123!";
 $dbname = "mydb";
 
 if (!isset($_SESSION['supplier_logged_in']) || $_SESSION['supplier_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
 }
-
-// 处理订单状态更新请求
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_status') {
-    $orderId = $_POST['order_id'];
-    $status = $_POST['status'];
-    
-    $result = updatePurchaseOrderStatus($orderId, $status);
-    $message = $result ? "订单状态已更新" : "更新失败，请重试";
-}
-
 
 // 获取筛选参数
 $statusFilter = isset($_GET['status']) ? trim($_GET['status']) : '';
@@ -37,9 +27,6 @@ $orders = getSupplierPurchaseOrders(
 
 // 获取分店列表用于筛选
 $branches = getBranches();
-
-// 获取订单状态汇总
-$statusSummary = getOrderStatusSummary();
 
 // 订单状态选项
 $statusOptions = [
@@ -431,18 +418,6 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                 </div>
             <?php endif; ?>
             
-            <div class="status-summary" style="margin-bottom: 20px;">
-                <h3 style="margin-bottom: 10px;">订单状态汇总</h3>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <?php foreach ($statusOptions as $statusKey => $statusLabel): ?>
-                        <?php $count = $statusSummary[$statusKey] ?? 0; ?>
-                        <span class="status-tag status-<?php echo $statusKey; ?>" style="padding: 6px 12px;">
-                            <?php echo $statusLabel . ": " . $count; ?>
-                        </span>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            
             <div class="filter-bar">
                 <form method="get" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                     <input type="text" class="filter-input" name="search" placeholder="搜索订单编号/门店名称" value="<?php echo htmlspecialchars($searchTerm); ?>">
@@ -505,30 +480,6 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                                         <button class="action-btn detail-btn" onclick="viewOrderDetail(<?php echo $order['purchase_order_ID']; ?>)">
                                             查看详情
                                         </button>
-                                        
-                                        <?php if ($order['status'] == 'pending' || $order['status'] == 'ordered'): ?>
-                                            <form class="update-form" method="post" onsubmit="return confirm('确认要更新订单状态吗？')">
-                                                <input type="hidden" name="action" value="update_status">
-                                                <input type="hidden" name="order_id" value="<?php echo $order['purchase_order_ID']; ?>">
-                                                <select name="status" style="padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd;">
-                                                    <?php foreach ($statusOptions as $value => $label): ?>
-                                                        <?php if ($value != $order['status'] && $value != 'cancelled'): ?>
-                                                            <option value="<?php echo $value; ?>"><?php echo $label; ?></option>
-                                                        <?php endif; ?>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                                <button type="submit" class="action-btn" style="background-color: #43a047; color: white;">更新状态</button>
-                                            </form>
-                                        <?php endif; ?>
-                                        
-                                        <?php if ($order['status'] == 'pending'): ?>
-                                            <form class="update-form" method="post" onsubmit="return confirm('确认要取消此订单吗？')">
-                                                <input type="hidden" name="action" value="update_status">
-                                                <input type="hidden" name="order_id" value="<?php echo $order['purchase_order_ID']; ?>">
-                                                <input type="hidden" name="status" value="cancelled">
-                                                <button type="submit" class="action-btn" style="background-color: #e53935; color: white;">取消订单</button>
-                                            </form>
-                                        <?php endif; ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -626,6 +577,37 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                 
                 // 计算总金额
                 const subtotal = order.items ? order.items.reduce((sum, item) => sum + parseFloat(item.total_cost), 0) : 0;
+                const refundTotal = Number(order.refund_total) || 0;
+                const orderTotal = parseFloat(order.total_amount);
+                const baseTotal = Number.isFinite(orderTotal) ? orderTotal + refundTotal : subtotal + refundTotal;
+                const finalAmount = Number(order.final_amount) || Math.max((Number.isFinite(orderTotal) ? orderTotal : subtotal) - refundTotal, 0);
+
+                let returnsHtml = '';
+                if (order.returns && order.returns.length > 0) {
+                    returnsHtml = `
+                        <h3 style="margin-top:18px;">退货明细</h3>
+                        <table class="product-list">
+                            <thead>
+                                <tr>
+                                    <th>商品名称</th>
+                                    <th>SKU</th>
+                                    <th>退货数量</th>
+                                    <th>退款金额</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${order.returns.map(item => `
+                                    <tr>
+                                        <td>${item.product_name}</td>
+                                        <td>${item.sku}</td>
+                                        <td>${item.return_qty}</td>
+                                        <td>¥${(Number(item.refund_amount) || 0).toFixed(2)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
                 
                 const modalContent = `
                     <div class="order-detail-header">
@@ -657,15 +639,21 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                     
                     <h3>商品清单</h3>
                     ${itemsHtml}
+
+                    ${returnsHtml}
                     
                     <div class="order-summary">
                         <div class="summary-item">
                             <span class="summary-label">商品总价：</span>
-                            <span class="summary-value">${order.total_amount ? '¥' + parseFloat(order.total_amount).toFixed(2) : '¥' + subtotal.toFixed(2)}</span>
+                            <span class="summary-value">¥${baseTotal.toFixed(2)}</span>
                         </div>
                         <div class="summary-item">
-                            <span class="summary-label">订单总额：</span>
-                            <span class="summary-value total-amount">${order.total_amount ? '¥' + parseFloat(order.total_amount).toFixed(2) : '¥' + subtotal.toFixed(2)}</span>
+                            <span class="summary-label">退款金额：</span>
+                            <span class="summary-value">${refundTotal > 0 ? '¥' + refundTotal.toFixed(2) : '¥0.00'}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">订单最终金额：</span>
+                            <span class="summary-value total-amount">¥${finalAmount.toFixed(2)}</span>
                         </div>
                     </div>
                 `;
