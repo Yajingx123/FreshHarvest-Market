@@ -43,12 +43,31 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             }
         }
 
-        window.addEventListener('pagehide', function() {
+        function sendLogoutBeacon() {
+            if (window.__fhInternalNav) {
+                return;
+            }
             clearActiveKey();
             if (navigator.sendBeacon) {
                 navigator.sendBeacon('../login/logout.php?beacon=1');
+            } else {
+                fetch('../login/logout.php?beacon=1', { method: 'GET', keepalive: true });
             }
-        });
+        }
+
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('a');
+            if (link && link.href && link.origin === window.location.origin) {
+                window.__fhInternalNav = true;
+            }
+        }, true);
+
+        document.addEventListener('submit', function() {
+            window.__fhInternalNav = true;
+        }, true);
+
+        window.addEventListener('beforeunload', sendLogoutBeacon);
+        window.addEventListener('pagehide', sendLogoutBeacon);
     })();
 </script>
 <header class="header">
