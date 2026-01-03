@@ -10,7 +10,7 @@ if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== tru
 
 $servername = "localhost";
 $username = "root";
-$password = "8049023544Aaa?";
+$password = "NewRootPwd123!";
 $dbname = "mydb";
 
 $error_message = '';
@@ -240,10 +240,17 @@ if ($branchId === null) {
                 $newQuantity = isset($_POST['new_quantity']) ? (int)$_POST['new_quantity'] : -1;
                 $originalQuantity = isset($_POST['original_quantity']) ? (int)$_POST['original_quantity'] : null;
                 $reason = $_POST['adjust_reason'] ?? '';
+                $note = trim($_POST['adjust_note'] ?? '');
                 $allowedReasons = ['return', 'transfer', 'adjustment'];
 
                 if ($batchId === '' || $newQuantity < 0 || !in_array($reason, $allowedReasons, true)) {
                     $error_message = '请填写正确的调整信息。';
+                } elseif ($reason === 'return') {
+                    if ($originalQuantity !== null && $newQuantity > $originalQuantity) {
+                        $error_message = '退回类型只能减少库存数量。';
+                    } elseif ($note === '') {
+                        $error_message = '请填写退回原因。';
+                    }
                 } else {
                     try {
                         $staffId = $_SESSION['staff_id'] ?? null;
@@ -252,11 +259,11 @@ if ($branchId === null) {
                         }
 
                         $expectedQuantity = $originalQuantity;
-                        $stmtAdjust = $conn->prepare('CALL staff_adjust_inventory(?, ?, ?, ?, ?, ?)');
+                        $stmtAdjust = $conn->prepare('CALL staff_adjust_inventory(?, ?, ?, ?, ?, ?, ?)');
                         if (!$stmtAdjust) {
                             throw new Exception('准备库存调整存储过程失败：' . $conn->error);
                         }
-                        $stmtAdjust->bind_param('siisii', $batchId, $branchId, $newQuantity, $reason, $staffId, $expectedQuantity);
+                        $stmtAdjust->bind_param('siisiis', $batchId, $branchId, $newQuantity, $reason, $staffId, $expectedQuantity, $note);
                         if (!$stmtAdjust->execute()) {
                             throw new Exception('执行库存调整存储过程失败：' . $stmtAdjust->error);
                         }
@@ -1017,7 +1024,10 @@ if ($error_message !== '') {
                             <div><b>批次：</b>${batch.batch_id || '--'}</div>
                             <div><b>库存：</b>${batch.quantity_on_hand}，<b>入库：</b>${receivedDate}，<b>到期：</b>${expireDate}</div>
                         </div>
-                        <button class="btn btn-primary" style="padding:6px 12px;" onclick="openAdjustForm(${safeBatch})">调整</button>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn btn-danger" style="padding:6px 12px;" onclick="window.location.href='inventory_return.php?batch_id=${encodeURIComponent(batch.batch_id)}'">退回</button>
+                            <button class="btn btn-primary" style="padding:6px 12px;" onclick="window.location.href='inventory_adjustment.php?batch_id=${encodeURIComponent(batch.batch_id)}'">盘点</button>
+                        </div>
                     </div>
                 `;
             });
@@ -1025,34 +1035,6 @@ if ($error_message !== '') {
         }
         html += `<div class='actions' style='margin-top:18px;text-align:right;'><button class='btn btn-warning' onclick='closeSupplierPopup()'>关闭</button></div>`;
         popup.innerHTML = html;
-        popup.style.display = 'block';
-        document.getElementById('popupMask').style.display = 'block';
-    }
-
-    function openAdjustForm(item) {
-        const popup = document.getElementById('supplierPopup');
-        popup.innerHTML = `
-            <h3>库存调整</h3>
-            <form id='adjustForm' method='post'>
-                <input type='hidden' name='adjust_action' value='1'>
-                <input type='hidden' name='batch_id' value='${item.batch_id}'>
-                <input type='hidden' name='original_quantity' value='${item.quantity_on_hand}'>
-                <div class='info'><b>商品：</b>${item.product_name} (${item.product_code})</div>
-                <div class='info'><b>当前库存：</b>${item.quantity_on_hand}</div>
-                <div class='info'><b>调整后库存：</b><input type='number' name='new_quantity' min='0' value='${item.quantity_on_hand}' required style='width:100px;margin-left:8px;'></div>
-                <div class='info'><b>调整类型：</b>
-                    <select name='adjust_reason' required style='margin-left:8px;'>
-                        <option value='return'>return（退回）</option>
-                        <option value='transfer'>transfer（调拨）</option>
-                        <option value='adjustment'>adjustment（盘点）</option>
-                    </select>
-                </div>
-                <div class='actions' style='margin-top:18px;'>
-                    <button class='btn btn-success' type='submit'>提交</button>
-                    <button class='btn btn-warning' type='button' style='margin-left:10px;' onclick='closeSupplierPopup()'>取消</button>
-                </div>
-            </form>
-        `;
         popup.style.display = 'block';
         document.getElementById('popupMask').style.display = 'block';
     }

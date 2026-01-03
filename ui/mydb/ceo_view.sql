@@ -86,24 +86,66 @@ GROUP BY p.product_ID, p.product_name, p.sku, p.description,
 -- 6. Transactions View
 CREATE OR REPLACE VIEW v_transactions AS
 SELECT 
-    sc.certificate_ID AS id,
-    sc.date AS time,
-    si.product_ID AS productId,
-    si.batch_ID AS batchId,
-    p.product_name AS productName,
-    sc.transaction_type AS type,
-    sc.note,
+    MAX(t.id) AS id,
+    MAX(t.time) AS time,
+    t.productId,
+    t.batchId,
+    t.productName,
+    t.type,
+    GROUP_CONCAT(DISTINCT t.note SEPARATOR '; ') AS note,
     CASE 
-        WHEN sc.transaction_type = 'purchase' THEN 'in'
-        WHEN sc.transaction_type = 'sale' THEN 'out'
-        ELSE sc.transaction_type
+        WHEN t.type = 'purchase' THEN 'in'
+        ELSE 'out'
     END AS direction,
-    1 AS qty,
-    p.unit
-FROM StockItemCertificate sc
-LEFT JOIN StockItem si ON sc.item_ID = si.item_ID
-LEFT JOIN products p ON si.product_ID = p.product_ID
-ORDER BY sc.date DESC
+    COUNT(*) AS qty,
+    t.unit,
+    t.source_name,
+    t.destination_name
+FROM (
+    SELECT
+        sc.certificate_ID AS id,
+        sc.date AS time,
+        si.product_ID AS productId,
+        si.batch_ID AS batchId,
+        p.product_name AS productName,
+        sc.transaction_type AS type,
+        sc.note,
+        p.unit,
+        CASE
+            WHEN sc.transaction_type = 'sale' THEN COALESCE(b_sale.branch_name, b_item.branch_name, '')
+            WHEN sc.transaction_type = 'purchase' THEN COALESCE(s.company_name, '')
+            WHEN sc.transaction_type = 'return' THEN COALESCE(b_item.branch_name, '')
+            WHEN sc.transaction_type = 'adjustment' THEN COALESCE(b_item.branch_name, '')
+            ELSE COALESCE(b_item.branch_name, '')
+        END AS source_name,
+        CASE
+            WHEN sc.transaction_type = 'sale' THEN COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.user_name, '')
+            WHEN sc.transaction_type = 'purchase' THEN COALESCE(b_purchase.branch_name, '')
+            WHEN sc.transaction_type = 'return' THEN COALESCE(s.company_name, '')
+            WHEN sc.transaction_type = 'adjustment' THEN ''
+            ELSE ''
+        END AS destination_name
+    FROM StockItemCertificate sc
+    LEFT JOIN StockItem si ON sc.item_ID = si.item_ID
+    LEFT JOIN products p ON si.product_ID = p.product_ID
+    LEFT JOIN PurchaseOrder po ON po.purchase_order_ID = si.purchase_order_ID
+    LEFT JOIN Supplier s ON s.supplier_ID = po.supplier_ID
+    LEFT JOIN Branch b_purchase ON b_purchase.branch_ID = po.branch_ID
+    LEFT JOIN Branch b_item ON b_item.branch_ID = si.branch_ID
+    LEFT JOIN CustomerOrder co ON co.order_ID = si.customer_order_ID
+    LEFT JOIN Branch b_sale ON b_sale.branch_ID = co.branch_ID
+    LEFT JOIN Customer c ON c.customer_ID = co.customer_ID
+    LEFT JOIN `User` u ON u.user_name = c.user_name
+) AS t
+GROUP BY
+    t.productId,
+    t.batchId,
+    t.productName,
+    t.type,
+    t.unit,
+    t.source_name,
+    t.destination_name
+ORDER BY MAX(t.time) DESC
 LIMIT 100;
 
 -- 7. Employees View
@@ -153,38 +195,7 @@ SELECT
 FROM SupplierProduct sp
 JOIN products p ON sp.product_ID = p.product_ID
 JOIN Supplier s ON sp.supplier_ID = s.supplier_ID;
-
--- 10. Low Stock Alerts View
-CREATE OR REPLACE VIEW v_low_stock_alerts AS
-SELECT 
-    p.product_name,
-    p.sku,
-    i.batch_ID,
-    i.quantity_on_hand AS current_stock,
-    (SELECT AVG(pi.unit_cost) FROM PurchaseItem pi WHERE pi.product_ID = p.product_ID) AS avg_cost,
-    (SELECT GROUP_CONCAT(DISTINCT s.company_name) 
-     FROM PurchaseOrder po 
-     JOIN Supplier s ON po.supplier_ID = s.supplier_ID
-     JOIN PurchaseItem pi ON po.purchase_order_ID = pi.purchase_order_ID
-     WHERE pi.product_ID = p.product_ID) AS suppliers
-FROM Inventory i
-JOIN products p ON i.product_ID = p.product_ID
-WHERE i.quantity_on_hand <= 10
-ORDER BY i.quantity_on_hand ASC;
-
--- 11. Alert Summary View
-CREATE OR REPLACE VIEW v_alert_summary AS
-SELECT 
-    'expiry' AS alert_type,
-    COUNT(*) AS count
-FROM v_expiry_alerts
-UNION ALL
-SELECT 
-    'low_stock' AS alert_type,
-    COUNT(*) AS count
-FROM v_low_stock_alerts;
-
--- 12. Expiry Alerts View
+-- 10. Expiry Alerts View
 CREATE OR REPLACE VIEW v_expiry_alerts AS
 SELECT 
     p.product_name,
@@ -202,6 +213,38 @@ JOIN products p ON i.product_ID = p.product_ID
 WHERE i.date_expired IS NOT NULL 
   AND i.date_expired >= CURDATE()
 ORDER BY i.date_expired ASC;
+
+-- 11. Low Stock Alerts View
+CREATE OR REPLACE VIEW v_low_stock_alerts AS
+SELECT 
+    p.product_name,
+    p.sku,
+    i.batch_ID,
+    i.quantity_on_hand AS current_stock,
+    (SELECT AVG(pi.unit_cost) FROM PurchaseItem pi WHERE pi.product_ID = p.product_ID) AS avg_cost,
+    (SELECT GROUP_CONCAT(DISTINCT s.company_name) 
+     FROM PurchaseOrder po 
+     JOIN Supplier s ON po.supplier_ID = s.supplier_ID
+     JOIN PurchaseItem pi ON po.purchase_order_ID = pi.purchase_order_ID
+     WHERE pi.product_ID = p.product_ID) AS suppliers
+FROM Inventory i
+JOIN products p ON i.product_ID = p.product_ID
+WHERE i.quantity_on_hand <= 10
+ORDER BY i.quantity_on_hand ASC;
+
+-- 12. Alert Summary View
+CREATE OR REPLACE VIEW v_alert_summary AS
+SELECT 
+    'expiry' AS alert_type,
+    COUNT(*) AS count
+FROM v_expiry_alerts
+UNION ALL
+SELECT 
+    'low_stock' AS alert_type,
+    COUNT(*) AS count
+FROM v_low_stock_alerts;
+
+
 
 -- 13. Customer Profile View
 CREATE OR REPLACE VIEW v_customer_profile AS

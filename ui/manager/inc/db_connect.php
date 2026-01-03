@@ -2,7 +2,7 @@
 // db.php
 $servername = "localhost";
 $username = "root";
-$password = "8049023544Aaa?";
+$password = "NewRootPwd123!";
 $database = "mydb";
 
 // 创建连接

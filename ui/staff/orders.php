@@ -8,7 +8,7 @@ if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== tru
 
 $servername = "localhost";
 $username = "root";
-$password = "8049023544Aaa?";
+$password = "NewRootPwd123!";
 $dbname = "mydb";
 
 $ordersData = [];
