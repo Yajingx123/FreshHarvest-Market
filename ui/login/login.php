@@ -1,23 +1,6 @@
 <?php
 session_start();
-$servername = "localhost";
-$username = "root";
-$password = "NewRootPwd123!"; // 你的密码
-$dbname = "mydb";
-// 数据库配置
-function getDBConnection() {
-    $servername = "localhost";
-    $username = "root";
-    $password = "NewRootPwd123!"; // 你的密码
-    $dbname = "mydb";
-    
-    $conn = new mysqli($servername, $username, $password, $dbname);
-    if ($conn->connect_error) {
-        die("数据库连接失败: " . $conn->connect_error);
-    }
-    $conn->set_charset("utf8mb4");
-    return $conn;
-}
+require_once __DIR__ . '/../config/db_connect.php';
 
 
 function updateExpiredInventory() {
@@ -104,6 +87,14 @@ function updateExpiredInventory() {
     }
 }
 
+function rejectIfLoggedInElsewhere($dbSessionId) {
+    if (!empty($dbSessionId) && $dbSessionId !== session_id()) {
+        $_SESSION['login_error'] = '该账号已在其他设备登录，请先退出后再登录。';
+        header('Location: login.php');
+        exit();
+    }
+}
+
 // 处理顾客注册
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     $input_username = trim($_POST['username']);
@@ -116,10 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     $input_address = isset($_POST['address']) ? trim($_POST['address']) : '';
     
     try {
-        $conn = new mysqli($servername, $username, $password, $dbname);
-        if ($conn->connect_error) {
-            throw new Exception("数据库连接失败: " . $conn->connect_error);
-        }
+        $conn = getDBConnection();
         
         // 检查用户名是否已存在
         $checkUser = "SELECT user_ID FROM User WHERE user_name = ?";
@@ -208,10 +196,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     
     try {
         // 使用PDO连接
-        $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
+        $conn = new PDO(
+            "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
+            DB_USER,
+            DB_PASS
+        );
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         
-        $sql = "SELECT user_ID, user_name, password_hash FROM User WHERE user_name = ? AND user_type = 'CEO'";
+        $sql = "SELECT user_ID, user_name, password_hash, login_session_id FROM User WHERE user_name = ? AND user_type = 'CEO'";
         $stmt = $conn->prepare($sql);
         $stmt->execute([$input_username]);
         
@@ -220,10 +212,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $hashed_password = md5($input_password);
             
             if ($hashed_password === $user['password_hash']) {
+                rejectIfLoggedInElsewhere($user['login_session_id'] ?? null);
+                session_regenerate_id(true);
+                $new_session_id = session_id();
+                $updateStmt = $conn->prepare("UPDATE User SET login_session_id = ?, last_login = NOW() WHERE user_ID = ?");
+                $updateStmt->execute([$new_session_id, $user['user_ID']]);
+
                 $_SESSION['manager_logged_in'] = true;
                 $_SESSION['manager_id'] = $user['user_ID'];
                 $_SESSION['manager_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'CEO';
+                $_SESSION['user_id'] = $user['user_ID'];
 
                 updateExpiredInventory();
                 
@@ -249,10 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     
     try {
         // 直接连接数据库（不要用函数）
-        $conn = new mysqli($servername, $username, $password, $dbname);
-        if ($conn->connect_error) {
-            die("数据库连接失败: " . $conn->connect_error);
-        }
+        $conn = getDBConnection();
         
         // 查询顾客账户
         $sql = "SELECT u.*, c.customer_ID 
@@ -270,10 +266,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $hashed_password = md5($input_password);
             
             if ($hashed_password === $user['password_hash']) {
+                rejectIfLoggedInElsewhere($user['login_session_id'] ?? null);
+                session_regenerate_id(true);
+                $new_session_id = session_id();
+                $updateSql = "UPDATE User SET login_session_id = ?, last_login = NOW() WHERE user_ID = ?";
+                $updateStmt = $conn->prepare($updateSql);
+                $updateStmt->bind_param("si", $new_session_id, $user['user_ID']);
+                $updateStmt->execute();
+                $updateStmt->close();
+
                 $_SESSION['customer_logged_in'] = true;
                 $_SESSION['customer_id'] = $user['customer_ID'];
                 $_SESSION['customer_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'customer';
+                $_SESSION['user_id'] = $user['user_ID'];
 
                 updateExpiredInventory();
                 
@@ -299,19 +305,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     $input_password = trim($_POST['password']);
 
     try {
-        $conn = new mysqli($servername, $username, $password, $dbname);
-        if ($conn->connect_error) {
-            throw new Exception("数据库连接失败: " . $conn->connect_error);
-        }
+        $conn = getDBConnection();
 
-        // 查询员工账户
-        $sql = "SELECT u.user_ID, u.user_name, u.password_hash, s.staff_ID, s.branch_ID 
+        // 查询员工账户（支持用户名/邮箱/手机号/员工编号）
+        $sql = "SELECT u.user_ID, u.user_name, u.password_hash, u.login_session_id, s.staff_ID, s.branch_ID 
                 FROM User u 
                 JOIN Staff s ON u.user_name = s.user_name 
-                WHERE u.user_name = ? AND u.user_type = 'staff'";
+                WHERE u.user_type = 'staff'
+                  AND (u.user_name = ? OR u.user_email = ? OR u.user_telephone = ? OR s.staff_ID = ?)";
 
+        $staff_id_input = ctype_digit($input_username) ? (int)$input_username : 0;
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("s", $input_username);
+        $stmt->bind_param("sssi", $input_username, $input_username, $input_username, $staff_id_input);
         $stmt->execute();
         $result = $stmt->get_result();
 
@@ -320,11 +325,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $hashed_password = md5($input_password);
             
             if ($hashed_password === $user['password_hash']) {
+                rejectIfLoggedInElsewhere($user['login_session_id'] ?? null);
+                session_regenerate_id(true);
+                $new_session_id = session_id();
+                $updateSql = "UPDATE User SET login_session_id = ?, last_login = NOW() WHERE user_ID = ?";
+                $updateStmt = $conn->prepare($updateSql);
+                $updateStmt->bind_param("si", $new_session_id, $user['user_ID']);
+                $updateStmt->execute();
+                $updateStmt->close();
+
                 $_SESSION['staff_logged_in'] = true;
                 $_SESSION['staff_id'] = $user['staff_ID'];
                 $_SESSION['staff_branch_id'] = $user['branch_ID'];
                 $_SESSION['staff_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'staff';
+                $_SESSION['user_id'] = $user['user_ID'];
 
                 updateExpiredInventory();
 
@@ -355,13 +370,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     $input_password = trim($_POST['password']);
     
     try {
-        $conn = new mysqli($servername, $username, $password, $dbname);
-        if ($conn->connect_error) {
-            throw new Exception("数据库连接失败: " . $conn->connect_error);
-        }
+        $conn = getDBConnection();
         
         // 修正查询语句，查询供应商类型用户
-        $sql = "SELECT u.user_ID, u.user_name, u.password_hash, s.supplier_ID 
+        $sql = "SELECT u.user_ID, u.user_name, u.password_hash, u.login_session_id, s.supplier_ID 
                 FROM User u 
                 JOIN Supplier s ON u.user_name = s.user_name 
                 WHERE u.user_name = ? AND u.user_type = 'supplier'";
@@ -376,10 +388,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $hashed_password = md5($input_password);
             
             if ($hashed_password === $user['password_hash']) {
+                rejectIfLoggedInElsewhere($user['login_session_id'] ?? null);
+                session_regenerate_id(true);
+                $new_session_id = session_id();
+                $updateSql = "UPDATE User SET login_session_id = ?, last_login = NOW() WHERE user_ID = ?";
+                $updateStmt = $conn->prepare($updateSql);
+                $updateStmt->bind_param("si", $new_session_id, $user['user_ID']);
+                $updateStmt->execute();
+                $updateStmt->close();
+
                 $_SESSION['supplier_logged_in'] = true;
                 $_SESSION['supplier_id'] = $user['supplier_ID'];
                 $_SESSION['supplier_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'supplier';
+                $_SESSION['user_id'] = $user['user_ID'];
 
                 updateExpiredInventory();
                 

@@ -104,6 +104,52 @@
            100% { opacity: 1; }
         }
     </style>
+    <script>
+        (function() {
+            const userKey = <?php echo json_encode('manager:' . ($_SESSION['manager_username'] ?? '')); ?>;
+            if (!userKey) {
+                return;
+            }
+            if (!window.name) {
+                window.name = 'fhwin_' + Math.random().toString(36).slice(2) + Date.now();
+            }
+            const token = window.name;
+            const activeKey = 'fh_active_window_' + userKey;
+            const now = Date.now();
+            let state = null;
+            try {
+                state = JSON.parse(localStorage.getItem(activeKey) || 'null');
+            } catch (e) {
+                state = null;
+            }
+            if (state && state.token && state.token !== token && now - state.last < 10000) {
+                alert('该账号已在其他窗口登录，请关闭当前窗口或使用原窗口。');
+                window.location.href = '../../login/login.php';
+                return;
+            }
+            localStorage.setItem(activeKey, JSON.stringify({ token, last: now }));
+            setInterval(function() {
+                localStorage.setItem(activeKey, JSON.stringify({ token, last: Date.now() }));
+            }, 5000);
+
+            function clearActiveKey() {
+                try {
+                    const current = JSON.parse(localStorage.getItem(activeKey) || 'null');
+                    if (current && current.token === token) {
+                        localStorage.removeItem(activeKey);
+                    }
+                } catch (e) {
+                }
+            }
+
+            window.addEventListener('pagehide', function() {
+                clearActiveKey();
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon('../../login/logout.php?beacon=1');
+                }
+            });
+        })();
+    </script>
     <!-- 引入Chart.js（数据概览折线图用） -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>

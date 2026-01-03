@@ -1,15 +1,11 @@
 <?php
 header("Content-Type: text/html; charset=UTF-8");
 session_start();
+require_once __DIR__ . '/../config/db_connect.php';
 if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
 }
-
-$servername = "localhost";
-$username = "root";
-$password = "NewRootPwd123!";
-$dbname = "mydb";
 
 $ordersData = [];
 $error_message = '';
@@ -36,14 +32,10 @@ function buildProductBadge($productId, $productName)
     return 'data:image/svg+xml;charset=UTF-8,' . rawurlencode($svg);
 }
 
-$conn = new mysqli($servername, $username, $password, $dbname);
-if ($conn->connect_error) {
-    $error_message = "数据库连接失败：" . $conn->connect_error;
-} elseif ($branchId === null) {
+$conn = getDBConnection();
+if ($branchId === null) {
     $error_message = "无法确定当前门店，请重新登录。";
 } else {
-    $conn->set_charset("utf8mb4");
-
     $sql_orders = "SELECT order_ID, order_date, total_amount, status, shipping_address,
                           customer_ID, customer_phone, customer_email, loyalty_level,
                           first_name, last_name

@@ -152,42 +152,50 @@ WHERE co.status = 'Completed'
 GROUP BY p.product_ID, p.product_name, co.customer_ID
 ORDER BY total_spent DESC, purchase_count DESC;
 
--- 6. Wishlist Products View
 CREATE OR REPLACE VIEW v_wishlist_products AS
 SELECT 
-    p.product_id, 
-    p.product_name, 
-    o.customer_id,
-    oi.quantity,
-    oi.item_id,
-    p.unit_price,
-    p.category_id,
-    i.quantity_on_hand AS available_stock,
-    i.locked_inventory,
-    CASE 
-        WHEN (i.quantity_on_hand - i.locked_inventory) >= 0 THEN 'In Stock' 
-        ELSE 'Out of Stock' 
-    END AS stock_status,
-    o.branch_id
-FROM CustomerOrder o
-JOIN OrderItem oi ON o.order_id = oi.order_id
-JOIN products p ON oi.product_id = p.product_id
-JOIN inventory i ON p.product_id = i.product_id AND o.branch_id = i.branch_id
-WHERE o.status = 'Pending'
-AND o.customer_id IS NOT NULL;
-
--- 7. Customer Product Info View
-CREATE OR REPLACE VIEW v_customer_product_info AS
-SELECT 
+    co.order_ID,
+    co.customer_id,
+    co.branch_id,
+    b.branch_name,
+    oi.item_ID,
+    oi.product_ID,
     p.product_name,
-    c.category_name,
     p.unit_price,
-    p.description,
-    p.status AS product_status,
-    GROUP_CONCAT(DISTINCT CONCAT(pa.attr_name, ': ', pa.attr_value) SEPARATOR ', ') AS attributes
-FROM products p
-JOIN Categories c ON p.category_id = c.category_id
-LEFT JOIN ProductAttribute pa ON p.product_ID = pa.product_id
-WHERE p.status = 'active'
-GROUP BY p.product_ID, p.product_name, c.category_name, 
-         p.unit_price, p.description, p.status;
+    oi.quantity,
+    (oi.unit_price * oi.quantity) AS item_total,
+    si.batch_ID,
+    si.status as stock_item_status,
+    CASE 
+        WHEN si.status = 'pending' THEN '已锁定'
+        WHEN si.status = 'in_stock' THEN '有货'
+        ELSE '不可用'
+    END AS stock_status,
+    co.status as order_status,
+    co.total_amount
+FROM CustomerOrder co
+JOIN Branch b ON co.branch_id = b.branch_ID
+JOIN OrderItem oi ON co.order_ID = oi.order_ID
+JOIN products p ON oi.product_ID = p.product_ID
+LEFT JOIN StockItem si ON oi.item_ID = si.item_ID
+WHERE co.status = 'Pending';
+
+CREATE OR REPLACE VIEW v_customer_carts_by_branch AS
+SELECT 
+    co.customer_id,
+    co.branch_id,
+    b.branch_name,
+    co.order_ID,
+    COUNT(DISTINCT oi.product_ID) as unique_products,
+    COUNT(oi.item_ID) as total_items,
+    SUM(oi.quantity) as total_quantity,
+    SUM(oi.quantity * oi.unit_price) as total_amount,
+    GROUP_CONCAT(DISTINCT p.product_name SEPARATOR ', ') as product_list,
+    co.created_at
+FROM CustomerOrder co
+JOIN Branch b ON co.branch_id = b.branch_ID
+JOIN OrderItem oi ON co.order_ID = oi.order_ID
+JOIN products p ON oi.product_ID = p.product_ID
+WHERE co.status = 'Pending'
+GROUP BY co.order_ID, co.branch_id, b.branch_name
+ORDER BY b.branch_name;

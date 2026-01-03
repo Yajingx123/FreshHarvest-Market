@@ -12,19 +12,10 @@
         header('Location: ../login/login.php');
         exit();
     }
-
-    // 数据库配置
-    $servername = "localhost";
-    $username = "root";
-    $password = "NewRootPwd123!";
-    $dbname = "mydb";
+    require_once __DIR__ . '/../config/db_connect.php';
 
     // 连接数据库
-    $conn = new mysqli($servername, $username, $password, $dbname);
-    if ($conn->connect_error) {
-        die("数据库连接失败: " . $conn->connect_error);
-    }
-    $conn->set_charset("utf8mb4");
+    $conn = getDBConnection();
 
     // 获取门店名称
     $branch_id = $_SESSION['staff_branch_id'];
@@ -41,6 +32,52 @@
 
     $conn->close();
     ?>
+    <script>
+        (function() {
+            const userKey = <?php echo json_encode('staff:' . ($_SESSION['staff_username'] ?? '')); ?>;
+            if (!userKey) {
+                return;
+            }
+            if (!window.name) {
+                window.name = 'fhwin_' + Math.random().toString(36).slice(2) + Date.now();
+            }
+            const token = window.name;
+            const activeKey = 'fh_active_window_' + userKey;
+            const now = Date.now();
+            let state = null;
+            try {
+                state = JSON.parse(localStorage.getItem(activeKey) || 'null');
+            } catch (e) {
+                state = null;
+            }
+            if (state && state.token && state.token !== token && now - state.last < 10000) {
+                alert('该账号已在其他窗口登录，请关闭当前窗口或使用原窗口。');
+                window.location.href = '../login/login.php';
+                return;
+            }
+            localStorage.setItem(activeKey, JSON.stringify({ token, last: now }));
+            setInterval(function() {
+                localStorage.setItem(activeKey, JSON.stringify({ token, last: Date.now() }));
+            }, 5000);
+
+            function clearActiveKey() {
+                try {
+                    const current = JSON.parse(localStorage.getItem(activeKey) || 'null');
+                    if (current && current.token === token) {
+                        localStorage.removeItem(activeKey);
+                    }
+                } catch (e) {
+                }
+            }
+
+            window.addEventListener('pagehide', function() {
+                clearActiveKey();
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon('../login/logout.php?beacon=1');
+                }
+            });
+        })();
+    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Microsoft YaHei', Arial, sans-serif; }
         body { background-color: #f8f9fa; color: #333; }

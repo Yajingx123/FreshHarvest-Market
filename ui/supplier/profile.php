@@ -11,66 +11,105 @@ if (isset($_SESSION['supplier_username'])) {
         $pendingCount = getPendingOrderCount($supplierInfo['supplier_ID']);
     }
 }
+
 // 处理保存编辑的请求
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_profile') {
-    $errors = [];
-    $updateData = [];
-    
-    // 验证姓名 - 对应User表的first_name, last_name
-    $firstName = trim($_POST['first_name'] ?? '');
-    $lastName = trim($_POST['last_name'] ?? '');
-    if (empty($firstName) || empty($lastName)) {
-        $errors[] = '姓名不能为空';
-    } else {
-        $updateData['first_name'] = $firstName;
-        $updateData['last_name'] = $lastName;
-    }
-    
-    // 验证邮箱 - 对应User表的user_email
-    $email = trim($_POST['email'] ?? '');
-    if (empty($email)) {
-        $errors[] = '邮箱地址不能为空';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $errors[] = '邮箱格式不正确';
-    } else {
-        $updateData['user_email'] = $email;
-    }
-    
-    // 验证电话 - 对应User表的user_telephone
-    $phone = trim($_POST['phone'] ?? '');
-    if (empty($phone)) {
-        $errors[] = '联系电话不能为空';
-    } elseif (!preg_match('/^\d{10,15}$/', $phone)) { // 简化验证
-        $errors[] = '电话号码必须是10-15位数字';
-    } else {
-        $updateData['user_telephone'] = $phone;
-    }
-    
-    // 验证联系人 - 对应Supplier表的contact_person
-    $contactPerson = trim($_POST['contact_person'] ?? '');
-    if (empty($contactPerson)) {
-        $errors[] = '联系人不能为空';
-    } else {
-        $updateData['contact_person'] = $contactPerson;
-    }
-    
-    // 验证地址 - 对应Supplier表的address
-    $address = trim($_POST['address'] ?? '');
-    if (empty($address)) {
-        $errors[] = '联系地址不能为空';
-    } else {
-        $updateData['address'] = $address;
-    }
-    
-    // 如果没有错误，保存到数据库
-    if (empty($errors) && !empty($updateData) && isset($_SESSION['supplier_username'])) {
-        $result = updateSupplierInfo($_SESSION['supplier_username'], $updateData);
-        if ($result) {
-            $success = '信息更新成功！';
-            // 重新获取最新信息
-            $supplierInfo = getSupplierInfo($_SESSION['supplier_username']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] === 'update_profile') {
+        $errors = [];
+        $updateData = [];
+        
+        // 验证姓名 - 对应User表的first_name, last_name
+        $firstName = trim($_POST['first_name'] ?? '');
+        $lastName = trim($_POST['last_name'] ?? '');
+        if (empty($firstName) || empty($lastName)) {
+            $errors[] = '姓名不能为空';
         } else {
-            $errors[] = '保存失败，请稍后重试';
+            $updateData['first_name'] = $firstName;
+            $updateData['last_name'] = $lastName;
+        }
+        
+        // 验证邮箱 - 对应User表的user_email
+        $email = trim($_POST['email'] ?? '');
+        if (empty($email)) {
+            $errors[] = '邮箱地址不能为空';
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors[] = '邮箱格式不正确';
+        } else {
+            $updateData['user_email'] = $email;
+        }
+        
+        // 验证电话 - 对应User表的user_telephone
+        $phone = trim($_POST['phone'] ?? '');
+        if (empty($phone)) {
+            $errors[] = '联系电话不能为空';
+        } elseif (!preg_match('/^\d{10,15}$/', $phone)) { // 简化验证
+            $errors[] = '电话号码必须是10-15位数字';
+        } else {
+            $updateData['user_telephone'] = $phone;
+        }
+        
+        // 验证联系人 - 对应Supplier表的contact_person
+        $contactPerson = trim($_POST['contact_person'] ?? '');
+        if (empty($contactPerson)) {
+            $errors[] = '联系人不能为空';
+        } else {
+            $updateData['contact_person'] = $contactPerson;
+        }
+        
+        // 验证地址 - 对应Supplier表的address
+        $address = trim($_POST['address'] ?? '');
+        if (empty($address)) {
+            $errors[] = '联系地址不能为空';
+        } else {
+            $updateData['address'] = $address;
+        }
+        
+        // 如果没有错误，保存到数据库
+        if (empty($errors) && !empty($updateData) && isset($_SESSION['supplier_username'])) {
+            $result = updateSupplierInfo($_SESSION['supplier_username'], $updateData);
+            if ($result) {
+                $success = '信息更新成功！';
+                // 重新获取最新信息
+                $supplierInfo = getSupplierInfo($_SESSION['supplier_username']);
+            } else {
+                $errors[] = '保存失败，请稍后重试';
+            }
+        }
+    } 
+    // 处理密码修改
+    elseif ($_POST['action'] === 'update_password') {
+        $newPassword = trim($_POST['new_password'] ?? '');
+        $confirmPassword = trim($_POST['confirm_password'] ?? '');
+        $passwordErrors = [];
+        
+        // 检查是否输入了密码
+        if ($newPassword === '' && $confirmPassword === '') {
+            // 没有输入密码，不做修改
+        } else {
+            // 验证密码
+            if ($newPassword !== $confirmPassword) {
+                $passwordErrors[] = '两次输入的密码不一致';
+            } elseif (strlen($newPassword) < 6) {
+                $passwordErrors[] = '密码长度至少为6位';
+            } else {
+                // 更新密码
+                if (updateSupplierPassword($_SESSION['supplier_username'], $newPassword)) {
+                    $passwordSuccess = '密码修改成功！';
+                } else {
+                    $passwordErrors[] = '密码修改失败，请重试';
+                }
+            }
+        }
+        
+        // 如果有密码错误，合并到普通错误中
+        if (!empty($passwordErrors)) {
+            if (!isset($errors)) $errors = [];
+            $errors = array_merge($errors, $passwordErrors);
+        }
+        
+        // 如果有密码成功消息，显示
+        if (!empty($passwordSuccess)) {
+            $success = !empty($success) ? $success . '<br>' . $passwordSuccess : $passwordSuccess;
         }
     }
 }
@@ -82,6 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>鲜选生鲜 - 供应商信息</title>
     <style>
+        /* 保持所有原有样式不变 */
         * {
             margin: 0;
             padding: 0;
@@ -694,6 +734,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
 }
+
+/* 新增：密码修改相关样式 */
+.password-input-group {
+    margin-top: 10px;
+}
+
+.password-input-item {
+    margin-bottom: 10px;
+}
+
+.password-input-item:last-child {
+    margin-bottom: 0;
+}
+
+.password-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.password-hint {
+    font-size: 12px;
+    color: #95a5a6;
+    margin-top: 4px;
+    display: block;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+}
+
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4);
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(243, 156, 18, 0.3);
+}
+
+.btn-warning:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(243, 156, 18, 0.4);
+}
     </style>
 </head>
 <body>
@@ -860,8 +950,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                     <?php echo htmlspecialchars(date('Y年m月d日 H:i', strtotime($supplierInfo['created_at']))); ?>
                                 </span>
                             </div>
+                            <!-- 新增密码修改区域 -->
+                            <div class="info-item" data-field="password" id="passwordSection">
+                                <span class="info-label">修改密码</span>
+                                <div class="password-input-group" style="display: none;">
+                                    <div class="password-input-item">
+                                        <input type="password" name="new_password" class="password-input" 
+                                               placeholder="请输入新密码" autocomplete="new-password">
+                                        <span class="password-hint">密码长度至少6位</span>
+                                    </div>
+                                    <div class="password-input-item">
+                                        <input type="password" name="confirm_password" class="password-input" 
+                                               placeholder="请再次输入新密码" autocomplete="new-password">
+                                        <span class="password-hint">两次输入的密码必须一致</span>
+                                    </div>
+                                </div>
+                                <span class="info-value">
+                                    <i>🔒</i>
+                                    <span id="passwordDisplay">●●●●●●</span>
+                                </span>
+                            </div>
                         </div>
                     </div>
+                    
+                    <!-- 表单提交 -->
+                    <form id="profileForm" method="post" style="display: none;">
+                        <input type="hidden" name="action" id="formAction" value="update_profile">
+                        <!-- 其他字段将通过JavaScript动态填充 -->
+                    </form>
                     
                     <div class="action-buttons">                        
                         <button type="button" class="btn btn-primary" id="editBtn">
@@ -869,7 +985,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                            编辑信息
                         </button>
 
-                        <button type="submit" class="btn btn-success" id="saveBtn" style="display:none;">
+                        <button type="button" class="btn btn-success" id="saveBtn" style="display:none;">
                            <span class="icon">💾</span>
                              保存修改
                            </button>
@@ -937,7 +1053,6 @@ logoutModal.addEventListener('click', function(e) {
 cancelLogoutBtn.addEventListener('click', hideLogoutModal);
 
 // 点击确认退出按钮
-// 点击确认退出按钮
 confirmLogoutBtn.addEventListener('click', function() {
     // 显示加载状态
     const logoutBtn = document.querySelector('.btn-danger'); // 改为这个选择器
@@ -971,6 +1086,7 @@ document.addEventListener('keydown', function(e) {
 
 // 编辑/保存状态管理
 let isEditing = false;
+let hasPasswordChanged = false;
 
 // 编辑按钮点击事件
 document.getElementById('editBtn').addEventListener('click', function() {
@@ -1000,6 +1116,10 @@ function enterEditMode() {
     document.getElementById('saveBtn').style.display = 'flex';
     document.getElementById('cancelBtn').style.display = 'flex';
     
+    // 显示密码输入框
+    document.querySelector('.password-input-group').style.display = 'block';
+    document.querySelector('#passwordDisplay').style.display = 'none';
+    
     // 创建编辑输入框
     createEditInputs();
 }
@@ -1013,17 +1133,22 @@ function exitEditMode() {
     document.getElementById('saveBtn').style.display = 'none';
     document.getElementById('cancelBtn').style.display = 'none';
     
+    // 隐藏密码输入框，清空密码字段
+    document.querySelector('.password-input-group').style.display = 'none';
+    document.querySelector('#passwordDisplay').style.display = 'inline';
+    document.querySelectorAll('.password-input').forEach(input => {
+        input.value = '';
+    });
+    
     // 移除所有编辑输入框
     removeEditInputs();
 }
 
 // 创建编辑输入框
-// 创建编辑输入框
 function createEditInputs() {
     // 姓名（需要特殊处理，因为名和姓是分开存储的）
     const nameItem = document.querySelector('[data-field="name"]');
     if (nameItem) {
-        // 直接从PHP数据中获取名和姓，而不是从显示的文本中拆分
         const infoValue = nameItem.querySelector('.info-value');
         const nameText = infoValue.textContent.trim();
         
@@ -1118,7 +1243,7 @@ function createTextareaInput(field, name, placeholder) {
 function removeEditInputs() {
     const inputs = document.querySelectorAll('.edit-input-container, input, textarea');
     inputs.forEach(input => {
-        if (input.name && input.parentNode) {
+        if (input.name && input.parentNode && input.name !== 'new_password' && input.name !== 'confirm_password') {
             input.parentNode.removeChild(input);
         }
     });
@@ -1182,6 +1307,35 @@ function validateForm() {
         errors.push('联系地址不能为空');
         isValid = false;
         highlightError(address);
+    }
+    
+    // 验证密码
+    const newPassword = document.querySelector('input[name="new_password"]');
+    const confirmPassword = document.querySelector('input[name="confirm_password"]');
+    
+    // 检查是否输入了密码
+    const hasPasswordInput = newPassword && confirmPassword && 
+                            (newPassword.value.trim() || confirmPassword.value.trim());
+    
+    if (hasPasswordInput) {
+        // 如果输入了密码，验证密码
+        if (!newPassword.value.trim() || !confirmPassword.value.trim()) {
+            errors.push('请输入完整的密码和确认密码');
+            isValid = false;
+            highlightError(newPassword);
+            highlightError(confirmPassword);
+        } else if (newPassword.value !== confirmPassword.value) {
+            errors.push('两次输入的密码不一致');
+            isValid = false;
+            highlightError(newPassword);
+            highlightError(confirmPassword);
+        } else if (newPassword.value.length < 6) {
+            errors.push('密码长度至少为6位');
+            isValid = false;
+            highlightError(newPassword);
+        } else {
+            hasPasswordChanged = true;
+        }
     }
     
     // 显示错误信息
@@ -1250,6 +1404,7 @@ function showErrorMessages(errors) {
     // 滚动到错误位置
     errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
+
 // 保存更改
 function saveChanges() {
     if (!validateForm()) {
@@ -1263,15 +1418,23 @@ function saveChanges() {
     
     // 收集表单数据
     const formData = new URLSearchParams();
-    formData.append('action', 'update_profile');
     
-    // 收集所有输入值
-    const inputs = document.querySelectorAll('input, textarea');
-    inputs.forEach(input => {
-        if (input.name && input.value !== undefined) {
-            formData.append(input.name, input.value.trim());
-        }
-    });
+    // 根据是否修改密码决定提交哪个action
+    if (hasPasswordChanged) {
+        formData.append('action', 'update_password');
+        formData.append('new_password', document.querySelector('input[name="new_password"]').value.trim());
+        formData.append('confirm_password', document.querySelector('input[name="confirm_password"]').value.trim());
+    } else {
+        formData.append('action', 'update_profile');
+        
+        // 收集所有输入值（排除密码字段）
+        const inputs = document.querySelectorAll('input[name]:not([name*="password"]), textarea');
+        inputs.forEach(input => {
+            if (input.name && input.value !== undefined) {
+                formData.append(input.name, input.value.trim());
+            }
+        });
+    }
     
     // 提交到服务器
     fetch('', {  // 空字符串表示提交到当前页面
@@ -1309,32 +1472,19 @@ function saveChanges() {
     });
 }
 
-// 添加一些CSS样式
-const style = document.createElement('style');
-style.textContent = `
-    .btn-success {
-        background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
-        color: white;
-        box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
-    }
-    
-    .btn-success:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4);
-    }
-    
-    .btn-warning {
-        background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
-        color: white;
-        box-shadow: 0 4px 15px rgba(243, 156, 18, 0.3);
-    }
-    
-    .btn-warning:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(243, 156, 18, 0.4);
-    }
-`;
-document.head.appendChild(style);
+// 添加事件监听器，监控密码输入变化
+document.addEventListener('DOMContentLoaded', function() {
+    const passwordInputs = document.querySelectorAll('.password-input');
+    passwordInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            // 当密码输入时，设置hasPasswordChanged标志
+            const newPassword = document.querySelector('input[name="new_password"]');
+            const confirmPassword = document.querySelector('input[name="confirm_password"]');
+            
+            hasPasswordChanged = (newPassword.value.trim() !== '' || confirmPassword.value.trim() !== '');
+        });
+    });
+});
 </script>
 </body>
 </html>

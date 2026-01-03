@@ -1,8 +1,10 @@
-<?php $pageTitle = "我的订单"; ?>
+<?php $pageTitle = "My orders"; ?>
 <?php include 'header.php'; ?>
 
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once __DIR__ . '/inc/data.php';
 // 检查登录状态
 if (!isset($_SESSION['customer_logged_in']) || $_SESSION['customer_logged_in'] !== true) {
@@ -244,34 +246,33 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
         
         <!-- 订单标签切换 -->
         <div class="tabs">
-            <div class="tab <?= ($currentStatus === 'all') ? 'active' : '' ?>" data-status="all">全部订单</div>
-            <div class="tab <?= ($currentStatus === 'Pending') ? 'active' : '' ?>" data-status="Pending">待支付</div>
-            <div class="tab <?= ($currentStatus === 'Delivering') ? 'active' : '' ?>" data-status="Delivering">配送中</div>
-            <div class="tab <?= ($currentStatus === 'Completed') ? 'active' : '' ?>" data-status="Completed">已完成</div>
-            <div class="tab <?= ($currentStatus === 'Cancelled') ? 'active' : '' ?>" data-status="Cancelled">已取消</div>
+            <div class="tab <?= ($currentStatus === 'all') ? 'active' : '' ?>" data-status="all">All orders</div>
+            <div class="tab <?= ($currentStatus === 'Pending') ? 'active' : '' ?>" data-status="Pending">Pending</div>
+            <div class="tab <?= ($currentStatus === 'Delivering') ? 'active' : '' ?>" data-status="Delivering">Delivering</div>
+            <div class="tab <?= ($currentStatus === 'Completed') ? 'active' : '' ?>" data-status="Completed">Complete</div>
+            <div class="tab <?= ($currentStatus === 'Cancelled') ? 'active' : '' ?>" data-status="Cancelled">Cancelled</div>
         </div>
         
         <div class="tab-content">
             <div class="order-list">
                 <?php if (!empty($orders)): ?>
                     <?php foreach ($orders as $order): ?>
-                        <!-- 订单项 -->
                         <div class="order-item" 
                              data-order="<?= $order['id'] ?>" 
                              data-status="<?= $order['status'] ?>">
                             <div class="order-details">
-                                <h3>订单编号：<?= $order['order_number'] ?></h3>
-                                <p>下单时间：<?= $order['order_date'] ?></p>
-                                <p>门店：<?= $order['store_name'] ?></p>
-                                <p>商品：<?= $order['product_details'] ?></p>
-                                <p>金额：¥<?= number_format($order['total_amount'], 2) ?></p>
+                                <h3>Order number:<?= $order['order_number'] ?></h3>
+                                <p>Order time:<?= $order['order_date'] ?></p>
+                                <p>Branch:<?= $order['store_name'] ?></p>
+                                <p>Products:<?= $order['product_details'] ?></p>
+                                <p>Amount: ¥<?= number_format($order['total_amount'], 2) ?></p>
                             </div>
                             <span class="order-status status-<?= strtolower($order['status']) ?>">
                                 <?= [
-                                    'Pending' => '待支付',
-                                    'Delivering' => '配送中',
-                                    'Completed' => '已完成',
-                                    'Cancelled' => '已取消'
+                                    'Pending' => 'pending',
+                                    'Delivering' => 'delivering',
+                                    'Completed' => 'completed',
+                                    'Cancelled' => 'cancelled'
                                 ][$order['status']] ?? $order['status'] ?>
                             </span>
                         </div>
@@ -292,16 +293,16 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
                             <div class="detail-summary">
                                 合计：¥<?= number_format($orderDetails['final_amount'], 2) ?>
                                 <?php if (isset($orderDetails['shipping_fee']) && $orderDetails['shipping_fee'] > 0): ?>
-                                    （含配送费¥<?= number_format($orderDetails['shipping_fee'], 2) ?>）
+                                    （Including delivery fee ¥<?= number_format($orderDetails['shipping_fee'], 2) ?>）
                                 <?php endif; ?>
                             </div>
                         </div>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div class="empty-state">
-                        <img src="images/empty-orders.png" alt="暂无订单">
-                        <p>您暂无订单记录，快去购物吧~</p>
-                        <a href="products.php" class="btn-primary">去逛逛</a>
+                        <img src="images/empty-orders.png" alt="There are no orders for the moment.">
+                        <p>You have no order record yet. Go shopping quickly~</p>
+                        <a href="products.php" class="btn-primary">go for a stroll</a>
                     </div>
                 <?php endif; ?>
             </div>
@@ -312,18 +313,18 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
         <!-- 模态框详情视图 -->
         <section class="order-detail-modal">
             <div class="modal-content">
-                <h3>订单详情 #<?= $currentOrder['order_number'] ?></h3>
+                <h3>Order details: #<?= $currentOrder['order_number'] ?></h3>
                 <div class="detail-section">
-                    <h4>订单信息</h4>
-                    <p>订单编号：<?= $currentOrder['order_number'] ?></p>
-                    <p>下单时间：<?= $currentOrder['order_date'] ?></p>
-                    <p>门店：<?= $currentOrder['store_name'] ?></p>
-                    <p>收货地址：<?= $currentOrder['shipping_address'] ?? '未设置' ?></p>
-                    <p>订单状态：<?= [
-                        'Pending' => '待支付',
-                        'Delivering' => '配送中',
-                        'Completed' => '已完成',
-                        'Cancelled' => '已取消'
+                    <h4>Order information:</h4>
+                    <p>Order number:<?= $currentOrder['order_number'] ?></p>
+                    <p>Order time:<?= $currentOrder['order_date'] ?></p>
+                    <p>Branch:<?= $currentOrder['store_name'] ?></p>
+                    <p>Address:<?= $currentOrder['shipping_address'] ?? '未设置' ?></p>
+                    <p>Order status<?= [
+                        'Pending' => 'pending',
+                        'Delivering' => 'delivering',
+                        'Completed' => 'completed',
+                        'Cancelled' => 'cancelled'
                     ][$currentOrder['order_status']] ?? $currentOrder['order_status'] ?></p>
                 </div>
 

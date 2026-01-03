@@ -3,15 +3,11 @@ header("Content-Type: text/html; charset=UTF-8");
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+require_once __DIR__ . '/../config/db_connect.php';
 if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
 }
-
-$servername = "localhost";
-$username = "root";
-$password = "NewRootPwd123!";
-$dbname = "mydb";
 
 $branchId = $_SESSION['staff_branch_id'] ?? null;
 $staffId = $_SESSION['staff_id'] ?? null;
@@ -27,11 +23,8 @@ if (!$branchId || !$staffId) {
 }
 
 if ($error_message === '') {
-    $conn = new mysqli($servername, $username, $password, $dbname);
-    if ($conn->connect_error) {
-        $error_message = '数据库连接失败：' . $conn->connect_error;
-    } else {
-        $conn->set_charset('utf8mb4');
+    $conn = getDBConnection();
+    if ($conn) {
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['adjust_action'])) {
             $newQuantity = isset($_POST['new_quantity']) ? (int)$_POST['new_quantity'] : -1;

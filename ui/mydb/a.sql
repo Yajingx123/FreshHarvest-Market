@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS `mydb`.`User` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `last_login` DATETIME NULL,
   `is_active` BOOLEAN DEFAULT TRUE,
+  `login_session_id` VARCHAR(128) NULL,
   PRIMARY KEY (`user_ID`))
 ENGINE = InnoDB;
 

@@ -3,15 +3,11 @@ header("Content-Type: text/html; charset=UTF-8");
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+require_once __DIR__ . '/../config/db_connect.php';
 if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
 }
-
-$servername = "localhost";
-$username = "root";
-$password = "NewRootPwd123!";
-$dbname = "mydb";
 
 $error_message = '';
 $success_message = $_SESSION['inventory_success'] ?? '';
@@ -228,12 +224,9 @@ function summarizeProductInventory(mysqli $conn, int $productId, int $branchId, 
 if ($branchId === null) {
     $error_message = '无法确定当前门店，请重新登录。';
 } else {
-    $conn = new mysqli($servername, $username, $password, $dbname);
-    if ($conn->connect_error) {
-        $error_message = '数据库连接失败：' . $conn->connect_error;
-    } else {
+    $conn = getDBConnection();
+    if ($conn) {
         try {
-            $conn->set_charset('utf8mb4');
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['adjust_action'])) {
                 $batchId = trim($_POST['batch_id'] ?? '');

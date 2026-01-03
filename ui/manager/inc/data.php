@@ -200,7 +200,7 @@ function saveEmployee($data) {
             $stmt = $conn->prepare($userSql);
             // 生成用户名和密码
             $username = strtolower(preg_replace('/\s+/', '', $data['name'])) . rand(100, 999);
-            $passwordHash = password_hash('123456', PASSWORD_DEFAULT); // 默认密码
+            $passwordHash = md5('123456');
             // 拆分姓和名
             $nameParts = explode(' ', $data['name']);
             $firstName = $nameParts[0] ?? '';
@@ -500,7 +500,7 @@ function getCustomersData() {
             c.loyalty_level,
             -- 统计订单信息
             COUNT(DISTINCT co.order_ID) as order_count,
-            COALESCE(SUM(co.total_amount), 0) as total_spent
+            c.accu_cost as total_spent
         FROM 
             Customer c
             JOIN User u ON c.user_name = u.user_name
@@ -828,7 +828,8 @@ function getAvailableStaff($branchId) {
 function getSalesTrend() {
     global $conn;
     try {
-        $sql = "SELECT date, total_sales, order_count FROM v_sales_trend";
+        $sql = "SELECT date, total_sales, order_count FROM v_sales_trend 
+        ORDER BY date ASC";
         $result = $conn->query($sql);
         $data = [];
         while ($row = $result->fetch_assoc()) {

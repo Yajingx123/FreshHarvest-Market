@@ -5,6 +5,52 @@ $statusSummary = getOrderStatusSummary();
 // 确定当前页面以设置active类
 $currentPage = basename($_SERVER['PHP_SELF']);
 ?>
+<script>
+    (function() {
+        const userKey = <?php echo json_encode('supplier:' . ($_SESSION['supplier_username'] ?? '')); ?>;
+        if (!userKey) {
+            return;
+        }
+        if (!window.name) {
+            window.name = 'fhwin_' + Math.random().toString(36).slice(2) + Date.now();
+        }
+        const token = window.name;
+        const activeKey = 'fh_active_window_' + userKey;
+        const now = Date.now();
+        let state = null;
+        try {
+            state = JSON.parse(localStorage.getItem(activeKey) || 'null');
+        } catch (e) {
+            state = null;
+        }
+        if (state && state.token && state.token !== token && now - state.last < 10000) {
+            alert('该账号已在其他窗口登录，请关闭当前窗口或使用原窗口。');
+            window.location.href = '../login/login.php';
+            return;
+        }
+        localStorage.setItem(activeKey, JSON.stringify({ token, last: now }));
+        setInterval(function() {
+            localStorage.setItem(activeKey, JSON.stringify({ token, last: Date.now() }));
+        }, 5000);
+
+        function clearActiveKey() {
+            try {
+                const current = JSON.parse(localStorage.getItem(activeKey) || 'null');
+                if (current && current.token === token) {
+                    localStorage.removeItem(activeKey);
+                }
+            } catch (e) {
+            }
+        }
+
+        window.addEventListener('pagehide', function() {
+            clearActiveKey();
+            if (navigator.sendBeacon) {
+                navigator.sendBeacon('../login/logout.php?beacon=1');
+            }
+        });
+    })();
+</script>
 <header class="header">
     <div class="nav-container">
         <a href="dashboard.php" class="logo">鲜选生鲜 - 供应商管理平台</a>
