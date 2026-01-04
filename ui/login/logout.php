@@ -1,55 +1,35 @@
+
 <?php
-// file path: login/logout.php
-
 session_start();
-require_once __DIR__ . '/../config/db_connect.php';
 
-// 保存当前用户的角色信息用于显示消息
-$current_role = $_SESSION['user_role'] ?? '';
-$current_user_id = $_SESSION['user_id'] ?? null;
-$current_session_id = session_id();
-$message = '';
+// 只清除当前用户的session变量，而不是全部
+$user_role = $_SESSION['user_role'] ?? '';
 
-switch ($current_role) {
-    case 'customer':
-        $message = '顾客账户已安全退出';
-        break;
-    case 'staff':
-        $message = '员工账户已安全退出';
-        break;
-    case 'CEO':
-        $message = '经理账户已安全退出';
-        break;
-    case 'supplier':
-        $message = '供应商账户已安全退出';
-        break;
-    default:
-        $message = '已安全退出登录';
+if ($user_role === 'customer') {
+    unset($_SESSION['customer_logged_in'], $_SESSION['customer_id'], 
+          $_SESSION['customer_username'], $_SESSION['user_role']);
+} elseif ($user_role === 'staff') {
+    unset($_SESSION['staff_logged_in'], $_SESSION['staff_id'], 
+          $_SESSION['staff_branch_id'], $_SESSION['staff_username'], $_SESSION['user_role']);
+} elseif ($user_role === 'CEO') {
+    unset($_SESSION['manager_logged_in'], $_SESSION['manager_id'], 
+          $_SESSION['manager_username'], $_SESSION['user_role']);
+} elseif ($user_role === 'supplier') {
+    unset($_SESSION['supplier_logged_in'], $_SESSION['supplier_id'], 
+          $_SESSION['supplier_username'], $_SESSION['user_role']);
 }
 
-if (!empty($current_user_id)) {
-    $conn = getDBConnection();
-    if ($conn) {
-        $updateSql = "UPDATE User SET login_session_id = NULL WHERE user_ID = ? AND login_session_id = ?";
-        $stmt = $conn->prepare($updateSql);
-        if ($stmt) {
-            $stmt->bind_param("is", $current_user_id, $current_session_id);
-            $stmt->execute();
-            $stmt->close();
-        }
-        $conn->close();
-    }
-}
+// Set logout message
+$roleLabels = [
+    'customer' => 'Customer',
+    'staff' => 'Staff',
+    'CEO' => 'Manager',
+    'supplier' => 'Supplier'
+];
+$roleLabel = $roleLabels[$user_role] ?? 'User';
+$_SESSION['logout_success'] = $roleLabel . ' account signed out successfully.';
 
-$_SESSION = array();
-
-session_destroy();
-
-if (isset($_GET['beacon']) && $_GET['beacon'] === '1') {
-    http_response_code(204);
-    exit();
-}
-
-header('Location: login.php?logout=' . urlencode($message));
+// 重定向到登录页面
+header('Location: login.php');
 exit();
 ?>

@@ -1,6 +1,18 @@
 <?php
-require_once __DIR__ . '/../../config/db_connect.php';
+// db.php
+$servername = "localhost";
+$username = "ceo_user";
+$password = "YourPassword123!";
+$database = "mydb";
 
-// 保持 $conn 变量供现有页面使用
-$conn = getDBConnection();
+// 创建连接
+$conn = new mysqli($servername, $username, $password, $database);
+
+// 检查连接
+if ($conn->connect_error) {
+    die("Database connection failed: " . $conn->connect_error);
+}
+
+// 设置字符集
+$conn->set_charset("utf8mb4");
 ?>

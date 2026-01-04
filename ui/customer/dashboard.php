@@ -1,11 +1,9 @@
-<?php $pageTitle = "我的仪表盘"; ?>
+<?php $pageTitle = "Dashboard"; ?>
 <?php include 'header.php'; ?>
 
 <?php
 // 获取当前用户ID
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+session_start();
 require_once __DIR__ . '/inc/data.php';    // 包含data.php
 $customerId = $_SESSION['customer_id'] ?? null;
 
@@ -29,6 +27,11 @@ foreach ($randomProducts as $p) {
     if ($product) {
         $product['stock'] = $product['stock'] ?? 0;
         $product['branches'] = getProductBranches($product['id']);
+        
+        // 获取产品SKU和图片URL
+        $productSku = getProductSkuByName($product['name']);
+        $product['sku'] = $productSku;
+        $product['image_url'] = getProductImageUrl($productSku);
         
         if (!empty($product['branches'])) {
             $firstBranch = $product['branches'][0];
@@ -449,6 +452,28 @@ foreach ($randomProducts as $p) {
         border-top: 1px solid #f0f7f2;
         margin-top: 40px;
     }
+    /* 产品图片容器样式 - 确保图片正确显示 */
+.product-img {
+    width: 70px;
+    height: 70px;
+    border-radius: 6px;
+    background-color: #f0f7f2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2d884d;
+    font-size: 24px;
+    flex-shrink: 0;
+    overflow: hidden; /* 添加这行确保图片不会溢出 */
+}
+
+/* 产品图片样式 */
+.product-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 保持图片比例并填充容器 */
+    border-radius: 6px;
+}
 </style>
 
 <div class="dashboard-container">
@@ -458,7 +483,7 @@ foreach ($randomProducts as $p) {
             <div class="dashboard-cards">
                 <div class="card">
                     <div class="card-icon">🛒</div>
-                    <div class="card-title">Shopping cart counts</div>
+                    <div class="card-title">Cart items</div>
                     <div class="card-value"><?php echo $cartCount; ?></div>
                 </div>
                 <div class="card">
@@ -467,10 +492,10 @@ foreach ($randomProducts as $p) {
                     <div class="card-value">
                         <?php
                         if (empty($favoriteProducts)) {
-                            echo 'Empty!';
+                            echo 'None yet';
                         } else {
                             $names = array_column($favoriteProducts, 'product_name');
-                            echo implode('、', $names);
+                            echo implode(', ', $names);
                         }
                         ?>
                     </div>
@@ -484,17 +509,32 @@ foreach ($randomProducts as $p) {
                 <?php if (empty($recentOrders)): ?>
                     <li class="order-item">
                         <div class="order-info">
-                            <div class="order-name">No orders</div>
+                            <div class="order-name">No orders yet</div>
                         </div>
                     </li>
                 <?php else: ?>
                     <?php foreach ($recentOrders as $order): ?>
+                        <?php
+                        $statusMap = [
+                            'Pending' => 'Pending',
+                            'Delivering' => 'Delivering',
+                            'Completed' => 'Completed',
+                            'Cancelled' => 'Cancelled',
+                            '已完成' => 'Completed',
+                            '处理中' => 'Processing',
+                            '已取消' => 'Cancelled',
+                            '待处理' => 'Pending',
+                            '已下单' => 'Ordered',
+                            '已收货' => 'Received'
+                        ];
+                        $statusLabel = $statusMap[$order['order_status']] ?? $order['order_status'];
+                        ?>
                         <li class="order-item">
                             <div class="order-info">
                                 <div class="order-name"><?php echo $order['product_details']; ?></div>
                                 <div class="order-date"><?php echo date('Y-m-d H:i', strtotime($order['order_date'])); ?></div>
                             </div>
-                            <span class="order-status"><?php echo $order['order_status']; ?></span>
+                            <span class="order-status"><?php echo $statusLabel; ?></span>
                         </li>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -504,12 +544,12 @@ foreach ($randomProducts as $p) {
 
     <!-- 配送说明模块 - 移至右侧，位于推荐商品上方 -->
     <div class="delivery-section">
-        <h2 class="section-title">🚚 配送说明</h2>
+        <h2 class="section-title">🚚 Delivery info</h2>
         <p style="line-height: 1.6; color: #666; font-size: 14px; margin-top: 10px;">
-            Today's order deadline:18:00<br>
-            Next-day delivery area: urban areas and nearby suburbs<br>
-            Free delivery for orders over 59 yuan<br>
-            Customer service hotline :400-123-4567
+            Order cutoff time today: 18:00<br>
+            Next-day delivery: urban areas and nearby suburbs<br>
+            Free delivery on orders over ¥59<br>
+            Customer support: 400-123-4567
         </p>
     </div>
 
@@ -520,25 +560,41 @@ foreach ($randomProducts as $p) {
             <?php foreach ($productsWithDetails as $index => $product): ?>
             <!-- 商品项 -->
             <div class="recommendation-item" data-id="<?php echo $product['id']; ?>">
-                <div class="product-img">📦</div>
+                <div class="product-img">
+    <?php if (!empty($product['image_url'])): ?>
+        <img src="<?php echo htmlspecialchars($product['image_url']); ?>" 
+             alt="<?php echo htmlspecialchars($product['name']); ?>"
+             style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;">
+    <?php else: ?>
+        📦 
+    <?php endif; ?>
+</div>
                 <div class="product-info">
                     <div class="product-name"><?php echo htmlspecialchars($product['name']); ?></div>
                     <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
                 </div>
-                <button class="quick-add-btn" data-id="<?php echo $product['id']; ?>" data-index="<?php echo $index; ?>">Show details</button>
+                <button class="quick-add-btn" data-id="<?php echo $product['id']; ?>" data-index="<?php echo $index; ?>">View details</button>
             </div>
             
 <div class="product-details" id="details-<?php echo $index; ?>">
     <div class="product-details-content-wrapper">
         <div class="product-details-header">
-            <h4><?php echo htmlspecialchars($product['name']); ?></h4>
-            <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
-        </div>
+    <?php if (!empty($product['image_url'])): ?>
+    <div class="product-details-image" style="float: right; margin-left: 15px; margin-bottom: 10px;">
+        <img src="<?php echo htmlspecialchars($product['image_url']); ?>" 
+             alt="<?php echo htmlspecialchars($product['name']); ?>"
+             style="width: 100px; height: 100px; object-fit: cover; border-radius: 6px;">
+    </div>
+    <?php endif; ?>
+    
+    <h4><?php echo htmlspecialchars($product['name']); ?></h4>
+    <div class="product-price">¥<?php echo number_format($product['price'], 2); ?></div>
+</div>
         
         <div class="product-details-content">
             <div class="product-info-group">
-                <p class="product-info-item"><strong>Category:</strong> <?php echo htmlspecialchars($product['category'] ?? 'No'); ?></p>
-                <p class="product-info-item"><strong>Inventory status:</strong> <?php echo htmlspecialchars($product['stock_status'] ?? 'Normal'); ?></p>
+                <p class="product-info-item"><strong>Category:</strong> <?php echo htmlspecialchars($product['category'] ?? 'None'); ?></p>
+                <p class="product-info-item"><strong>Stock status:</strong> <?php echo htmlspecialchars($product['stock_status'] ?? 'Normal'); ?></p>
                 <p class="product-info-item"><strong>Quantity:</strong> <span id="storeStockInfo-<?php echo $index; ?>">
                     <?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] ?? 0 : 0; ?>
                 </span></p>
@@ -556,7 +612,7 @@ foreach ($randomProducts as $p) {
                         <?php foreach ($product['branches'] as $branch): ?>
                             <option value="<?php echo $branch['id']; ?>" 
                                     data-available="<?php echo $branch['available_stock']; ?>">
-                                <?php echo $branch['name']; ?> (Inventory: <?php echo $branch['available_stock']; ?>)
+                                <?php echo $branch['name']; ?> (Stock: <?php echo $branch['available_stock']; ?>)
                             </option>
                         <?php endforeach; ?>
                     <?php else: ?>
@@ -568,7 +624,7 @@ foreach ($randomProducts as $p) {
             <!-- 门店库存详情（类似 products.php 的显示） -->
             <?php if ($product['branches'] && count($product['branches']) > 0): ?>
             <div class="branch-info">
-                <h5>Inventory status of each store:</h5>
+                <h5>Store availability:</h5>
                 <?php foreach ($product['branches'] as $branch): ?>
                 <div class="branch-item" style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
                     <div>
@@ -578,7 +634,7 @@ foreach ($randomProducts as $p) {
                         <?php endif; ?>
                     </div>
                     <div class="branch-stock" style="color: <?php echo $branch['available_stock'] > 0 ? '#2d884d' : '#ff4d4f'; ?>;">
-                        <?php echo $branch['available_stock']; ?> 
+                        <?php echo $branch['available_stock']; ?>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -591,7 +647,7 @@ foreach ($randomProducts as $p) {
                     <input type="number" id="buyQty-<?php echo $index; ?>" value="1" min="1" max="<?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] : 0; ?>" style="width: 50px; text-align: center;">
                     
                     <span style="margin-left: 10px; color: #666; font-size: 12px;" id="maxQuantityText-<?php echo $index; ?>">
-                        Maximum available for purchase <?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] : 0; ?> 
+                        Max available: <?php echo !empty($product['branches']) ? $product['branches'][0]['available_stock'] : 0; ?>
                     </span>
                 </div>
                 
@@ -606,7 +662,7 @@ foreach ($randomProducts as $p) {
     <!-- 加入成功提示 -->
     <div class="success-message">
         <i>✓</i>
-        <div>Join Success!</div>
+        <div>Added to cart</div>
     </div>
 </div>
             <?php endforeach; ?>
@@ -674,7 +730,7 @@ document.addEventListener('change', function(e) {
                 
                 // 更新提示文本
                 if (maxQuantityText) {
-                    maxQuantityText.textContent = `Maximum available for purchase ${availableStock} `;
+                    maxQuantityText.textContent = `Max available: ${availableStock}`;
                 }
             }
         });
@@ -769,12 +825,12 @@ function addToCart(productId, quantity, storeId, index) {
                 successMsg.style.display = 'none';
             }, 1000);
         } else {
-            alert('Failed to add to cart:' + data.message);
+            alert('Failed to add to cart: ' + data.message);
         }
     })
     .catch(error => {
         console.error('Request error:', error);
-        alert('A network error occurred when adding to the shopping cart.');
+        alert('A network error occurred while adding to the cart.');
     });
 }
 
@@ -786,7 +842,7 @@ function htmlEscape(str) {
 </script>
 
 <div class="dashboard-footer">
-    Fresh Selection Fresh © 2023 All rights reserved: Fresh Delivery, Quality guaranteed
+    FreshHarvest © 2023. Fresh delivery, quality guaranteed.
 </div>
 
 </main>

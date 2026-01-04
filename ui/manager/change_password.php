@@ -7,11 +7,11 @@ require_once __DIR__ . '/inc/data.php';
 if (!isset($_SESSION['manager_id'])) {
     echo json_encode([
         'status' => 'error',
-        'message' => '用户未登录，请重新登录'
+        'message' => 'Not signed in. Please sign in again.'
     ]);
     exit();
 }
-$pageTitle = "修改密码";
+$pageTitle = "Change Password";
 ?>
 <style>
 /* 密码修改页面专属样式 - 现代化设计 */
@@ -513,21 +513,21 @@ $pageTitle = "修改密码";
             <div class="password-decoration decoration-2"></div>
             
             <div class="password-change-card">
-                <h1 class="password-change-title">🔐 修改密码</h1>
-                <p class="password-change-subtitle">保护您的账户安全，建议使用强密码并定期更新</p>
+                <h1 class="password-change-title">🔐 Change Password</h1>
+                <p class="password-change-subtitle">Keep your account secure with a strong, regularly updated password.</p>
                 
                 <div class="password-form-container">
                     <form id="passwordForm">
                         <!-- 当前密码 -->
                         <div class="form-group-password">
                             <label class="form-label-password" for="current_password">
-                                <i class="fas fa-lock"></i> 当前密码
+                                <i class="fas fa-lock"></i> Current Password
                             </label>
                             <div class="input-icon-container">
                                 <input type="password" 
                                        id="current_password" 
                                        class="form-input-password" 
-                                       placeholder="请输入您的当前密码"
+                                       placeholder="Enter your current password"
                                        required>
                                 <button type="button" class="password-toggle" onclick="togglePasswordVisibility('current_password', this)">
                                     <i class="fas fa-eye"></i>
@@ -538,13 +538,13 @@ $pageTitle = "修改密码";
                         <!-- 新密码 -->
                         <div class="form-group-password">
                             <label class="form-label-password" for="new_password">
-                                <i class="fas fa-key"></i> 新密码
+                                <i class="fas fa-key"></i> New Password
                             </label>
                             <div class="input-icon-container">
                                 <input type="password" 
                                        id="new_password" 
                                        class="form-input-password" 
-                                       placeholder="设置您的新密码（至少6位）"
+                                       placeholder="Set a new password (min 6 characters)"
                                        required
                                        minlength="6">
                                 <button type="button" class="password-toggle" onclick="togglePasswordVisibility('new_password', this)">
@@ -553,7 +553,7 @@ $pageTitle = "修改密码";
                             </div>
                             <div class="password-help-text">
                                 <i class="fas fa-info-circle"></i>
-                                密码长度至少6位，建议包含字母、数字和特殊字符
+                                Use at least 6 characters, ideally a mix of letters, numbers, and symbols.
                             </div>
                             
                             <div class="password-strength-container">
@@ -561,9 +561,9 @@ $pageTitle = "修改密码";
                                     <div class="password-strength-bar" id="passwordStrengthBar"></div>
                                 </div>
                                 <div class="password-strength-labels">
-                                    <span class="password-strength-label" id="weakLabel">弱</span>
-                                    <span class="password-strength-label" id="mediumLabel">中等</span>
-                                    <span class="password-strength-label" id="strongLabel">强</span>
+                                    <span class="password-strength-label" id="weakLabel">Weak</span>
+                                    <span class="password-strength-label" id="mediumLabel">Medium</span>
+                                    <span class="password-strength-label" id="strongLabel">Strong</span>
                                 </div>
                             </div>
                         </div>
@@ -571,13 +571,13 @@ $pageTitle = "修改密码";
                         <!-- 确认新密码 -->
                         <div class="form-group-password">
                             <label class="form-label-password" for="confirm_password">
-                                <i class="fas fa-check-double"></i> 确认新密码
+                                <i class="fas fa-check-double"></i> Confirm New Password
                             </label>
                             <div class="input-icon-container">
                                 <input type="password" 
                                        id="confirm_password" 
                                        class="form-input-password" 
-                                       placeholder="请再次输入新密码以确认"
+                                       placeholder="Re-enter the new password"
                                        required>
                                 <button type="button" class="password-toggle" onclick="togglePasswordVisibility('confirm_password', this)">
                                     <i class="fas fa-eye"></i>
@@ -585,7 +585,7 @@ $pageTitle = "修改密码";
                             </div>
                             <div class="password-help-text" id="passwordMatchText">
                                 <i class="fas fa-check-circle"></i>
-                                请确保两次输入的密码一致
+                                Make sure both passwords match.
                             </div>
                         </div>
                         
@@ -593,20 +593,20 @@ $pageTitle = "修改密码";
                         <div class="password-requirements">
                             <div class="password-requirements-title">
                                 <i class="fas fa-clipboard-check"></i>
-                                密码安全要求
+                                Password Requirements
                             </div>
                             <ul class="password-requirements-list">
                                 <li class="password-requirement-item" id="reqLength">
                                     <i class="fas fa-circle"></i>
-                                    <span>密码长度至少6个字符</span>
+                                    <span>At least 6 characters</span>
                                 </li>
                                 <li class="password-requirement-item" id="reqMatch">
                                     <i class="fas fa-circle"></i>
-                                    <span>两次输入的密码必须一致</span>
+                                    <span>Passwords must match</span>
                                 </li>
                                 <li class="password-requirement-item" id="reqDifferent">
                                     <i class="fas fa-circle"></i>
-                                    <span>新密码不能与当前密码相同</span>
+                                    <span>New password must differ from current</span>
                                 </li>
                             </ul>
                         </div>
@@ -614,18 +614,18 @@ $pageTitle = "修改密码";
                         <!-- 消息提示区域 -->
                         <div id="passwordMessage" class="password-message" style="display: none;">
                             <i class="fas fa-info-circle"></i>
-                            <span>这里显示消息</span>
+                            <span>Message goes here.</span>
                         </div>
                         
                         <!-- 操作按钮 -->
                         <div class="password-form-actions">
                             <button type="submit" class="btn-password btn-password-primary" id="submitPasswordChange">
                                 <i class="fas fa-save"></i>
-                                确认修改
+                                Update Password
                             </button>
                             <button type="button" class="btn-password btn-password-secondary" onclick="goBack()">
                                 <i class="fas fa-arrow-left"></i>
-                                返回上级
+                                Back
                             </button>
                         </div>
                     </form>
@@ -657,11 +657,11 @@ $pageTitle = "修改密码";
         if (input.type === 'password') {
             input.type = 'text';
             icon.className = 'fas fa-eye-slash';
-            button.setAttribute('aria-label', '隐藏密码');
+            button.setAttribute('aria-label', 'Hide password');
         } else {
             input.type = 'password';
             icon.className = 'fas fa-eye';
-            button.setAttribute('aria-label', '显示密码');
+            button.setAttribute('aria-label', 'Show password');
         }
     }
     
@@ -670,7 +670,7 @@ $pageTitle = "修改密码";
         if (document.referrer && document.referrer.includes(window.location.hostname)) {
             window.history.back();
         } else {
-            window.location.href = 'overview.php'; // 默认返回概况页面
+            window.location.href = 'overview.php';
         }
     }
     
@@ -762,15 +762,15 @@ $pageTitle = "修改密码";
             
             if (confirmPassword.length === 0) {
                 icon.className = 'fas fa-check-circle';
-                text.textContent = '请确保两次输入的密码一致';
+                text.textContent = 'Make sure both passwords match.';
                 passwordMatchText.style.color = '#666';
             } else if (isMatch) {
                 icon.className = 'fas fa-check-circle';
-                text.textContent = '密码匹配，验证通过';
+                text.textContent = 'Passwords match.';
                 passwordMatchText.style.color = '#2ed573';
             } else {
                 icon.className = 'fas fa-times-circle';
-                text.textContent = '密码不匹配，请重新输入';
+                text.textContent = 'Passwords do not match.';
                 passwordMatchText.style.color = '#ff4757';
             }
         }
@@ -809,30 +809,30 @@ $pageTitle = "修改密码";
     const messageDiv = document.getElementById('passwordMessage');
     const submitBtn = document.getElementById('submitPasswordChange');
     
-    // 验证输入
+    // Validate input
     if (!currentPassword || !newPassword || !confirmPassword) {
-        showMessage('请填写所有必填字段', 'error');
+        showMessage('Please fill in all required fields.', 'error');
         return;
     }
     
     if (newPassword !== confirmPassword) {
-        showMessage('两次输入的新密码不一致', 'error');
+        showMessage('New passwords do not match.', 'error');
         return;
     }
     
     if (newPassword.length < 6) {
-        showMessage('密码长度不能少于6位', 'error');
+        showMessage('Password must be at least 6 characters.', 'error');
         return;
     }
     
     if (newPassword === currentPassword) {
-        showMessage('新密码不能与当前密码相同', 'error');
+        showMessage('New password must differ from current.', 'error');
         return;
     }
     
     // 显示加载状态
     const originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> 修改中...';
+    submitBtn.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> Updating...';
     submitBtn.disabled = true;
     
     try {
@@ -859,12 +859,12 @@ $pageTitle = "修改密码";
             
             // 询问是否重新登录
             setTimeout(() => {
-                showAppModal('密码修改成功', 
-                    '🎉 您的密码已成功更新！<br><br>' +
-                    '为了账户安全，建议您重新登录系统。<br>' +
-                    '点击确认将立即退出登录，您需要重新登录才能继续使用系统。', {
-                    okText: '确认并重新登录',
-                    cancelText: '稍后再说',
+                showAppModal('Password Updated', 
+                    '🎉 Your password has been updated.<br><br>' +
+                    'For security, we recommend signing in again.<br>' +
+                    'Confirm to sign out now and sign back in.', {
+                    okText: 'Sign out now',
+                    cancelText: 'Later',
                     enterConfirm: true
                 }).then(confirmed => {
                     if (confirmed) {
@@ -876,8 +876,8 @@ $pageTitle = "修改密码";
             showMessage(result.message, 'error');
         }
     } catch (error) {
-        console.error('修改密码失败:', error);
-        showMessage('网络错误，请稍后重试', 'error');
+        console.error('Password change failed:', error);
+        showMessage('Network error. Please try again.', 'error');
     } finally {
         // 恢复按钮状态
         submitBtn.innerHTML = originalText;

@@ -20,18 +20,27 @@ foreach ($salesTrend as $row) {
 $orderStatusLabels = [];
 $orderStatusCounts = [];
 foreach ($orderStatusDistribution as $row) {
-    $orderStatusLabels[] = $row['order_status'] ?? '未知';
+    $rawStatus = $row['order_status'] ?? 'Unknown';
+    $statusMap = [
+        '已完成' => 'Completed',
+        '处理中' => 'Processing',
+        '已取消' => 'Cancelled',
+        '待处理' => 'Pending',
+        '已下单' => 'Ordered',
+        '已收货' => 'Received'
+    ];
+    $orderStatusLabels[] = $statusMap[$rawStatus] ?? $rawStatus;
     $orderStatusCounts[] = (int)($row['count'] ?? 0);
 }
 
 $branchLabels = [];
 $branchSales = [];
 foreach ($branchSalesComparison as $row) {
-    $branchLabels[] = $row['branch_name'] ?? '未知门店';
+    $branchLabels[] = $row['branch_name'] ?? 'Unknown branch';
     $branchSales[] = (float)($row['total_sales'] ?? 0);
 }
 
-$alertLabels = ['过期预警', '低库存预警'];
+$alertLabels = ['Expiry Alerts', 'Low Stock Alerts'];
 $alertValues = [
     (int)($alertSummary['expiry'] ?? 0),
     (int)($alertSummary['low_stock'] ?? 0)
@@ -65,22 +74,22 @@ $alertValues = [
     }
 </style>
 <section class="section">
-    <h2 class="section-title">工作概览</h2>
+    <h2 class="section-title">Overview</h2>
     <div class="overview-grid">
         <div class="chart-card">
-            <h3>近30天销售趋势</h3>
+            <h3>Sales Trend (Last 30 Days)</h3>
             <div class="chart-wrap"><canvas id="salesTrendChart"></canvas></div>
         </div>
         <div class="chart-card">
-            <h3>订单状态分布</h3>
+            <h3>Order Status Distribution</h3>
             <div class="chart-wrap"><canvas id="orderStatusChart"></canvas></div>
         </div>
         <div class="chart-card">
-            <h3>门店销售对比</h3>
+            <h3>Branch Sales Comparison</h3>
             <div class="chart-wrap"><canvas id="branchSalesChart"></canvas></div>
         </div>
         <div class="chart-card">
-            <h3>库存预警统计</h3>
+            <h3>Inventory Alerts</h3>
             <div class="chart-wrap"><canvas id="alertChart"></canvas></div>
         </div>
     </div>
@@ -106,7 +115,7 @@ buildChart(document.getElementById('salesTrendChart'), {
     data: {
         labels: trendLabels,
         datasets: [{
-            label: '销售额（元）',
+            label: 'Sales (CNY)',
             data: trendSales,
             borderColor: '#ff7043',
             backgroundColor: 'rgba(255,112,67,0.15)',
@@ -151,7 +160,7 @@ buildChart(document.getElementById('branchSalesChart'), {
     data: {
         labels: branchLabels,
         datasets: [{
-            label: '销售额（元）',
+            label: 'Sales (CNY)',
             data: branchSales,
             backgroundColor: '#ffa726'
         }]

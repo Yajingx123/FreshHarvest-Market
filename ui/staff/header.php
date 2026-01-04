@@ -1,7 +1,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - 员工端</title>
+    <title>FreshHarvest - Staff</title>
     <?php
     header("Content-Type: text/html; charset=UTF-8");
     if (session_status() === PHP_SESSION_NONE) {
@@ -12,10 +12,19 @@
         header('Location: ../login/login.php');
         exit();
     }
-    require_once __DIR__ . '/../config/db_connect.php';
+
+    // 数据库配置
+    $servername = "localhost";
+    $username = "staff_user";
+    $password = "YourPassword123!";
+    $dbname = "mydb";
 
     // 连接数据库
-    $conn = getDBConnection();
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        die("Database connection failed: " . $conn->connect_error);
+    }
+    $conn->set_charset("utf8mb4");
 
     // 获取门店名称
     $branch_id = $_SESSION['staff_branch_id'];
@@ -24,7 +33,7 @@
     $stmt_branch->bind_param("i", $branch_id);
     $stmt_branch->execute();
     $result_branch = $stmt_branch->get_result();
-    $branch_name = $result_branch->fetch_assoc()['branch_name'] ?? '未知门店';
+    $branch_name = $result_branch->fetch_assoc()['branch_name'] ?? 'Unknown branch';
 
     // 获取员工编号（staff_ID）
     $staff_id = $_SESSION['staff_id'];
@@ -32,71 +41,6 @@
 
     $conn->close();
     ?>
-    <script>
-        (function() {
-            const userKey = <?php echo json_encode('staff:' . ($_SESSION['staff_username'] ?? '')); ?>;
-            if (!userKey) {
-                return;
-            }
-            if (!window.name) {
-                window.name = 'fhwin_' + Math.random().toString(36).slice(2) + Date.now();
-            }
-            const token = window.name;
-            const activeKey = 'fh_active_window_' + userKey;
-            const now = Date.now();
-            let state = null;
-            try {
-                state = JSON.parse(localStorage.getItem(activeKey) || 'null');
-            } catch (e) {
-                state = null;
-            }
-            if (state && state.token && state.token !== token && now - state.last < 10000) {
-                alert('该账号已在其他窗口登录，请关闭当前窗口或使用原窗口。');
-                window.location.href = '../login/login.php';
-                return;
-            }
-            localStorage.setItem(activeKey, JSON.stringify({ token, last: now }));
-            setInterval(function() {
-                localStorage.setItem(activeKey, JSON.stringify({ token, last: Date.now() }));
-            }, 5000);
-
-            function clearActiveKey() {
-                try {
-                    const current = JSON.parse(localStorage.getItem(activeKey) || 'null');
-                    if (current && current.token === token) {
-                        localStorage.removeItem(activeKey);
-                    }
-                } catch (e) {
-                }
-            }
-
-            function sendLogoutBeacon() {
-                if (window.__fhInternalNav) {
-                    return;
-                }
-                clearActiveKey();
-                if (navigator.sendBeacon) {
-                    navigator.sendBeacon('../login/logout.php?beacon=1');
-                } else {
-                    fetch('../login/logout.php?beacon=1', { method: 'GET', keepalive: true });
-                }
-            }
-
-            document.addEventListener('click', function(e) {
-                const link = e.target.closest('a');
-                if (link && link.href && link.origin === window.location.origin) {
-                    window.__fhInternalNav = true;
-                }
-            }, true);
-
-            document.addEventListener('submit', function() {
-                window.__fhInternalNav = true;
-            }, true);
-
-            window.addEventListener('beforeunload', sendLogoutBeacon);
-            window.addEventListener('pagehide', sendLogoutBeacon);
-        })();
-    </script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Microsoft YaHei', Arial, sans-serif; }
         body { background-color: #f8f9fa; color: #333; }
@@ -177,15 +121,15 @@
 <header class="header">
     <div class="nav-container">
         <div style="display: flex; align-items: center;">
-            <a href="dashboard.php" class="logo">鲜选生鲜 - staff</a>
-            <span class="store-info">当前门店：<?php echo htmlspecialchars($branch_name); ?> | 员工编号：<?php echo htmlspecialchars($employee_code); ?></span>
+            <a href="dashboard.php" class="logo">FreshHarvest - Staff</a>
+            <span class="store-info">Store: <?php echo htmlspecialchars($branch_name); ?> | Employee ID: <?php echo htmlspecialchars($employee_code); ?></span>
         </div>
         <ul class="nav-menu">
-            <li class="nav-item"><a href="dashboard.php" class="nav-link">工作概览</a></li>
-            <li class="nav-item"><a href="orders.php" class="nav-link">订单管理</a></li>
-            <li class="nav-item"><a href="inventory.php" class="nav-link">库存管理</a></li>
-            <li class="nav-item"><a href="employees.php" class="nav-link">员工信息</a></li>
-            <li class="nav-item"><a href="profile.php" class="nav-link">个人中心</a></li>
+            <li class="nav-item"><a href="dashboard.php" class="nav-link">Overview</a></li>
+            <li class="nav-item"><a href="orders.php" class="nav-link">Orders</a></li>
+            <li class="nav-item"><a href="inventory.php" class="nav-link">Inventory</a></li>
+            <li class="nav-item"><a href="employees.php" class="nav-link">Employees</a></li>
+            <li class="nav-item"><a href="profile.php" class="nav-link">Profile</a></li>
         </ul>
     </div>
 </header>

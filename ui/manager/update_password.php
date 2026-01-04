@@ -11,7 +11,7 @@ $data = json_decode(file_get_contents('php://input'), true);
 if (!isset($data['current_password']) || !isset($data['new_password']) || !isset($data['confirm_password'])) {
     echo json_encode([
         'status' => 'error',
-        'message' => '缺少必要参数'
+        'message' => 'Missing required parameters.'
     ]);
     exit();
 }
@@ -26,7 +26,7 @@ $userId = $_SESSION['manager_id'];
 if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
     echo json_encode([
         'status' => 'error',
-        'message' => '所有字段都必须填写'
+        'message' => 'All fields are required.'
     ]);
     exit();
 }
@@ -34,7 +34,7 @@ if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
 if ($newPassword !== $confirmPassword) {
     echo json_encode([
         'status' => 'error',
-        'message' => '两次输入的密码不一致'
+        'message' => 'Passwords do not match.'
     ]);
     exit();
 }
@@ -42,7 +42,7 @@ if ($newPassword !== $confirmPassword) {
 if (strlen($newPassword) < 6) {
     echo json_encode([
         'status' => 'error',
-        'message' => '密码长度不能少于6位'
+        'message' => 'Password must be at least 6 characters.'
     ]);
     exit();
 }
@@ -50,7 +50,7 @@ if (strlen($newPassword) < 6) {
 if ($newPassword === $currentPassword) {
     echo json_encode([
         'status' => 'error',
-        'message' => '新密码不能与当前密码相同'
+        'message' => 'New password must differ from current.'
     ]);
     exit();
 }
@@ -65,7 +65,7 @@ try {
     if ($result->num_rows === 0) {
         echo json_encode([
             'status' => 'error',
-            'message' => '用户不存在'
+            'message' => 'User not found.'
         ]);
         exit();
     }
@@ -82,13 +82,13 @@ try {
     if ($updateStmt->execute()) {
         echo json_encode([
             'status' => 'success',
-            'message' => '密码修改成功'
+            'message' => 'Password updated successfully.'
         ]);
         
     } else {
         echo json_encode([
             'status' => 'error',
-            'message' => '密码修改失败，请稍后重试'
+            'message' => 'Password update failed. Please try again.'
         ]);
     }
     
@@ -98,7 +98,7 @@ try {
 } catch (Exception $e) {
     echo json_encode([
         'status' => 'error',
-        'message' => '服务器错误：' . $e->getMessage()
+        'message' => 'Server error: ' . $e->getMessage()
     ]);
 }
 

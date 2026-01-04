@@ -45,6 +45,7 @@ BEGIN
     START TRANSACTION;
     SET @stock_adjust_reason = NULL;
     SET @stock_adjust_staff_id = NULL;
+    SET @stock_adjust_note = NULL;
 
     SELECT COALESCE(SUM(quantity_on_hand), 0), MAX(received_date)
     INTO v_current_total, v_current_last
@@ -157,7 +158,8 @@ CREATE PROCEDURE staff_adjust_inventory(
     IN p_new_quantity INT,
     IN p_reason VARCHAR(20),
     IN p_staff_id INT,
-    IN p_expected_quantity INT
+    IN p_expected_quantity INT,
+    IN p_note VARCHAR(200)
 )
 BEGIN
     DECLARE v_product_id INT;
@@ -187,6 +189,7 @@ BEGIN
         ROLLBACK;
         SET @stock_adjust_reason = NULL;
         SET @stock_adjust_staff_id = NULL;
+        SET @stock_adjust_note = NULL;
         RESIGNAL;
     END;
 
@@ -203,6 +206,7 @@ BEGIN
     START TRANSACTION;
     SET @stock_adjust_reason = p_reason;
     SET @stock_adjust_staff_id = p_staff_id;
+    SET @stock_adjust_note = NULLIF(TRIM(p_note), '');
 
     SELECT product_ID, received_date, date_expired, quantity_on_hand
     INTO v_product_id, v_received_date, v_expiry_date, v_current_qty
@@ -335,6 +339,7 @@ BEGIN
     COMMIT;
     SET @stock_adjust_reason = NULL;
     SET @stock_adjust_staff_id = NULL;
+    SET @stock_adjust_note = NULL;
 END$$
 
 

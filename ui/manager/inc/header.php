@@ -1,11 +1,11 @@
 <?php
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - CEO</title>
+    <title>FreshHarvest - Management</title>
     <style>
         /* 全局核心样式（保留所有必要功能，无冗余） */
         *{margin:0;padding:0;box-sizing:border-box;font-family:'Microsoft YaHei',Arial,sans-serif;}
@@ -104,71 +104,6 @@
            100% { opacity: 1; }
         }
     </style>
-    <script>
-        (function() {
-            const userKey = <?php echo json_encode('manager:' . ($_SESSION['manager_username'] ?? '')); ?>;
-            if (!userKey) {
-                return;
-            }
-            if (!window.name) {
-                window.name = 'fhwin_' + Math.random().toString(36).slice(2) + Date.now();
-            }
-            const token = window.name;
-            const activeKey = 'fh_active_window_' + userKey;
-            const now = Date.now();
-            let state = null;
-            try {
-                state = JSON.parse(localStorage.getItem(activeKey) || 'null');
-            } catch (e) {
-                state = null;
-            }
-            if (state && state.token && state.token !== token && now - state.last < 10000) {
-                alert('该账号已在其他窗口登录，请关闭当前窗口或使用原窗口。');
-                window.location.href = '../../login/login.php';
-                return;
-            }
-            localStorage.setItem(activeKey, JSON.stringify({ token, last: now }));
-            setInterval(function() {
-                localStorage.setItem(activeKey, JSON.stringify({ token, last: Date.now() }));
-            }, 5000);
-
-            function clearActiveKey() {
-                try {
-                    const current = JSON.parse(localStorage.getItem(activeKey) || 'null');
-                    if (current && current.token === token) {
-                        localStorage.removeItem(activeKey);
-                    }
-                } catch (e) {
-                }
-            }
-
-            function sendLogoutBeacon() {
-                if (window.__fhInternalNav) {
-                    return;
-                }
-                clearActiveKey();
-                if (navigator.sendBeacon) {
-                    navigator.sendBeacon('../../login/logout.php?beacon=1');
-                } else {
-                    fetch('../../login/logout.php?beacon=1', { method: 'GET', keepalive: true });
-                }
-            }
-
-            document.addEventListener('click', function(e) {
-                const link = e.target.closest('a');
-                if (link && link.href && link.origin === window.location.origin) {
-                    window.__fhInternalNav = true;
-                }
-            }, true);
-
-            document.addEventListener('submit', function() {
-                window.__fhInternalNav = true;
-            }, true);
-
-            window.addEventListener('beforeunload', sendLogoutBeacon);
-            window.addEventListener('pagehide', sendLogoutBeacon);
-        })();
-    </script>
     <!-- 引入Chart.js（数据概览折线图用） -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -176,24 +111,24 @@
 <!-- 顶部导航（按新架构渲染，动态激活当前页面） -->
 <header class="header">
     <div class="nav-container">
-        <a href="overview.php" class="logo">鲜选生鲜 - CEO端</a>
+        <a href="overview.php" class="logo">FreshHarvest - Management</a>
         <?php
         $curPage = basename($_SERVER['PHP_SELF']);
         // 导航链接配置（按新架构简化）
         $navLinks = [
-            '概况' => 'overview.php',
-            '门店列表' => 'stores.php',
-            '货品信息' => 'goods.php',
-            '员工信息' => 'employees.php',     // 新增
-            '顾客信息' => 'customers.php',     // 新增
-            '销售情况' => 'saletrend.php',
-            '供应商信息' => 'sup_Info.php',
-            '退出登录' => 'logout',
-            '修改密码' => 'change_password.php'
+            'Overview' => 'overview.php',
+            'Stores' => 'stores.php',
+            'Products' => 'goods.php',
+            'Employees' => 'employees.php',
+            'Customers' => 'customers.php',
+            'Sales' => 'saletrend.php',
+            'Suppliers' => 'sup_Info.php',
+            'Sign out' => 'logout',
+            'Change Password' => 'change_password.php'
         ];
         echo '<ul class="nav-menu">';
         foreach ($navLinks as $label => $url) {
-          if ($label === '退出登录') {
+          if ($label === 'Sign out') {
              echo "<li><a class='nav-link logout-btn' href='javascript:void(0)'>{$label}</a></li>";
           } else {
             $activeClass = ($curPage === basename($url)) ? 'active' : '';
@@ -212,15 +147,15 @@
         <div class="modal-backdrop"></div>
         <div class="modal-content" role="document">
             <div class="modal-header">
-                <h3 id="appModalTitle" style="margin:0;font-size:18px;color:#1976d2;">消息</h3>
-                <button class="modal-close" aria-label="关闭">✕</button>
+                <h3 id="appModalTitle" style="margin:0;font-size:18px;color:#1976d2;">Message</h3>
+                <button class="modal-close" aria-label="Close">✕</button>
             </div>
             <div class="modal-body" id="appModalBody">
-                <p style="color:#666;margin:0;">这里显示信息</p>
+                <p style="color:#666;margin:0;">Message goes here.</p>
             </div>
             <div style="text-align:right;margin-top:12px;">
-                <button class="btn btn-primary" id="appModalConfirm">确定</button>
-                <button class="btn" id="appModalCancel" style="margin-left:8px;">取消</button>
+                <button class="btn btn-primary" id="appModalConfirm">OK</button>
+                <button class="btn" id="appModalCancel" style="margin-left:8px;">Cancel</button>
             </div>
         </div>
     </div>
@@ -246,9 +181,9 @@ document.addEventListener('DOMContentLoaded', function() {
 async function confirmLogout(e) {
     if (e) e.preventDefault();
     
-    const confirmed = await showAppModal('确认退出', '确定要退出登录吗？<br>退出后需要重新登录才能访问系统。', {
-        okText: '确认退出',
-        cancelText: '取消',
+    const confirmed = await showAppModal('Confirm sign out', 'Sign out now?<br>You will need to sign in again to access the system.', {
+        okText: 'Sign out',
+        cancelText: 'Cancel',
         enterConfirm: true
     });
     
@@ -256,7 +191,7 @@ async function confirmLogout(e) {
         // 显示加载状态
         const logoutLinks = document.querySelectorAll('.logout-btn, .nav-link[href*="logout"]');
         logoutLinks.forEach(link => {
-            link.innerHTML = '<span class="loading-text">退出中...</span>';
+            link.innerHTML = '<span class="loading-text">Signing out...</span>';
             link.style.pointerEvents = 'none';
         });
         
@@ -268,15 +203,15 @@ async function confirmLogout(e) {
 }
         function showAppModal(title, html, opts = {}) {
             const modal = document.getElementById('appModal');
-            document.getElementById('appModalTitle').textContent = title || '消息';
+            document.getElementById('appModalTitle').textContent = title || 'Message';
             document.getElementById('appModalBody').innerHTML = html || '';
             modal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
             
             const okBtn = document.getElementById('appModalConfirm');
             const cancelBtn = document.getElementById('appModalCancel');
-            okBtn.textContent = opts.okText || '确定';
-            cancelBtn.textContent = opts.cancelText || '取消';
+            okBtn.textContent = opts.okText || 'OK';
+            cancelBtn.textContent = opts.cancelText || 'Cancel';
             cancelBtn.style.display = opts.showCancel === false ? 'none' : 'inline-block';
 
             return new Promise(resolve => {

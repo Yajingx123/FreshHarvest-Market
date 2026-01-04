@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'role' => $_POST['role'] ?? 'staff',
         'salary' => floatval($_POST['salary'] ?? 0),
         'start_date' => $_POST['start_date'] ?? '',
-        'status' => $_POST['status'] ?? '在职',
+        'status' => $_POST['status'] ?? 'Active',
         'branch_id' => $_POST['branch_id'] ?? ''
     ];
     
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($result['success']) {
         echo '<script>
-            alert("保存成功！");
+            alert("Saved successfully.");
             window.location.href = "employees.php";
         </script>';
         exit;
@@ -40,8 +40,20 @@ $employee = $isEdit ? getEmployeeById($empId) : null;
 // 获取门店列表
 $branches = getBranchesForSelect();
 
+// Normalize status for UI selection
+$currentStatus = $employee['status'] ?? '';
+$statusMap = [
+    'active' => 'Active',
+    'on_leave' => 'On leave',
+    'terminated' => 'Terminated',
+    '在职' => 'Active',
+    '休假' => 'On leave',
+    '离职' => 'Terminated'
+];
+$currentStatus = $statusMap[$currentStatus] ?? $currentStatus;
+
 // 设置标题
-$pageTitle = $isEdit ? '编辑员工' : '新增员工';
+$pageTitle = $isEdit ? 'Edit Employee' : 'Add Employee';
 
 // 如果有错误消息
 if (isset($error)) {
@@ -55,13 +67,13 @@ if (isset($error)) {
         <!-- 左侧：照片 -->
         <div style="width:260px;">
             <div style="width:220px;height:220px;background:#f5f5f5;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#999;margin-bottom:12px;">
-                员工照片
+                Employee photo
             </div>
             <div style="text-align:center;color:#666;">
                 <?php if ($isEdit): ?>
-                <small>员工ID: <?= htmlspecialchars($employee['id']) ?></small><br>
+                <small>Employee ID: <?= htmlspecialchars($employee['id']) ?></small><br>
                 <?php endif; ?>
-                <small>建议尺寸: 300x300px</small>
+                <small>Recommended size: 300x300px</small>
             </div>
         </div>
 
@@ -74,34 +86,34 @@ if (isset($error)) {
                     <div class="form-col">
                         <?php if ($isEdit): ?>
                         <div class="form-group">
-                            <label class="form-label">员工ID</label>
+                            <label class="form-label">Employee ID</label>
                             <input type="text" name="id" class="form-control" value="<?= htmlspecialchars($employee['id']) ?>" readonly>
-                            <small class="form-text">ID不可修改</small>
+                            <small class="form-text">ID cannot be edited</small>
                         </div>
                         <?php else: ?>
                         <div class="form-group">
-                            <label class="form-label">员工ID</label>
-                            <input type="text" name="id" class="form-control" value="自动生成" readonly>
-                            <small class="form-text">新增员工ID将自动生成</small>
+                            <label class="form-label">Employee ID</label>
+                            <input type="text" name="id" class="form-control" value="Auto-generated" readonly>
+                            <small class="form-text">New employee IDs are auto-generated</small>
                         </div>
                         <?php endif; ?>
                         
                         <div class="form-group">
-                            <label class="form-label">姓名 <span class="required">*</span></label>
+                            <label class="form-label">Name <span class="required">*</span></label>
                             <input type="text" name="name" id="mf_name" class="form-control" 
                                    value="<?= $isEdit ? htmlspecialchars($employee['name']) : '' ?>" 
                                    required>
                         </div>
                         
                         <div class="form-group">
-                            <label class="form-label">邮箱 <span class="required">*</span></label>
+                            <label class="form-label">Email <span class="required">*</span></label>
                             <input type="email" name="email" id="mf_email" class="form-control" 
                                    value="<?= $isEdit ? htmlspecialchars($employee['email']) : '' ?>" 
                                    required>
                         </div>
                         
                         <div class="form-group">
-                            <label class="form-label">电话 <span class="required">*</span></label>
+                            <label class="form-label">Phone <span class="required">*</span></label>
                             <input type="tel" name="phone" id="mf_phone" class="form-control" 
                                    value="<?= $isEdit ? htmlspecialchars($employee['phone']) : '' ?>" 
                                    required>
@@ -110,9 +122,9 @@ if (isset($error)) {
                     
                     <div class="form-col">
                         <div class="form-group">
-                            <label class="form-label">所属门店 <span class="required">*</span></label>
+                            <label class="form-label">Branch <span class="required">*</span></label>
                             <select name="branch_id" id="mf_store" class="form-control" required>
-                                <option value="">请选择门店</option>
+                                <option value="">Select a branch</option>
                                 <?php foreach ($branches as $branch): ?>
                                 <option value="<?= htmlspecialchars($branch['id']) ?>" 
                                     <?= ($isEdit && $employee['branch_id'] == str_replace('BR-', '', $branch['id'])) ? 'selected' : '' ?>>
@@ -123,34 +135,34 @@ if (isset($error)) {
                         </div>
                         
                         <div class="form-group">
-                            <label class="form-label">岗位 <span class="required">*</span></label>
+                            <label class="form-label">Role <span class="required">*</span></label>
                             <select name="role" id="mf_role" class="form-control" required>
-                                <option value="Manager" <?= ($isEdit && $employee['role'] == 'Manager') ? 'selected' : '' ?>>经理</option>
-                                <option value="Sales" <?= ($isEdit && $employee['role'] == 'Sales') ? 'selected' : '' ?>>销售</option>
-                                <option value="Deliveryman" <?= ($isEdit && $employee['role'] == 'Deliveryman') ? 'selected' : '' ?>>配送员</option>
+                                <option value="Manager" <?= ($isEdit && $employee['role'] == 'Manager') ? 'selected' : '' ?>>Manager</option>
+                                <option value="Sales" <?= ($isEdit && $employee['role'] == 'Sales') ? 'selected' : '' ?>>Sales</option>
+                                <option value="Deliveryman" <?= ($isEdit && $employee['role'] == 'Deliveryman') ? 'selected' : '' ?>>Delivery</option>
                             </select>
                         </div>
                         
                         <div class="form-group">
-                            <label class="form-label">薪资 (¥) <span class="required">*</span></label>
+                            <label class="form-label">Salary (¥) <span class="required">*</span></label>
                             <input type="number" name="salary" id="mf_salary" class="form-control" 
                                    value="<?= $isEdit ? htmlspecialchars($employee['salary']) : '' ?>" 
                                    step="0.01" min="0" required>
                         </div>
                         
                         <div class="form-group">
-                            <label class="form-label">入职时间 <span class="required">*</span></label>
+                            <label class="form-label">Hire Date <span class="required">*</span></label>
                                <input type="date" name="start_date" id="mf_start" class="form-control" 
                                   value="<?= $isEdit ? date('Y-m-d', strtotime($employee['start_date'])) : '' ?>" 
                                   required>
                         </div>
                         
                         <div class="form-group">
-                            <label class="form-label">状态 <span class="required">*</span></label>
+                            <label class="form-label">Status <span class="required">*</span></label>
                             <select name="status" id="mf_status" class="form-control" required>
-                                <option value="在职" <?= ($isEdit && $employee['status'] == '在职') ? 'selected' : '' ?>>在职</option>
-                                <option value="休假" <?= ($isEdit && $employee['status'] == '休假') ? 'selected' : '' ?>>休假</option>
-                                <option value="离职" <?= ($isEdit && $employee['status'] == '离职') ? 'selected' : '' ?>>离职</option>
+                                <option value="Active" <?= ($isEdit && $currentStatus === 'Active') ? 'selected' : '' ?>>Active</option>
+                                <option value="On leave" <?= ($isEdit && $currentStatus === 'On leave') ? 'selected' : '' ?>>On leave</option>
+                                <option value="Terminated" <?= ($isEdit && $currentStatus === 'Terminated') ? 'selected' : '' ?>>Terminated</option>
                             </select>
                         </div>
                     </div>
@@ -158,16 +170,16 @@ if (isset($error)) {
 
                 <div style="margin-top:20px;padding-top:20px;border-top:1px solid #eee;">
                     <div class="form-group">
-                        <label class="form-label">备注</label>
-                        <textarea name="remark" class="form-control" rows="3" placeholder="可填写员工相关备注信息"></textarea>
+                        <label class="form-label">Notes</label>
+                        <textarea name="remark" class="form-control" rows="3" placeholder="Add notes about this employee"></textarea>
                     </div>
                     
                     <div style="margin-top:20px;">
-                        <button type="submit" class="btn btn-primary">保存</button>
-                        <button type="button" id="mf_cancel" class="btn btn-default" style="margin-left:8px;">取消</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="button" id="mf_cancel" class="btn btn-default" style="margin-left:8px;">Cancel</button>
                         
                         <?php if ($isEdit): ?>
-                        <button type="button" id="mf_reset_pwd" class="btn btn-secondary" style="margin-left:8px;">重置密码</button>
+                        <button type="button" id="mf_reset_pwd" class="btn btn-secondary" style="margin-left:8px;">Reset Password</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -181,7 +193,7 @@ if (isset($error)) {
 <script>
 // 取消按钮
 document.getElementById('mf_cancel').addEventListener('click', function() {
-    if (confirm('确定要取消吗？未保存的更改将会丢失。')) {
+    if (confirm('Cancel changes? Unsaved edits will be lost.')) {
         window.location.href = 'employees.php';
     }
 });
@@ -209,7 +221,7 @@ document.getElementById('manageForm').addEventListener('submit', function(e) {
     if (salaryField.value && parseFloat(salaryField.value) < 0) {
         isValid = false;
         salaryField.style.borderColor = '#dc3545';
-        alert('薪资不能为负数');
+        alert('Salary cannot be negative.');
         if (!firstInvalidField) firstInvalidField = salaryField;
     }
     
@@ -218,7 +230,7 @@ document.getElementById('manageForm').addEventListener('submit', function(e) {
     if (emailField.value && !isValidEmail(emailField.value)) {
         isValid = false;
         emailField.style.borderColor = '#dc3545';
-        alert('请输入有效的邮箱地址');
+        alert('Please enter a valid email address.');
         if (!firstInvalidField) firstInvalidField = emailField;
     }
     const dateField = document.getElementById('mf_start');
@@ -226,7 +238,7 @@ document.getElementById('manageForm').addEventListener('submit', function(e) {
     if (dateField.value && !dateRegex.test(dateField.value)) {
         isValid = false;
         dateField.style.borderColor = '#dc3545';
-        alert('请选择完整的日期（格式：年-月-日）');
+        alert('Please select a valid date (YYYY-MM-DD).');
         if (!firstInvalidField) firstInvalidField = dateField;
     }
     if (!isValid) {
@@ -238,7 +250,7 @@ document.getElementById('manageForm').addEventListener('submit', function(e) {
     }
     
     // 确认保存
-    if (!confirm('确定要保存员工信息吗？')) {
+    if (!confirm('Save employee details?')) {
         e.preventDefault();
         return false;
     }

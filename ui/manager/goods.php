@@ -80,11 +80,11 @@ $productSupplierPricing = getManagerProductSupplierPricing();
 `;
 </style>
 <section class="section">
-    <h2 class="section-title">货品信息</h2>
+    <h2 class="section-title">Products</h2>
     <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
-        <input id="productSearchInput" class="filter-input" placeholder="搜索产品名称/编号">
-        <button id="productSearchBtn" class="btn btn-primary">搜索</button>
-        <button id="productAddBtn" class="btn btn-success" style="margin-left:auto;">新增产品</button>
+        <input id="productSearchInput" class="filter-input" placeholder="Search product name / ID">
+        <button id="productSearchBtn" class="btn btn-primary">Search</button>
+        <button id="productAddBtn" class="btn btn-success" style="margin-left:auto;">Add product</button>
     </div>
 
     <div id="productList" class="product-list"></div>
@@ -95,31 +95,31 @@ $productSupplierPricing = getManagerProductSupplierPricing();
 <!-- 货物流水管理（只读流水表） -->
 <section class="section" style="margin-top:20px;">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-        <h2 class="section-title" style="margin:0;">货物流水</h2>
+        <h2 class="section-title" style="margin:0;">Inventory Transactions</h2>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-            <input id="txSearchInput" class="filter-input" placeholder="搜索产品名称/批次/备注">
+            <input id="txSearchInput" class="filter-input" placeholder="Search product name / batch / notes">
             <select id="txTypeSelect" class="filter-select">
-                <option value="">全部类型</option>
-                <option value="sale">售卖</option>
-                <option value="adjustment">调整</option>
-                <option value="purchase">进货</option>
+                <option value="">All types</option>
+                <option value="sale">Sale</option>
+                <option value="adjustment">Adjustment</option>
+                <option value="purchase">Purchase</option>
             </select>
-            <button id="txSearchBtn" class="btn btn-primary">筛选</button>
+            <button id="txSearchBtn" class="btn btn-primary">Filter</button>
         </div>
     </div>
     <div style="overflow:auto;max-height:420px;">
         <table class="data-table" style="min-width:1100px;">
             <thead>
                 <tr>
-                    <th>时间</th>
-                    <th>产品名称</th>
-                    <th>批次号</th>
-                    <th>数量</th>
-                    <th>单位</th>
-                    <th>类型</th>
-                    <th>来源</th>
-                    <th>去向</th>
-                    <th>备注</th>
+                    <th>Time</th>
+                    <th>Product</th>
+                    <th>Batch</th>
+                    <th>Qty</th>
+                    <th>Unit</th>
+                    <th>Type</th>
+                    <th>Source</th>
+                    <th>Destination</th>
+                    <th>Notes</th>
                 </tr>
             </thead>
             <tbody id="transactionsBody"></tbody>
@@ -131,15 +131,15 @@ $productSupplierPricing = getManagerProductSupplierPricing();
 <div id="productEditModal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z:999;display:none;">
     <div style="background:#fff;width:600px;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.15);overflow:hidden;">
         <div style="padding:16px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;">
-            <h3 style="margin:0;font-size:18px;font-weight:600;" id="editModalTitle">编辑产品</h3>
+            <h3 style="margin:0;font-size:18px;font-weight:600;" id="editModalTitle">Edit Product</h3>
             <button id="closeEditModal" style="background:transparent;border:none;font-size:20px;cursor:pointer;color:#666;">&times;</button>
         </div>
         <div style="padding:20px;" id="editModalContent">
             <!-- 编辑表单将通过JS动态生成 -->
         </div>
         <div style="padding:12px 20px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:10px;">
-            <button id="cancelEditBtn" class="btn btn-default">取消</button>
-            <button id="saveEditBtn" class="btn btn-primary">保存修改</button>
+            <button id="cancelEditBtn" class="btn btn-default">Cancel</button>
+            <button id="saveEditBtn" class="btn btn-primary">Save</button>
         </div>
     </div>
 </div>
@@ -245,22 +245,22 @@ function renderProductList(filteredProducts) {
     wrap.innerHTML = '';
 
     if (filteredProducts.length === 0) {
-        wrap.innerHTML = '<div style="color:#666;padding:24px;text-align:center;">暂无匹配产品</div>';
+        wrap.innerHTML = '<div style="color:#666;padding:24px;text-align:center;">No matching products</div>';
         return;
     }
 
     filteredProducts.forEach(product => {
         const card = document.createElement('div');
         card.className = 'product-card';
-        const desc = product.description || '暂无描述';
+        const desc = product.description || 'No description';
         card.innerHTML = `
             <div style="flex:1;">
                 <div style="font-size:16px;font-weight:600;">${escapeHtml(product.name || '')} <span style="color:#888;font-size:13px;">(${escapeHtml(product.sku || product.id || '')})</span></div>
                 <div style="font-size:13px;color:#888;margin-top:6px;">${escapeHtml(desc)}</div>
             </div>
             <div class="product-card-actions">
-                <button class="btn btn-primary" onclick="openInventoryModal(${product.id})">库存查看</button>
-                <button class="btn btn-warning" onclick="openSupplierPricingModal(${product.id})">供货与销售</button>
+                <button class="btn btn-primary" onclick="openInventoryModal(${product.id})">Inventory</button>
+                <button class="btn btn-warning" onclick="openSupplierPricingModal(${product.id})">Supplier Pricing</button>
             </div>
         `;
         wrap.appendChild(card);
@@ -282,9 +282,9 @@ function renderTransactions() {
     if (typeFilter) {
         // 使用中文类型映射
         const typeMap = {
-            'sale': '售卖',
-            'adjustment': '调整', 
-            'purchase': '进货'
+            'sale': 'Sale',
+            'adjustment': 'Adjustment', 
+            'purchase': 'Purchase'
         };
         
         // 根据显示的中文类型筛选
@@ -302,7 +302,7 @@ function renderTransactions() {
     }
 
     if (filteredTx.length === 0) {
-        tb.innerHTML = '<tr><td colspan="9" style="color:#666;padding:12px;text-align:center;">暂无流水记录</td></tr>';
+        tb.innerHTML = '<tr><td colspan="9" style="color:#666;padding:12px;text-align:center;">No transaction records</td></tr>';
         return;
     }
     // 渲染流水行
@@ -327,10 +327,10 @@ function renderTransactions() {
 
 function resolveTransactionLabel(tx) {
     const raw = (tx.txn_type || '').toLowerCase();
-    if (raw === 'purchase') return '进货';
-    if (raw === 'sale') return '售卖';
-    if (raw === 'return' || raw === 'transfer' || raw === 'adjustment') return '调整';
-    return tx.type === 'in' ? '进货' : (tx.type === 'out' ? '售卖' : '调整');
+    if (raw === 'purchase') return 'Purchase';
+    if (raw === 'sale') return 'Sale';
+    if (raw === 'return' || raw === 'transfer' || raw === 'adjustment') return 'Adjustment';
+    return tx.type === 'in' ? 'Purchase' : (tx.type === 'out' ? 'Sale' : 'Adjustment');
 }
 
 function openInventoryModal(productId) {
@@ -342,7 +342,7 @@ function openInventoryModal(productId) {
     let bodyHtml = '';
 
     if (rows.length === 0) {
-        bodyHtml = '<div style="color:#888;padding:16px 0;">暂无库存数据</div>';
+        bodyHtml = '<div style="color:#888;padding:16px 0;">No inventory data</div>';
     } else {
         const rowHtml = rows.map(r => {
             const qty = Number(r.total_stock) || 0;
@@ -352,12 +352,12 @@ function openInventoryModal(productId) {
         bodyHtml = `
             <table>
                 <thead>
-                    <tr><th>门店名称</th><th>库存</th></tr>
+                    <tr><th>Branch</th><th>Stock</th></tr>
                 </thead>
                 <tbody>
                     ${rowHtml}
                     <tr>
-                        <td><b>全公司合计</b></td>
+                        <td><b>Company total</b></td>
                         <td><b>${total}</b></td>
                     </tr>
                 </tbody>
@@ -366,10 +366,10 @@ function openInventoryModal(productId) {
     }
 
     modal.innerHTML = `
-        <h3>库存统计 - ${escapeHtml(product.name || '')}</h3>
+        <h3>Inventory - ${escapeHtml(product.name || '')}</h3>
         ${bodyHtml}
         <div style="text-align:right;margin-top:16px;">
-            <button class="btn btn-warning" onclick="closeManagerModal()">关闭</button>
+            <button class="btn btn-warning" onclick="closeManagerModal()">Close</button>
         </div>
     `;
     modal.style.display = 'block';
@@ -384,7 +384,7 @@ function openSupplierPricingModal(productId) {
 
     let bodyHtml = '';
     if (rows.length === 0) {
-        bodyHtml = '<div style="color:#888;padding:16px 0;">暂无供应商数据</div>';
+        bodyHtml = '<div style="color:#888;padding:16px 0;">No supplier data</div>';
     } else {
         const rowHtml = rows.map(r => `
             <tr id="pricing-row-${r.product_ID}-${r.supplier_ID}">
@@ -392,7 +392,7 @@ function openSupplierPricingModal(productId) {
                 <td>¥${Number(r.unit_cost).toFixed(2)}</td>
                 <td class="pricing-value" data-value="${Number(r.selling_price).toFixed(2)}">¥${Number(r.selling_price).toFixed(2)}</td>
                 <td class="pricing-action">
-                    <button class="btn btn-primary" onclick="editSellingPrice(${r.product_ID}, ${r.supplier_ID})">编辑</button>
+                    <button class="btn btn-primary" onclick="editSellingPrice(${r.product_ID}, ${r.supplier_ID})">Edit</button>
                 </td>
             </tr>
         `).join('');
@@ -401,10 +401,10 @@ function openSupplierPricingModal(productId) {
             <table>
                 <thead>
                     <tr>
-                        <th>供应商</th>
-                        <th>进货价</th>
-                        <th>售卖价</th>
-                        <th>操作</th>
+                        <th>Supplier</th>
+                        <th>Cost</th>
+                        <th>Selling Price</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>${rowHtml}</tbody>
@@ -413,10 +413,10 @@ function openSupplierPricingModal(productId) {
     }
 
     modal.innerHTML = `
-        <h3>供货与销售 - ${escapeHtml(product.name || '')}</h3>
+        <h3>Supplier Pricing - ${escapeHtml(product.name || '')}</h3>
         ${bodyHtml}
         <div style="text-align:right;margin-top:16px;">
-            <button class="btn btn-warning" onclick="closeManagerModal()">关闭</button>
+            <button class="btn btn-warning" onclick="closeManagerModal()">Close</button>
         </div>
     `;
     modal.style.display = 'block';
@@ -431,8 +431,8 @@ function editSellingPrice(productId, supplierId) {
     const actionCell = row.querySelector('.pricing-action');
     valueCell.innerHTML = `<input type="number" step="0.01" id="selling-input-${productId}" value="${price}" style="width:120px;">`;
     actionCell.innerHTML = `
-        <button class="btn btn-success" onclick="saveSellingPrice(${productId})">保存</button>
-        <button class="btn btn-warning" style="margin-left:6px;" onclick="openSupplierPricingModal(${productId})">取消</button>
+        <button class="btn btn-success" onclick="saveSellingPrice(${productId})">Save</button>
+        <button class="btn btn-warning" style="margin-left:6px;" onclick="openSupplierPricingModal(${productId})">Cancel</button>
     `;
 }
 
@@ -440,7 +440,7 @@ function saveSellingPrice(productId) {
     const input = document.getElementById(`selling-input-${productId}`);
     const newPrice = input ? parseFloat(input.value) : NaN;
     if (!Number.isFinite(newPrice) || newPrice <= 0) {
-        alert('请输入有效的售卖价');
+        alert('Please enter a valid selling price.');
         return;
     }
     const payload = new URLSearchParams({
@@ -457,7 +457,7 @@ function saveSellingPrice(productId) {
     .then(res => res.json())
     .then(data => {
         if (!data.success) {
-            alert(data.message || '更新失败');
+            alert(data.message || 'Update failed.');
             return;
         }
         supplierPricing.forEach(r => {
@@ -468,7 +468,7 @@ function saveSellingPrice(productId) {
         openSupplierPricingModal(productId);
     })
     .catch(() => {
-        alert('更新失败，请稍后重试');
+        alert('Update failed. Please try again later.');
     });
 }
 
@@ -527,7 +527,7 @@ function bindImageUploadPreview() {
         // 验证图片格式
         const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         if (!allowedTypes.includes(file.type)) {
-            alert('请上传图片格式文件（JPG、PNG、GIF、WebP）');
+            alert('Please upload an image file (JPG, PNG, GIF, WebP).');
             return;
         }
 
@@ -783,12 +783,12 @@ function saveEditProduct() {
 
     // 基础校验
     if (!productName) {
-        alert('产品名称不能为空！');
+        alert('Product name is required.');
         document.getElementById('editProductName').focus();
         return;
     }
     if (!productUnit) {
-        alert('产品单位不能为空！');
+        alert('Unit is required.');
         document.getElementById('editProductUnit').focus();
         return;
     }
@@ -820,7 +820,7 @@ function saveEditProduct() {
     closeEditModal();
 
     // 提示保存成功
-    alert('产品信息修改成功！');
+    alert('Product updated successfully.');
 }
 
 // 关闭编辑弹窗
@@ -863,57 +863,57 @@ document.getElementById('productAddBtn').addEventListener('click', async functio
 
 const html = `
     <form id="addProductForm" style="display:flex;gap:12px;">
-        <div style="width:160px;height:140px;background:#f5f5f5;border:1px dashed #ddd;display:flex;align-items:center;justify-content:center;color:#999;">图片占位</div>
+        <div style="width:160px;height:140px;background:#f5f5f5;border:1px dashed #ddd;display:flex;align-items:center;justify-content:center;color:#999;">Image placeholder</div>
         <div style="flex:1;">
             <div class="form-group">
-                <label class="form-label">产品名称 <span style="color:red;">*</span></label>
+                <label class="form-label">Product Name <span style="color:red;">*</span></label>
                 <input type="text" name="name" id="pf_name" class="form-control" required>
             </div>
             <div class="form-row">
                 <div class="form-col">
-                    <label class="form-label">单价</label>
+                    <label class="form-label">Unit Price</label>
                     <input type="number" step="0.01" name="price" id="pf_price" class="form-control" value="0">
                 </div>
                 <div class="form-col">
-                  <label class="form-label">单位 <span style="color:red;">*</span></label>
+                  <label class="form-label">Unit <span style="color:red;">*</span></label>
                   <select name="unit" id="pf_unit" class="form-control" required>
-                     <option value="">选择单位</option>
+                     <option value="">Select unit</option>
                      <option value="g">g</option>
                      <option value="kg">kg</option>
-                     <option value="只">只</option>
-                     <option value="个">个</option>
-                     <option value="枚">枚</option>
-                     <option value="斤">斤</option>
-                     <option value="公斤">公斤</option>
-                     <option value="盒">盒</option>
-                     <option value="包">包</option>
-                     <option value="袋">袋</option>
-                     <option value="份" selected>份</option>
+                     <option value="只">piece</option>
+                     <option value="个">item</option>
+                     <option value="枚">piece</option>
+                     <option value="斤">jin</option>
+                     <option value="公斤">kilogram</option>
+                     <option value="盒">box</option>
+                     <option value="包">pack</option>
+                     <option value="袋">bag</option>
+                     <option value="份" selected>serving</option>
                     </select>
                 </div>
 
           <div class="form-col">
-               <label class="form-label">售卖量 <span style="color:red;">*</span></label>
+               <label class="form-label">Sales Qty <span style="color:red;">*</span></label>
                <input type="number" name="sale_quantity" id="pf_sale_quantity" 
                  class="form-control" min="1" required value="1">
           </div>
              </div>
             <div class="form-group">
-                <label class="form-label">产品类型 <span style="color:red;">*</span></label>
+                <label class="form-label">Category <span style="color:red;">*</span></label>
                 <select name="category_id" id="pf_category" class="form-control" required onchange="filterSuppliersByCategory()">
-                    <option value="">-- 请选择 --</option>
+                    <option value="">-- Select --</option>
                     ${categoryOptions}
                 </select>
             </div>
             <div class="form-group">
-                <label class="form-label">供应商</label>
+                <label class="form-label">Supplier</label>
                 <select name="supplier" id="pf_supplier" class="form-control" onchange="filterCategoriesBySupplier()">
-                    <option value="">（未关联）</option>
+                    <option value="">(Not linked)</option>
                     ${supplierOptions}
                 </select>
             </div>
             <div class="form-group">
-                <label class="form-label">简介</label>
+                <label class="form-label">Description</label>
                 <textarea name="description" id="pf_desc" class="form-control" rows="3"></textarea>
             </div>
         </div>
@@ -921,7 +921,7 @@ const html = `
 `;
 
     if (typeof showAppModal === 'function') {
-        const ok = await showAppModal('新增产品', html, { showCancel: true, okText: '添加' });
+        const ok = await showAppModal('Add Product', html, { showCancel: true, okText: 'Add' });
         if (!ok) return;
 
         const form = document.getElementById('addProductForm');
@@ -947,10 +947,10 @@ const html = `
              }
            );
           } else {
-            showNotification('error', result.error || '添加失败', 5000);
+            showNotification('error', result.error || 'Add failed.', 5000);
           }
         } catch (error) {
-            showNotification('error', '网络错误，请重试', 2000);
+            showNotification('error', 'Network error. Please try again.', 2000);
         }
     }
 });
@@ -993,8 +993,8 @@ function initSupplierData() {
         name: cat.category_name
     }));
     
-    console.log('初始化供应商数据:', allSuppliers); // 调试用
-    console.log('初始化分类数据:', allCategories); // 调试用
+    console.log('Initialized supplier data:', allSuppliers); // Debug
+    console.log('Initialized category data:', allCategories); // Debug
 }
 
 // 根据产品类型筛选供应商
@@ -1106,7 +1106,7 @@ function populateCategoryOptions(categories, selectElement) {
 
 // 在页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('页面加载完成，开始初始化数据'); // 调试
+    console.log('Page loaded. Starting initialization.'); // Debug
     // 添加CSS样式
     const notificationCSS = `
         .notification {
@@ -1241,6 +1241,6 @@ document.addEventListener('DOMContentLoaded', function() {
     applyProductFilter();
     renderTransactions();
     bindAllEvents();
-    console.log('数据初始化完成'); // 调试
+    console.log('Initialization complete.'); // Debug
 });
 </script>

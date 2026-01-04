@@ -3,11 +3,15 @@ header("Content-Type: text/html; charset=UTF-8");
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once __DIR__ . '/../config/db_connect.php';
 if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
 }
+
+$servername = "localhost";
+$username = "staff_user";
+$password = "YourPassword123!";
+$dbname = "mydb";
 
 $error_message = '';
 $success_message = $_SESSION['inventory_success'] ?? '';
@@ -24,10 +28,10 @@ $currentBranchName = '';
 function buildSupplierInfo(array $row): array {
     return [
         'id' => $row['supplier_id'] ?? null,
-        'name' => $row['supplier_name'] ?? '未知供应商',
-        'contact' => $row['supplier_contact'] ?? '未登记',
-        'phone' => $row['supplier_phone'] ?? '未提供',
-        'address' => $row['supplier_address'] ?? '未提供'
+        'name' => $row['supplier_name'] ?? 'Unknown Supplier',
+        'contact' => $row['supplier_contact'] ?? 'Not set',
+        'phone' => $row['supplier_phone'] ?? 'Not provided',
+        'address' => $row['supplier_address'] ?? 'Not provided'
     ];
 }
 
@@ -105,7 +109,7 @@ function getLastRestockActor(mysqli $conn, int $productId, int $branchId): ?arra
             if ($row) {
                 $labelParts = [];
                 if (!empty($row['purchase_order_id'])) {
-                    $labelParts[] = '采购单#' . $row['purchase_order_id'];
+                    $labelParts[] = 'PO#' . $row['purchase_order_id'];
                 }
                 if (!empty($row['supplier_name'])) {
                     $labelParts[] = $row['supplier_name'];
@@ -120,7 +124,7 @@ function getLastRestockActor(mysqli $conn, int $productId, int $branchId): ?arra
     return null;
 }
 
-function resolveActorContext(?array $actorInfo, string $defaultName = '其他员工'): array {
+function resolveActorContext(?array $actorInfo, string $defaultName = 'Other staff'): array {
     $actorName = trim($actorInfo['staff_name'] ?? '');
     if ($actorName === '') {
         $actorName = $defaultName;
@@ -129,7 +133,7 @@ function resolveActorContext(?array $actorInfo, string $defaultName = '其他员
     if (!empty($actorInfo['action_time'])) {
         $timestamp = strtotime($actorInfo['action_time']);
         if ($timestamp !== false) {
-            $actionTime = ' 于 ' . date('m-d H:i', $timestamp);
+            $actionTime = ' at ' . date('m-d H:i', $timestamp);
         }
     }
     return [$actorName, $actionTime];
@@ -222,11 +226,14 @@ function summarizeProductInventory(mysqli $conn, int $productId, int $branchId, 
 }
 
 if ($branchId === null) {
-    $error_message = '无法确定当前门店，请重新登录。';
+    $error_message = 'Unable to determine the current branch. Please sign in again.';
 } else {
-    $conn = getDBConnection();
-    if ($conn) {
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        $error_message = 'Database connection failed: ' . $conn->connect_error;
+    } else {
         try {
+            $conn->set_charset('utf8mb4');
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['adjust_action'])) {
                 $batchId = trim($_POST['batch_id'] ?? '');
@@ -237,28 +244,28 @@ if ($branchId === null) {
                 $allowedReasons = ['return', 'transfer', 'adjustment'];
 
                 if ($batchId === '' || $newQuantity < 0 || !in_array($reason, $allowedReasons, true)) {
-                    $error_message = '请填写正确的调整信息。';
+                    $error_message = 'Please provide a valid adjustment.';
                 } elseif ($reason === 'return') {
                     if ($originalQuantity !== null && $newQuantity > $originalQuantity) {
-                        $error_message = '退回类型只能减少库存数量。';
+                        $error_message = 'Returns can only reduce stock.';
                     } elseif ($note === '') {
-                        $error_message = '请填写退回原因。';
+                        $error_message = 'Please provide a return reason.';
                     }
                 } else {
                     try {
                         $staffId = $_SESSION['staff_id'] ?? null;
                         if (!$staffId) {
-                            throw new Exception('无法识别当前员工，请重新登录。');
+                            throw new Exception('Unable to identify the current staff member. Please sign in again.');
                         }
 
                         $expectedQuantity = $originalQuantity;
                         $stmtAdjust = $conn->prepare('CALL staff_adjust_inventory(?, ?, ?, ?, ?, ?, ?)');
                         if (!$stmtAdjust) {
-                            throw new Exception('准备库存调整存储过程失败：' . $conn->error);
+                            throw new Exception('Failed to prepare inventory adjustment procedure: ' . $conn->error);
                         }
                         $stmtAdjust->bind_param('siisiis', $batchId, $branchId, $newQuantity, $reason, $staffId, $expectedQuantity, $note);
                         if (!$stmtAdjust->execute()) {
-                            throw new Exception('执行库存调整存储过程失败：' . $stmtAdjust->error);
+                            throw new Exception('Failed to execute inventory adjustment procedure: ' . $stmtAdjust->error);
                         }
                         $stmtAdjust->close();
                         while ($conn->more_results() && $conn->next_result()) {
@@ -268,7 +275,7 @@ if ($branchId === null) {
                             }
                         }
 
-                        $_SESSION['inventory_success'] = '库存已调整。';
+                        $_SESSION['inventory_success'] = 'Inventory adjusted successfully.';
                         header('Location: inventory.php');
                         exit();
                     } catch (Exception $inner) {
@@ -278,12 +285,12 @@ if ($branchId === null) {
                             [$actorName, $actionTime] = resolveActorContext($actorInfo);
                             if (strpos($message, 'Quantity mismatch') !== false) {
                                 $reasonText = sprintf(
-                                    '库存调整失败：%s%s已将该批次更新，请刷新后重试。',
+                                    'Inventory adjustment failed: %s%s updated this batch. Refresh and try again.',
                                     $actorName,
                                     $actionTime
                                 );
                             } else {
-                                $reasonText = sprintf('库存未发生变化：%s%s已将该批次更新，请刷新后重试。', $actorName, $actionTime);
+                                $reasonText = sprintf('No inventory changes: %s%s updated this batch. Refresh and try again.', $actorName, $actionTime);
                             }
                             $_SESSION['inventory_error'] = $reasonText;
                             header('Location: inventory.php');
@@ -304,34 +311,34 @@ if ($branchId === null) {
                     $expiryDate = null;
                 }
                 if ($productId <= 0 || $quantity <= 0 || $supplierId <= 0 || $unitCost <= 0) {
-                    $error_message = '请完整填写补货信息（商品、数量、供应商、单价）。';
+                    $error_message = 'Please complete all restock details (product, quantity, supplier, unit cost).';
                 }
 
                 if (!$error_message) {
                     try {
                         $stmtProductLock = $conn->prepare('SELECT product_ID FROM products WHERE product_ID = ? LIMIT 1 FOR UPDATE');
                         if (!$stmtProductLock) {
-                            throw new Exception('准备商品锁定失败：' . $conn->error);
+                            throw new Exception('Failed to prepare product lock: ' . $conn->error);
                         }
                         $stmtProductLock->bind_param('i', $productId);
                         if (!$stmtProductLock->execute()) {
-                            throw new Exception('锁定商品失败：' . $stmtProductLock->error);
+                            throw new Exception('Failed to lock product: ' . $stmtProductLock->error);
                         }
                         $stmtProductLock->close();
 
                         $stmtProduct = $conn->prepare('SELECT sku, product_name, category_id, parent_category_id FROM v_staff_product_category WHERE product_ID = ? LIMIT 1');
                         if (!$stmtProduct) {
-                            throw new Exception('准备商品查询失败：' . $conn->error);
+                            throw new Exception('Failed to prepare product query: ' . $conn->error);
                         }
                         $stmtProduct->bind_param('i', $productId);
                         if (!$stmtProduct->execute()) {
-                            throw new Exception('查询商品失败：' . $stmtProduct->error);
+                            throw new Exception('Failed to query product: ' . $stmtProduct->error);
                         }
                         $rsProduct = $stmtProduct->get_result();
                         $productRow = $rsProduct->fetch_assoc();
                         $stmtProduct->close();
                         if (!$productRow) {
-                            throw new Exception('未找到该商品，无法补货。');
+                            throw new Exception('Product not found. Unable to restock.');
                         }
 
                         $parentCategoryId = resolveRestockCategoryId(
@@ -340,32 +347,32 @@ if ($branchId === null) {
                         );
                         $supplierCategoryExpected = mapSupplierCategoryByParent($parentCategoryId);
                         if ($supplierCategoryExpected === '') {
-                            throw new Exception('该商品无法匹配供应商类别，请检查商品分类设置。');
+                            throw new Exception('Product cannot be matched to a supplier category. Check product categorization.');
                         }
 
                         $stmtSupplier = $conn->prepare('SELECT supplier_ID, supplier_category FROM Supplier WHERE supplier_ID = ? LIMIT 1 FOR UPDATE');
                         if (!$stmtSupplier) {
-                            throw new Exception('准备供应商查询失败：' . $conn->error);
+                            throw new Exception('Failed to prepare supplier query: ' . $conn->error);
                         }
                         $stmtSupplier->bind_param('i', $supplierId);
                         if (!$stmtSupplier->execute()) {
-                            throw new Exception('查询供应商失败：' . $stmtSupplier->error);
+                            throw new Exception('Failed to query supplier: ' . $stmtSupplier->error);
                         }
                         $rsSupplier = $stmtSupplier->get_result();
                         $supplierRow = $rsSupplier->fetch_assoc();
                         $stmtSupplier->close();
                         if (!$supplierRow) {
-                            throw new Exception('供应商不存在。');
+                            throw new Exception('Supplier not found.');
                         }
                         $supplierCategory = trim((string)($supplierRow['supplier_category'] ?? ''));
                         if ($supplierCategoryExpected !== $supplierCategory) {
-                            throw new Exception('供应商类别与商品父类不匹配，请重新选择供应商。');
+                            throw new Exception('Supplier category does not match the product category. Choose another supplier.');
                         }
 
                         $snapshotLast = $snapshotLastReceived === '' ? null : $snapshotLastReceived;
                         $stmtRestock = $conn->prepare('CALL staff_restock(?, ?, ?, ?, ?, ?, ?, ?, @po_id, @batch_id)');
                         if (!$stmtRestock) {
-                            throw new Exception('准备补货存储过程失败：' . $conn->error);
+                            throw new Exception('Failed to prepare restock procedure: ' . $conn->error);
                         }
                         $expiryDateParam = $expiryDate;
                         $stmtRestock->bind_param(
@@ -380,7 +387,7 @@ if ($branchId === null) {
                             $expiryDateParam
                         );
                         if (!$stmtRestock->execute()) {
-                            throw new Exception('执行补货存储过程失败：' . $stmtRestock->error);
+                            throw new Exception('Failed to execute restock procedure: ' . $stmtRestock->error);
                         }
                         $stmtRestock->close();
                         while ($conn->more_results() && $conn->next_result()) {
@@ -395,15 +402,15 @@ if ($branchId === null) {
                             $resultOut->free();
                         }
 
-                        $_SESSION['inventory_success'] = '补货成功，库存已更新。';
+                        $_SESSION['inventory_success'] = 'Restock successful. Inventory updated.';
                         header('Location: inventory.php');
                         exit();
                     } catch (Exception $inner) {
                         $message = $inner->getMessage();
                         if (strpos($message, 'Restock snapshot mismatch') !== false) {
                             $actorInfo = getLastRestockActor($conn, $productId, $branchId);
-                            [$actorName, $actionTime] = resolveActorContext($actorInfo, '其他员工');
-                            $reasonText = sprintf('补货失败：%s%s刚刚完成了该商品的入库，请刷新库存后再试。', $actorName, $actionTime);
+                            [$actorName, $actionTime] = resolveActorContext($actorInfo, 'Other staff');
+                            $reasonText = sprintf('Restock failed: %s%s just updated this product. Refresh and try again.', $actorName, $actionTime);
                             $_SESSION['inventory_error'] = $reasonText;
                             header('Location: inventory.php');
                             exit();
@@ -449,7 +456,7 @@ if ($branchId === null) {
                         $inventoryBatches[] = [
                             'product_id' => $pid,
                             'product_code' => $code,
-                            'product_name' => $row['product_name'] ?? ('商品' . $pid),
+                            'product_name' => $row['product_name'] ?? ('Item ' . $pid),
                             'batch_id' => $row['batch_ID'],
                             'quantity_on_hand' => (int)$row['quantity_on_hand'],
                             'quantity_received' => (int)$row['quantity_received'],
@@ -465,7 +472,7 @@ if ($branchId === null) {
                             $inventorySummary[$pid] = [
                                 'product_id' => $pid,
                                 'product_code' => $code,
-                                'product_name' => $row['product_name'] ?? ('商品' . $pid),
+                                'product_name' => $row['product_name'] ?? ('Item ' . $pid),
                                 'total_stock' => 0,
                                 'total_received' => 0,
                                 'last_received' => $row['received_date'] ?? null,
@@ -487,11 +494,11 @@ if ($branchId === null) {
                         }
                     }
                 } else {
-                    $error_message = '查询库存数据失败：' . $conn->error;
+                    $error_message = 'Failed to load inventory data: ' . $conn->error;
                 }
                 $stmt->close();
             } else {
-                $error_message = '准备库存查询失败：' . $conn->error;
+                $error_message = 'Failed to prepare inventory query: ' . $conn->error;
             }
 
             $resultSuppliers = $conn->query('SELECT supplier_ID, company_name, supplier_category FROM Supplier ORDER BY company_name ASC');
@@ -527,7 +534,7 @@ if ($branchId === null) {
                         $unstockedProducts[] = [
                             'product_id' => $pid,
                             'product_code' => $row['sku'] ?? ('P' . str_pad($pid, 4, '0', STR_PAD_LEFT)),
-                            'product_name' => $row['product_name'] ?? ('商品' . $pid),
+                            'product_name' => $row['product_name'] ?? ('Item ' . $pid),
                             'unit_cost' => $row['unit_cost'] ?? null,
                             'unit_price' => $row['unit_price'] ?? null,
                             'unit' => $row['unit'] ?? '',
@@ -539,7 +546,7 @@ if ($branchId === null) {
                         ];
                     }
                 } else {
-                    $error_message = '查询可进货商品失败：' . $conn->error;
+                    $error_message = 'Failed to load purchasable products: ' . $conn->error;
                 }
                 $stmtUnstocked->close();
             }
@@ -605,7 +612,7 @@ if ($error_message !== '') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <?php include 'header.php'; ?>
 <style>
 .restock-card {
@@ -760,7 +767,7 @@ if ($error_message !== '') {
 <body>
     <main class="main">
         <section class="section">
-            <h2 class="section-title">库存预警与补货</h2>
+            <h2 class="section-title">Inventory Alerts & Restock</h2>
             <?php if (!empty($errorNotices)): ?>
                 <div class="alert-box alert-error" id="errorNotice">
                     <?php foreach ($errorNotices as $idx => $msg): ?>
@@ -775,24 +782,24 @@ if ($error_message !== '') {
             <div id="restockList"></div>
             <div id="supplierPopup" class="supplier-popup"></div>
             <div id="popupMask" onclick="closeSupplierPopup()"></div>
-            <h2 class="section-title" style="margin-top:40px;">商品库存概览</h2>
+            <h2 class="section-title" style="margin-top:40px;">Inventory Overview</h2>
             <div style="overflow-x:auto;">
                 <table class="inventory-table" id="inventoryTable">
                     <thead>
                         <tr>
-                            <th>商品编号</th>
-                            <th>商品名称</th>
-                            <th>当前库存</th>
-                            <th>补货阈值</th>
-                            <th>最近入库</th>
-                            <th>供应商</th>
-                            <th>操作</th>
+                            <th>Product Code</th>
+                            <th>Product Name</th>
+                            <th>Current Stock</th>
+                            <th>Reorder Level</th>
+                            <th>Last Received</th>
+                            <th>Supplier</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
                 </table>
             </div>
-            <h2 class="section-title" style="margin-top:40px;">进货新商品</h2>
+            <h2 class="section-title" style="margin-top:40px;">New Product Purchases</h2>
             <div id="newPurchaseList" class="new-purchase-list"></div>
         </section>
     </main>
@@ -829,11 +836,11 @@ if ($error_message !== '') {
         const wrap = document.getElementById('restockList');
         wrap.innerHTML = '';
         if (!inventorySummary.length) {
-            wrap.innerHTML = '<div style="color:#888;padding:32px;text-align:center;">当前门店暂无库存数据</div>';
+            wrap.innerHTML = '<div style="color:#888;padding:32px;text-align:center;">No inventory data for this branch</div>';
             return;
         }
         if (!low.length && !warn.length) {
-            wrap.innerHTML = '<div style="color:#43a047;padding:32px;text-align:center;">库存健康，暂无补货需求</div>';
+            wrap.innerHTML = '<div style="color:#43a047;padding:32px;text-align:center;">Stock looks healthy, no restock needed</div>';
             return;
         }
         low.forEach(item => wrap.appendChild(createRestockCard(item, 'low')));
@@ -845,7 +852,7 @@ if ($error_message !== '') {
         if (!wrap) return;
         wrap.innerHTML = '';
         if (!unstockedProducts.length) {
-            wrap.innerHTML = '<div style="color:#888;padding:28px;text-align:center;">当前门店暂无可进货的新商品</div>';
+            wrap.innerHTML = '<div style="color:#888;padding:28px;text-align:center;">No new products available to purchase</div>';
             return;
         }
         unstockedProducts.forEach(item => wrap.appendChild(createNewPurchaseCard(item)));
@@ -855,13 +862,13 @@ if ($error_message !== '') {
     function createNewPurchaseCard(item) {
         const card = document.createElement('div');
         card.className = 'restock-card new';
-        const desc = item.description ? item.description : '暂无描述';
+        const desc = item.description ? item.description : 'No description';
         card.innerHTML = `
             <div style="flex:1;">
                 <div style="font-size:16px;font-weight:600;">${item.product_name} <span style="color:#888;font-size:13px;">(${item.product_code})</span></div>
                 <div style="font-size:13px;color:#888;margin-top:6px;">${desc}</div>
             </div>
-            <button class="btn btn-primary restock-btn" onclick='openRestockOrderForm(${JSON.stringify(item)}, "new")'>进货</button>
+            <button class="btn btn-primary restock-btn" onclick='openRestockOrderForm(${JSON.stringify(item)}, "new")'>Purchase</button>
         `;
         return card;
     }
@@ -894,9 +901,9 @@ if ($error_message !== '') {
         card.className = 'restock-card ' + type;
         card.innerHTML = `
             <div style="font-size:16px;font-weight:600;">${item.product_name} <span style="color:#888;font-size:13px;">(${item.product_code})</span></div>
-            <div style="font-size:14px;color:${type === 'low' ? '#e53935' : '#ffb300'};">当前库存：${item.total_stock}</div>
-            <div style="font-size:14px;color:#888;">补货阈值：${item.reorder_level}</div>
-            <button class="btn btn-primary restock-btn" onclick='openSupplierPopup(${JSON.stringify(item)})'>补货</button>
+            <div style="font-size:14px;color:${type === 'low' ? '#e53935' : '#ffb300'};">Current stock: ${item.total_stock}</div>
+            <div style="font-size:14px;color:#888;">Reorder level: ${item.reorder_level}</div>
+            <button class="btn btn-primary restock-btn" onclick='openSupplierPopup(${JSON.stringify(item)})'>Restock</button>
         `;
         return card;
     }
@@ -911,7 +918,7 @@ if ($error_message !== '') {
             ? supplierOptions.filter(opt => opt.supplier_category === categoryLabel)
             : [];
         if (!filtered.length) {
-            return '<option value=\"\">暂无可用供应商</option>';
+            return '<option value=\"\">No available suppliers</option>';
         }
         return filtered.map(opt => {
             const sel = Number(selectedId) === Number(opt.supplier_ID) ? 'selected' : '';
@@ -925,7 +932,7 @@ if ($error_message !== '') {
         const parsedStock = Number(item.total_stock);
         const snapshotStock = Number.isFinite(parsedStock) ? parsedStock : '';
         const snapshotLastReceived = item.last_received || '';
-        const titleText = mode === 'new' ? '进货下单' : '补货下单';
+        const titleText = mode === 'new' ? 'New Purchase Order' : 'Restock Order';
         const basePricing = resolvePricing(item.product_id, supplierId, item.unit_price);
         const costValue = basePricing.unit_cost > 0 ? basePricing.unit_cost : 0;
         const sellValue = basePricing.unit_price > 0 ? basePricing.unit_price : (Number(item.unit_price) || 0);
@@ -936,21 +943,21 @@ if ($error_message !== '') {
                 <input type='hidden' name='product_id' value='${item.product_id}'>
                 <input type='hidden' name='snapshot_total_stock' value='${snapshotStock}'>
                 <input type='hidden' name='snapshot_last_received' value='${snapshotLastReceived}'>
-                <div class='info'><b>商品：</b>${item.product_name} (${item.product_code})</div>
-                <div class='info'><b>门店：</b><input type='text' value='${branchName}' readonly style='width:60%;margin-left:8px;background:#f5f5f5;'></div>
-                <div class='info'><b>供应商：</b>
+                <div class='info'><b>Product:</b> ${item.product_name} (${item.product_code})</div>
+                <div class='info'><b>Branch:</b> <input type='text' value='${branchName}' readonly style='width:60%;margin-left:8px;background:#f5f5f5;'></div>
+                <div class='info'><b>Supplier:</b>
                     <select name='supplier_id' required style='margin-left:8px;flex:1;' onchange="updateRestockPricing(${item.product_id}, this.value, ${Number(item.unit_price) || 0})">
                         ${buildSupplierOptions(item, supplierId)}
                     </select>
                 </div>
-                <div class='info'><b>补货数量：</b><input type='number' name='qty' id='restockQty' min='1' value='10' required style='width:80px;margin-left:8px;' oninput='updateRestockTotal()'></div>
-                <div class='info'><b>采购单价：</b>¥<span id='restockUnitCost'>${costValue.toFixed(2)}</span><input type='hidden' name='unit_cost' id='restockUnitCostInput' value='${costValue.toFixed(2)}'></div>
-                <div class='info'><b>售价：</b>¥<span id='restockUnitPrice'>${sellValue.toFixed(2)}</span></div>
-                <div class='info'><b>预计到期（选填）：</b><input type='date' name='expiry_date' style='margin-left:8px;'></div>
-                <div class='info'><b>总金额：</b>¥<span id='restockTotal'>${(costValue*10).toFixed(2)}</span></div>
+                <div class='info'><b>Quantity:</b> <input type='number' name='qty' id='restockQty' min='1' value='10' required style='width:80px;margin-left:8px;' oninput='updateRestockTotal()'></div>
+                <div class='info'><b>Unit cost:</b> ¥<span id='restockUnitCost'>${costValue.toFixed(2)}</span><input type='hidden' name='unit_cost' id='restockUnitCostInput' value='${costValue.toFixed(2)}'></div>
+                <div class='info'><b>Selling price:</b> ¥<span id='restockUnitPrice'>${sellValue.toFixed(2)}</span></div>
+                <div class='info'><b>Expected expiry (optional):</b> <input type='date' name='expiry_date' style='margin-left:8px;'></div>
+                <div class='info'><b>Total:</b> ¥<span id='restockTotal'>${(costValue*10).toFixed(2)}</span></div>
                 <div class='actions' style='margin-top:18px;'>
-                    <button class='btn btn-success' type='submit'>提交订单</button>
-                    <button class='btn btn-warning' type='button' style='margin-left:10px;' onclick='closeSupplierPopup()'>取消</button>
+                    <button class='btn btn-success' type='submit'>Submit Order</button>
+                    <button class='btn btn-warning' type='button' style='margin-left:10px;' onclick='closeSupplierPopup()'>Cancel</button>
                 </div>
             </form>
         `;
@@ -1002,9 +1009,9 @@ if ($error_message !== '') {
                 if (left > right) return 1;
                 return 0;
             });
-        let html = `<h3>批次管理 - ${product ? `${product.product_name} (${product.product_code})` : ''}</h3>`;
+        let html = `<h3>Batch Management - ${product ? `${product.product_name} (${product.product_code})` : ''}</h3>`;
         if (!batches.length) {
-            html += `<div style="padding:16px 0;color:#888;">该商品暂无批次可调整。</div>`;
+            html += `<div style="padding:16px 0;color:#888;">No adjustable batches for this product.</div>`;
         } else {
             html += '<div class="batch-list">';
             batches.forEach(batch => {
@@ -1014,19 +1021,19 @@ if ($error_message !== '') {
                 html += `
                     <div class="batch-row">
                         <div class="info-block">
-                            <div><b>批次：</b>${batch.batch_id || '--'}</div>
-                            <div><b>库存：</b>${batch.quantity_on_hand}，<b>入库：</b>${receivedDate}，<b>到期：</b>${expireDate}</div>
+                            <div><b>Batch:</b> ${batch.batch_id || '--'}</div>
+                            <div><b>Stock:</b> ${batch.quantity_on_hand}, <b>Received:</b> ${receivedDate}, <b>Expires:</b> ${expireDate}</div>
                         </div>
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            <button class="btn btn-danger" style="padding:6px 12px;" onclick="window.location.href='inventory_return.php?batch_id=${encodeURIComponent(batch.batch_id)}'">退回</button>
-                            <button class="btn btn-primary" style="padding:6px 12px;" onclick="window.location.href='inventory_adjustment.php?batch_id=${encodeURIComponent(batch.batch_id)}'">盘点</button>
+                            <button class="btn btn-danger" style="padding:6px 12px;" onclick="window.location.href='inventory_return.php?batch_id=${encodeURIComponent(batch.batch_id)}'">Return</button>
+                            <button class="btn btn-primary" style="padding:6px 12px;" onclick="window.location.href='inventory_adjustment.php?batch_id=${encodeURIComponent(batch.batch_id)}'">Adjust</button>
                         </div>
                     </div>
                 `;
             });
             html += '</div>';
         }
-        html += `<div class='actions' style='margin-top:18px;text-align:right;'><button class='btn btn-warning' onclick='closeSupplierPopup()'>关闭</button></div>`;
+        html += `<div class='actions' style='margin-top:18px;text-align:right;'><button class='btn btn-warning' onclick='closeSupplierPopup()'>Close</button></div>`;
         popup.innerHTML = html;
         popup.style.display = 'block';
         document.getElementById('popupMask').style.display = 'block';
@@ -1042,12 +1049,12 @@ if ($error_message !== '') {
         tbody.innerHTML = '';
         if (!inventorySummary.length) {
             const row = document.createElement('tr');
-            row.innerHTML = `<td colspan="7" style="text-align:center;color:#888;padding:24px;">暂无库存数据</td>`;
+            row.innerHTML = `<td colspan="7" style="text-align:center;color:#888;padding:24px;">No inventory data</td>`;
             tbody.appendChild(row);
             return;
         }
         inventorySummary.forEach(item => {
-            const supplierName = item.supplier?.name || '未知供应商';
+            const supplierName = item.supplier?.name || 'Unknown Supplier';
             const lastReceived = item.last_received ? item.last_received.split(' ')[0] : '--';
             const row = document.createElement('tr');
             row.innerHTML = `
@@ -1057,7 +1064,7 @@ if ($error_message !== '') {
                 <td>${item.reorder_level}</td>
                 <td>${lastReceived}</td>
                 <td>${supplierName}</td>
-                <td><button class="btn btn-primary" style="padding:6px 12px;" onclick="openBatchManager(${item.product_id})">批次管理</button></td>
+                <td><button class="btn btn-primary" style="padding:6px 12px;" onclick="openBatchManager(${item.product_id})">Manage Batches</button></td>
             `;
             tbody.appendChild(row);
         });

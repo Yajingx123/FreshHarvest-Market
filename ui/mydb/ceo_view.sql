@@ -269,3 +269,31 @@ LEFT JOIN CustomerOrder co ON c.customer_ID = co.customer_ID
 GROUP BY c.customer_ID, u.first_name, u.last_name, u.user_name,
          c.phone, c.email, u.user_telephone, u.user_email,
          c.loyalty_level, c.gender, c.address, c.created_at;
+         
+
+
+DROP USER IF EXISTS 'ceo_user'@'localhost';
+CREATE USER 'ceo_user'@'localhost' IDENTIFIED BY 'YourPassword123!';
+
+GRANT SELECT ON mydb.v_products_list TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.v_transactions TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.v_employees TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.v_sales_trend TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.v_order_status_distribution TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.v_branch_sales_comparison TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.v_alert_summary TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.v_manager_product_inventory_by_branch TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.v_manager_product_supplier_pricing TO 'ceo_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.Branch TO 'ceo_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.Staff TO 'ceo_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE ON mydb.products TO 'ceo_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.User TO 'ceo_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE ON mydb.ProductAttribute TO 'ceo_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE ON mydb.Supplier TO 'ceo_user'@'localhost';
+GRANT INSERT, UPDATE, DELETE ON mydb.Supplier TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.Customer TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.CustomerOrder TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.OrderItem TO 'ceo_user'@'localhost';
+GRANT SELECT ON mydb.Categories TO 'ceo_user'@'localhost';
+
+FLUSH PRIVILEGES;

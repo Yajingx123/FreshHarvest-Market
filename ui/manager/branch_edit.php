@@ -12,7 +12,7 @@ if (!$branchId) {
 // 获取门店信息
 $branch = getBranch($branchId);
 if (!$branch) {
-    die("门店不存在");
+    die("Branch not found.");
 }
 
 // 处理表单提交
@@ -28,10 +28,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status = $_POST['status'] ?? 'active';
 
     if (empty($branchName)) {
-        $errors[] = "门店名称不能为空";
+        $errors[] = "Branch name is required.";
     }
     if (empty($address)) {
-        $errors[] = "门店地址不能为空";
+        $errors[] = "Address is required.";
     }
 
     if (empty($errors)) {
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $branch = getBranch($branchId); // 刷新数据
         } catch (Exception $e) {
             $conn->rollback();
-            $errors[] = "更新失败: " . $e->getMessage();
+            $errors[] = "Update failed: " . $e->getMessage();
         }
     }
 }
@@ -67,9 +67,9 @@ $managers = getAvailableManagers(); // 复用add_branch.php中的函数
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>编辑门店</title>
+    <title>Edit Branch</title>
     <style>
         .error { color: red; }
         .success { color: green; }
@@ -207,7 +207,7 @@ $managers = getAvailableManagers(); // 复用add_branch.php中的函数
     </style>
 </head>
 <body>
-    <h1>编辑门店</h1>
+    <h1>Edit Branch</h1>
     <?php if (!empty($errors)): ?>
         <?php foreach ($errors as $error): ?>
             <div class="error"><?= $error ?></div>
@@ -215,30 +215,30 @@ $managers = getAvailableManagers(); // 复用add_branch.php中的函数
     <?php endif; ?>
     
     <?php if ($success): ?>
-        <div class="success">更新成功！</div>
+        <div class="success">Updated successfully.</div>
     <?php endif; ?>
 
     <form method="post">
         <div class="form-group">
-            <label>门店名称 *</label>
+            <label>Branch Name *</label>
             <input type="text" name="branch_name" value="<?= htmlspecialchars($branch['branch_name']) ?>" required>
         </div>
         <div class="form-group">
-            <label>地址 *</label>
+            <label>Address *</label>
             <textarea name="address" required><?= htmlspecialchars($branch['address']) ?></textarea>
         </div>
         <div class="form-group">
-            <label>联系电话</label>
+            <label>Phone</label>
             <input type="text" name="phone" value="<?= htmlspecialchars($branch['phone'] ?? '') ?>">
         </div>
         <div class="form-group">
-            <label>邮箱</label>
+            <label>Email</label>
             <input type="email" name="email" value="<?= htmlspecialchars($branch['email'] ?? '') ?>">
         </div>
         <div class="form-group">
-            <label>门店经理</label>
+            <label>Manager</label>
             <select name="manager_id">
-                <option value="0">无</option>
+                <option value="0">None</option>
                 <?php foreach ($managers as $m): ?>
                     <option value="<?= $m['staff_ID'] ?>" <?= $branch['manager_ID'] == $m['staff_ID'] ? 'selected' : '' ?>>
                         <?= $m['name'] ?>
@@ -247,14 +247,14 @@ $managers = getAvailableManagers(); // 复用add_branch.php中的函数
             </select>
         </div>
         <div class="form-group">
-            <label>状态</label>
+            <label>Status</label>
             <select name="status">
-                <option value="active" <?= $branch['status'] == 'active' ? 'selected' : '' ?>>正常</option>
-                <option value="inactive" <?= $branch['status'] == 'inactive' ? 'selected' : '' ?>>关闭</option>
+                <option value="active" <?= $branch['status'] == 'active' ? 'selected' : '' ?>>Open</option>
+                <option value="inactive" <?= $branch['status'] == 'inactive' ? 'selected' : '' ?>>Closed</option>
             </select>
         </div>
-        <button type="submit">保存</button>
-        <a href="stores.php">取消</a>
+        <button type="submit">Save</button>
+        <a href="stores.php">Cancel</a>
     </form>
 </body>
 </html>

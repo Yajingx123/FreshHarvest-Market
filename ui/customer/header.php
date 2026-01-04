@@ -1,80 +1,22 @@
+<?php
+require_once __DIR__ . '/inc/data.php';
+
+// Only check cart count for signed-in users.
+$cart_count = 0;
+if (isset($_SESSION['customer_id'])) {
+    $customer_id = $_SESSION['customer_id'];
+    $cart_count = getCartItemCount($customer_id);
+}
+
+?>
+
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
-    <?php
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
-    ?>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fresh Select Fresh Produce - <?php echo $pageTitle ?? 'Customer'; ?></title>
-    <script>
-        (function() {
-            const userKey = <?php echo json_encode('customer:' . ($_SESSION['customer_id'] ?? '')); ?>;
-            if (!userKey || userKey.endsWith(':')) {
-                return;
-            }
-            if (!window.name) {
-                window.name = 'fhwin_' + Math.random().toString(36).slice(2) + Date.now();
-            }
-            const token = window.name;
-            const activeKey = 'fh_active_window_' + userKey;
-            const now = Date.now();
-            let state = null;
-            try {
-                state = JSON.parse(localStorage.getItem(activeKey) || 'null');
-            } catch (e) {
-                state = null;
-            }
-            if (state && state.token && state.token !== token && now - state.last < 10000) {
-                alert('该账号已在其他窗口登录，请关闭当前窗口或使用原窗口。');
-                window.location.href = '../login/login.php';
-                return;
-            }
-            localStorage.setItem(activeKey, JSON.stringify({ token, last: now }));
-            setInterval(function() {
-                localStorage.setItem(activeKey, JSON.stringify({ token, last: Date.now() }));
-            }, 5000);
-
-            function clearActiveKey() {
-                try {
-                    const current = JSON.parse(localStorage.getItem(activeKey) || 'null');
-                    if (current && current.token === token) {
-                        localStorage.removeItem(activeKey);
-                    }
-                } catch (e) {
-                }
-            }
-
-            function sendLogoutBeacon() {
-                if (window.__fhInternalNav) {
-                    return;
-                }
-                clearActiveKey();
-                if (navigator.sendBeacon) {
-                    navigator.sendBeacon('../login/logout.php?beacon=1');
-                } else {
-                    fetch('../login/logout.php?beacon=1', { method: 'GET', keepalive: true });
-                }
-            }
-
-            document.addEventListener('click', function(e) {
-                const link = e.target.closest('a');
-                if (link && link.href && link.origin === window.location.origin) {
-                    window.__fhInternalNav = true;
-                }
-            }, true);
-
-            document.addEventListener('submit', function() {
-                window.__fhInternalNav = true;
-            }, true);
-
-            window.addEventListener('beforeunload', sendLogoutBeacon);
-            window.addEventListener('pagehide', sendLogoutBeacon);
-        })();
-    </script>
+    <title>FreshHarvest - <?php echo $pageTitle ?? 'Customer'; ?></title>
     <style>
         * {
             margin: 0;
@@ -89,7 +31,7 @@
             display: flex;
             flex-direction: column;
         }
-        /* 顶部导航栏 */
+        /* Top navigation */
         .header {
             background-color: #fff;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -108,7 +50,7 @@
         .logo {
             font-size: 24px;
             font-weight: bold;
-            color: #2d884d; /* 生鲜绿色系 */
+            color: #2d884d; /* Fresh green */
             text-decoration: none;
         }
         .nav-menu {
@@ -153,20 +95,23 @@
     </style>
 </head>
 <body>
-    <!-- 顶部导航栏 -->
+    <!-- Top navigation -->
     <header class="header">
         <div class="nav-container">
-            <a href="dashboard.php" class="logo">Fresh Select Fresh Produce.</a>
+            <a href="dashboard.php" class="logo">FreshHarvest</a>
             <ul class="nav-menu">
                 <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php">Dashboard</a></li>
-                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'products.php' ? 'active' : ''; ?>" href="products.php">Products Select</a></li>
+                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'products.php' ? 'active' : ''; ?>" href="products.php">Products</a></li>
                 <li class="nav-item">
                     <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'cart.php' ? 'active' : ''; ?>" href="cart.php">
-                        Shopping cart <span class="badge">3</span>
+                        Cart
+                        <?php if ($cart_count > 0): ?>
+                            <span class="badge"><?php echo $cart_count; ?></span>
+                        <?php endif; ?>
                     </a>
                 </li>
-                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'orders.php' ? 'active' : ''; ?>" href="orders.php">My orders</a></li>
-                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'account.php' ? 'active' : ''; ?>" href="account.php">Accounts</a></li>
+                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'orders.php' ? 'active' : ''; ?>" href="orders.php">My Orders</a></li>
+                <li class="nav-item"><a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'account.php' ? 'active' : ''; ?>" href="account.php">Account</a></li>
             </ul>
         </div>
     </header>

@@ -55,9 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 if ($stmt->execute()) {
-                    echo json_encode(['success' => true, 'message' => '供应商保存成功']);
+                    echo json_encode(['success' => true, 'message' => 'Supplier saved successfully.']);
                 } else {
-                    echo json_encode(['success' => false, 'error' => '保存失败']);
+                    echo json_encode(['success' => false, 'error' => 'Save failed.']);
                 }
                 $stmt->close();
             } catch (Exception $e) {
@@ -74,21 +74,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->bind_param("i", $supplierId);
                 
                 if ($stmt->execute()) {
-                    echo json_encode(['success' => true, 'message' => '供应商删除成功']);
+                    echo json_encode(['success' => true, 'message' => 'Supplier deleted successfully.']);
                 } else {
-                    echo json_encode(['success' => false, 'error' => '删除失败']);
+                    echo json_encode(['success' => false, 'error' => 'Delete failed.']);
                 }
                 $stmt->close();
             } catch (Exception $e) {
                 echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             }
         } else {
-            echo json_encode(['success' => false, 'error' => '无效的操作']);
+            echo json_encode(['success' => false, 'error' => 'Invalid action']);
         }
     } else {
-        echo json_encode(['success' => false, 'error' => '缺少操作参数']);
+        echo json_encode(['success' => false, 'error' => 'Missing action parameter']);
     }
 } else {
-    echo json_encode(['success' => false, 'error' => '非法请求']);
+    echo json_encode(['success' => false, 'error' => 'Invalid request']);
 }
 ?>

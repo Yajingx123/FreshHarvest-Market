@@ -1,7 +1,5 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+session_start();
 require_once __DIR__ . '/inc/data.php';
 
 
@@ -9,7 +7,7 @@ $data = json_decode(file_get_contents('php://input'), true);
 
 // 2. 必须校验用户ID（核心，用于定位用户）
 if (!isset($data['customerId']) || empty($data['customerId'])) {
-    echo json_encode(['status' => 'error', 'message' => '缺少用户ID参数']);
+    echo json_encode(['status' => 'error', 'message' => 'Missing customer ID.']);
     exit;
 }
 $customerId = $data['customerId'];
@@ -28,32 +26,32 @@ $errors = [];
 
 // 用户名验证（不重复）
 if (checkUsernameExists($data['username'], $customer_id)) {
-    $errors[] = '用户名已存在';
+    $errors[] = 'Username already exists.';
 }
 
 // 性别验证
 if (!in_array($data['gender'], ['Male', 'Female'])) {
-    $errors[] = '性别只能是Male或Female';
+    $errors[] = 'Gender must be Male or Female.';
 }
 
 // 电话号码验证
 if (!preg_match('/^\d{11}$/', $data['phone'])) {
-    $errors[] = '电话号码必须是11位数字';
+    $errors[] = 'Phone number must be 11 digits.';
 }
 
 // 邮箱验证
 if (!preg_match('/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/', $data['email'])) {
-    $errors[] = '邮箱格式不正确，必须包含@且以.com结尾';
+    $errors[] = 'Email must include @ and end with .com.';
 }
 
 // 地址验证
 if (strlen($data['address']) > 200) {
-    $errors[] = '地址不能超过200个字符';
+    $errors[] = 'Address cannot exceed 200 characters.';
 }
 
 // 如果有错误，返回错误信息
 if (!empty($errors)) {
-    echo json_encode(['status' => 'error', 'message' => implode(':', $errors)]);
+    echo json_encode(['status' => 'error', 'message' => implode(': ', $errors)]);
     exit;
 }
 
@@ -67,8 +65,8 @@ if ($address !== null && $address !== '') $updateData['address'] = $address;
 
 // 执行更新
 if (updateCustomerInfo($customer_id, $updateData)) {
-    echo json_encode(['status' => 'success', 'message' => '信息更新成功']);
+    echo json_encode(['status' => 'success', 'message' => 'Profile updated successfully.']);
 } else {
-    echo json_encode(['status' => 'error', 'message' => '更新失败，请重试']);
+    echo json_encode(['status' => 'error', 'message' => 'Update failed. Please try again.']);
 }
 ?>

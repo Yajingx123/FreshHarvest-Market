@@ -1,5 +1,57 @@
 <?php
 require_once __DIR__ . '/db_connect.php';
+
+function mapEmployeeStatusLabel($statusRaw) {
+    switch ($statusRaw) {
+        case 'active':
+        case '在职':
+        case 'Active':
+            return 'Active';
+        case 'on_leave':
+        case '休假':
+        case 'On leave':
+            return 'On leave';
+        case 'terminated':
+        case '离职':
+        case 'Terminated':
+            return 'Terminated';
+        default:
+            return $statusRaw ?: 'Unknown';
+    }
+}
+
+function mapEmployeeStatusToRaw($status) {
+    $normalized = strtolower(trim((string)$status));
+    if ($status === '在职' || $normalized === 'active') {
+        return 'active';
+    }
+    if ($status === '休假' || $normalized === 'on leave' || $normalized === 'on_leave') {
+        return 'on_leave';
+    }
+    if ($status === '离职' || $normalized === 'terminated') {
+        return 'terminated';
+    }
+    return 'active';
+}
+
+function mapBranchStatusLabel($statusRaw) {
+    switch ($statusRaw) {
+        case 'active':
+        case '营业中':
+        case 'Open':
+            return 'Open';
+        case 'inactive':
+        case '已停业':
+        case 'Closed':
+            return 'Closed';
+        case 'under_renovation':
+        case '装修中':
+        case 'Renovating':
+            return 'Renovating';
+        default:
+            return $statusRaw ?: 'Unknown';
+    }
+}
 // 获取产品数据（使用v_products_list视图）
 function getProductsViewData() {
     global $conn;
@@ -14,11 +66,11 @@ function getProductsViewData() {
                 $statusText = '';
                 $stock = $row['stock'];
                 if ($stock <= 0) {
-                    $statusText = '已下架';
-                } elseif ($stock < 10) { 
-                    $statusText = '库存预警';
+                    $statusText = 'Out of stock';
+                } elseif ($stock < 10) {
+                    $statusText = 'Low stock';
                 } else {
-                    $statusText = '已上架';
+                    $statusText = 'In stock';
                 }
                 
                 $products[] = [
@@ -85,14 +137,7 @@ function getEmployeesData() {
         
         if ($result && $result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
-                // 翻译状态
-                $statusText = '';
-                switch ($row['status_raw'] ?? '') {
-                    case 'active': $statusText = '在职'; break;
-                    case 'on_leave': $statusText = '休假'; break;
-                    case 'terminated': $statusText = '离职'; break;
-                    default: $statusText = $row['status_raw'] ?? '未知';
-                }
+                $statusText = mapEmployeeStatusLabel($row['status_raw'] ?? '');
                 
                 $employees[] = [
                     'id' => $row['id'] ?? '',
@@ -103,7 +148,7 @@ function getEmployeesData() {
                     'status' => $statusText,
                     'email' => $row['email'] ?? '',
                     'phone' => $row['phone'] ?? $row['staff_phone'] ?? '',
-                    'branch_name' => $row['branch_name'] ?? '未分配',
+                    'branch_name' => $row['branch_name'] ?? 'Unassigned',
                     'branch_id' => $row['branch_id'] ?? 0,
                     'username' => $row['username'] ?? '',
                     'created_at' => $row['created_at'] ?? '',
@@ -133,14 +178,7 @@ function getEmployeeById($id) {
         if ($result && $result->num_rows > 0) {
             $row = $result->fetch_assoc();
             
-            // 翻译状态
-            $statusText = '';
-            switch ($row['status_raw'] ?? '') {
-                case 'active': $statusText = '在职'; break;
-                case 'on_leave': $statusText = '休假'; break;
-                case 'terminated': $statusText = '离职'; break;
-                default: $statusText = $row['status_raw'] ?? '未知';
-            }
+            $statusText = mapEmployeeStatusLabel($row['status_raw'] ?? '');
             
             return [
                 'id' => $row['id'],
@@ -218,17 +256,11 @@ function saveEmployee($data) {
             $userId = $conn->insert_id;
             
            $branchId = str_replace('BR-', '', $data['branch_id']);
-           $statusRaw = '';
-           switch ($data['status']) {
-              case '在职': $statusRaw = 'active'; break;
-              case '休假': $statusRaw = 'on_leave'; break;
-              case '离职': $statusRaw = 'terminated'; break;
-              default: $statusRaw = 'active';
-            }
-            $hireDate = $data['start_date'];  // 直接使用输入的日期
+           $statusRaw = mapEmployeeStatusToRaw($data['status'] ?? '');
+           $hireDate = $data['start_date'];  // 直接使用输入的日期
 
            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hireDate)) {
-               throw new Exception("无效的日期格式,请使用YYYY-MM-DD");
+               throw new Exception("Invalid date format. Use YYYY-MM-DD.");
             }
 
             $dateParts = explode('-', $hireDate);
@@ -237,8 +269,8 @@ function saveEmployee($data) {
             $day = intval($dateParts[2]);
 
            if (!checkdate($month, $day, $year)) {
-               throw new Exception("日期不存在，请检查年、月、日是否有效");
-            }
+               throw new Exception("Invalid date. Please check year, month, and day.");
+           }
 
             $staffSql = "INSERT INTO Staff (branch_ID, user_name, position, phone, salary, hire_date, status) 
                VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -277,13 +309,7 @@ function saveEmployee($data) {
             
             // 2. 更新 Staff 表
             $branchId = str_replace('BR-', '', $data['branch_id']);
-            $statusRaw = '';
-            switch ($data['status']) {
-                case '在职': $statusRaw = 'active'; break;
-                case '休假': $statusRaw = 'on_leave'; break;
-                case '离职': $statusRaw = 'terminated'; break;
-                default: $statusRaw = 'active';
-            }
+            $statusRaw = mapEmployeeStatusToRaw($data['status'] ?? '');
             
             $staffSql = "UPDATE Staff 
                         SET branch_ID = ?, position = ?, phone = ?, salary = ?, hire_date = ?, status = ?
@@ -293,8 +319,8 @@ function saveEmployee($data) {
             $hireDate = $data['start_date'];  // 直接使用输入的日期
 
            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $hireDate)) {
-               throw new Exception("无效的日期格式,请使用YYYY-MM-DD");
-            }
+               throw new Exception("Invalid date format. Use YYYY-MM-DD.");
+           }
 
             $dateParts = explode('-', $hireDate);
             $year = intval($dateParts[0]);
@@ -302,8 +328,8 @@ function saveEmployee($data) {
             $day = intval($dateParts[2]);
 
            if (!checkdate($month, $day, $year)) {
-               throw new Exception("日期不存在，请检查年、月、日是否有效");
-            }
+               throw new Exception("Invalid date. Please check year, month, and day.");
+           }
             
             $staffStmt->bind_param("isssssi", 
                 $branchId,
@@ -319,13 +345,13 @@ function saveEmployee($data) {
         
         // 提交事务
         $conn->commit();
-        return ['success' => true, 'message' => '保存成功'];
+        return ['success' => true, 'message' => 'Saved successfully.'];
         
     } catch (Exception $e) {
         // 回滚事务
         $conn->rollback();
         error_log("保存员工信息失败: " . $e->getMessage());
-        return ['success' => false, 'message' => '保存失败: ' . $e->getMessage()];
+        return ['success' => false, 'message' => 'Save failed: ' . $e->getMessage()];
     }
 }
 
@@ -375,21 +401,14 @@ function getBranchesData() {
 
                 // 获取经理信息（从预加载的经理列表中匹配）
                 $managerId = $row['manager_ID'] ?? '';
-                $managerName = '未设置';
+                $managerName = 'Not set';
                 $managerPhone = '';
                 if (!empty($managerId) && isset($managers[$managerId])) {
                     $managerName = $managers[$managerId]['name'];
                     $managerPhone = $managers[$managerId]['phone'];
                 }
 
-                // 翻译状态
-                $statusText = '';
-                switch ($row['status'] ?? '') {
-                    case 'active': $statusText = '营业中'; break;
-                    case 'inactive': $statusText = '已停业'; break;
-                    case 'under_renovation': $statusText = '装修中'; break;
-                    default: $statusText = $row['status'] ?? '未知';
-                }
+                $statusText = mapBranchStatusLabel($row['status'] ?? '');
                 
                 $branches[] = [
                     'id' => $row['branch_ID'] ?? '',
@@ -439,13 +458,7 @@ function updateEmployee($data) {
         
         // 2. 更新Staff表
         $branchId = str_replace('BR-', '', $data['branch_id']);
-        $statusRaw = '';
-        switch ($data['status']) {
-            case '在职': $statusRaw = 'active'; break;
-            case '休假': $statusRaw = 'on_leave'; break;
-            case '离职': $statusRaw = 'terminated'; break;
-            default: $statusRaw = 'active';
-        }
+        $statusRaw = mapEmployeeStatusToRaw($data['status'] ?? '');
         
         $staffSql = "UPDATE Staff 
                     SET branch_ID = ?, position = ?, phone = ?, salary = ?, hire_date = ?, status = ?
@@ -454,13 +467,13 @@ function updateEmployee($data) {
 
         $timestamp = strtotime($data['start_date']);
         if ($timestamp === false) {
-           throw new Exception("无效的日期格式,请使用YYYY-MM-DD");
+           throw new Exception("Invalid date format. Use YYYY-MM-DD.");
         }
         $hireDate = date('Y-m-d', $timestamp);
 
         $year = date('Y', $timestamp);
         if ($year < 1970 || $year > 2100) {
-          throw new Exception("日期年份必须在1970-2100之间");
+          throw new Exception("Year must be between 1970 and 2100.");
         }
         $staffStmt->bind_param("issdsii", 
             $branchId,
@@ -711,7 +724,7 @@ function getOrderProductDetails($orderId) {
         return implode(';', $details);
     } catch (Exception $e) {
         error_log("获取商品详情失败: " . $e->getMessage() . ",orderId: " . $orderId);
-        return "获取失败";
+        return "Failed to load details";
     }
 }
 /**
@@ -1105,10 +1118,10 @@ function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $c
     try {
         // 1. 生成SKU（产品编号）
         $sku = generateProductSKU($category_id, $name,$sale_quantity);
-        if($sku == ''){
+        if ($sku == '') {
             return [
             'success' => false,
-            'message' => '添加产品失败: sku重复,可以考虑进货.'
+            'message' => 'Failed to add product: duplicate SKU. Consider restocking.'
         ];
         }
         // 2. 开始事务
@@ -1142,14 +1155,14 @@ function addProductToDB($name, $unit, $price, $spec, $supplier, $description, $c
             'success' => true,
             'product_id' => $product_id,
             'sku' => $sku,
-            'message' => '产品添加成功'
+            'message' => 'Product added successfully.'
         ];
         
     } catch (Exception $e) {
         $conn->rollback();
         return [
             'success' => false,
-            'error' => '添加产品失败: ' . $e->getMessage()
+            'error' => 'Failed to add product: ' . $e->getMessage()
         ];
     }
 }
@@ -1174,31 +1187,15 @@ function generateProductSKU($category_id, $product_name = '',$sale_quantity = ''
     // 生成产品名字的缩写（取前2-3个大写字母）
     $name_abbr = '';
     if (!empty($product_name)) {
-        // 1. 移除空格和特殊字符
-        $clean_name = preg_replace('/[^a-zA-Z0-9]/', '', $product_name);
-        
-        // 2. 提取大写字母
-        $uppercase_chars = '';
-        for ($i = 0; $i < strlen($clean_name); $i++) {
-            if (ctype_upper($clean_name[$i])) {
-                $uppercase_chars .= $clean_name[$i];
-            }
-        }
-        
-        // 3. 如果有大写字母，取前3个
-        if (!empty($uppercase_chars)) {
-            $name_abbr = substr($uppercase_chars, 0, 3);
-        } else {
-            // 4. 如果没有大写字母，取前3个字符转大写
-            $name_abbr = strtoupper(substr($clean_name, 0, 3));
-        }
-        
-        // 5. 确保至少2个字符
-        if (strlen($name_abbr) < 2) {
-            $name_abbr = strtoupper(substr($clean_name, 0, 3));
-        }
+      $clean_name = preg_replace('/[^a-zA-Z0-9]/', '', $product_name);
+    
+      $name_abbr = strtoupper($clean_name);
+    
+      if (empty($name_abbr)) {
+        $name_abbr = 'GENERIC';
+      }
     } else {
-        $name_abbr = 'GEN'; // 通用缩写
+       $name_abbr = 'GENERIC'; // 通用缩写
     }
     
     // 查询该分类下已有产品数量

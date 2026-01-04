@@ -3,21 +3,28 @@ header("Content-Type: text/html; charset=UTF-8");
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once __DIR__ . '/../config/db_connect.php';
 if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
 }
 
+$servername = "localhost";
+$username = "staff_user";
+$password = "YourPassword123!";
+$dbname = "mydb";
+
 $staffMembers = [];
 $error_message = '';
 
-$conn = getDBConnection();
-if ($conn) {
+$conn = new mysqli($servername, $username, $password, $dbname);
+if ($conn->connect_error) {
+    $error_message = "Database connection failed: " . $conn->connect_error;
+} else {
+    $conn->set_charset("utf8mb4");
     $branchId = $_SESSION['staff_branch_id'] ?? null;
 
     if ($branchId === null) {
-        $error_message = "无法确定当前门店，请重新登录。";
+        $error_message = "Unable to determine the current branch. Please sign in again.";
     } else {
         $sql = "SELECT staff_ID, position, staff_phone, status,
                        first_name, last_name, user_email, user_telephone
@@ -33,18 +40,18 @@ if ($conn) {
                     $staffMembers[] = $row;
                 }
             } else {
-                $error_message = "查询员工信息失败：" . $conn->error;
+                $error_message = "Failed to load staff data: " . $conn->error;
             }
             $stmt->close();
         } else {
-            $error_message = "准备查询语句失败：" . $conn->error;
+            $error_message = "Failed to prepare staff query: " . $conn->error;
         }
     }
     $conn->close();
 }
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <?php include 'header.php'; ?>
 <style>
 .employee-table {
@@ -91,17 +98,17 @@ if ($conn) {
 <body>
     <main class="main">
         <section class="section">
-            <h2 class="section-title">门店员工信息</h2>
+            <h2 class="section-title">Branch Staff</h2>
             <div style="overflow-x:auto;">
                 <table class="employee-table">
                     <thead>
                         <tr>
-                            <th>员工编号</th>
-                            <th>姓名</th>
-                            <th>职位</th>
-                            <th>联系方式</th>
-                            <th>邮箱</th>
-                            <th>状态</th>
+                            <th>Employee ID</th>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>Phone</th>
+                            <th>Email</th>
+                            <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -110,21 +117,21 @@ if ($conn) {
                                 <?php
                                     $displayId = 'YG' . str_pad($staff['staff_ID'], 8, '0', STR_PAD_LEFT);
                                     $nameParts = array_filter([$staff['last_name'] ?? '', $staff['first_name'] ?? '']);
-                                    $displayName = $nameParts ? implode(' ', $nameParts) : '未登记';
+                                    $displayName = $nameParts ? implode(' ', $nameParts) : 'Not set';
                                     $positionMap = [
-                                        'Manager' => '店长',
-                                        'Sales' => '销售员',
-                                        'Deliveryman' => '配送员'
+                                        'Manager' => 'Manager',
+                                        'Sales' => 'Sales',
+                                        'Deliveryman' => 'Delivery'
                                     ];
                                     $positionLabel = $positionMap[$staff['position']] ?? $staff['position'];
-                                    $phone = $staff['staff_phone'] ?: ($staff['user_telephone'] ?? '未填写');
-                                    $email = $staff['user_email'] ?? '未填写';
+                                    $phone = $staff['staff_phone'] ?: ($staff['user_telephone'] ?? 'Not provided');
+                                    $email = $staff['user_email'] ?? 'Not provided';
                                     $status = $staff['status'] ?? 'active';
                                     $statusClass = 'status-' . str_replace(' ', '_', $status);
                                     $statusLabelMap = [
-                                        'active' => '在岗',
-                                        'on_leave' => '请假',
-                                        'terminated' => '离职'
+                                        'active' => 'Active',
+                                        'on_leave' => 'On leave',
+                                        'terminated' => 'Terminated'
                                     ];
                                     $statusLabel = $statusLabelMap[$status] ?? $status;
                                 ?>
@@ -144,7 +151,7 @@ if ($conn) {
                         <?php else: ?>
                             <tr>
                                 <td colspan="6" class="empty-state">
-                                    <?php echo $error_message ? htmlspecialchars($error_message) : '当前门店暂无员工信息'; ?>
+                                    <?php echo $error_message ? htmlspecialchars($error_message) : 'No staff records for this branch'; ?>
                                 </td>
                             </tr>
                         <?php endif; ?>

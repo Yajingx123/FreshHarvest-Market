@@ -11,12 +11,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_price'])) {
     $productId = isset($_POST['product_id']) ? (int)$_POST['product_id'] : 0;
     $price = isset($_POST['price']) ? (float)$_POST['price'] : 0;
     if ($supplierId <= 0 || $productId <= 0 || $price <= 0) {
-        $error = '请输入有效的单价。';
+        $error = 'Please enter a valid unit price.';
     } else {
         if (updateSupplierProductPrice($supplierId, $productId, $price)) {
-            $message = '单价已更新。';
+            $message = 'Unit price updated.';
         } else {
-            $error = '更新失败，请稍后重试。';
+            $error = 'Update failed. Please try again later.';
         }
     }
 }
@@ -24,11 +24,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_price'])) {
 $products = getSupplierProducts($supplierId);
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - 供应商产品管理</title>
+    <title>FreshHarvest - Product Management</title>
     <style>
         body { background-color: #f8f9fa; color: #333; font-family: 'Microsoft YaHei', Arial, sans-serif; }
         .header {
@@ -134,7 +134,7 @@ $products = getSupplierProducts($supplierId);
 <body>
     <main class="main">
         <section class="section">
-            <h2 class="section-title">产品管理</h2>
+            <h2 class="section-title">Product Management</h2>
             <?php if ($message): ?>
                 <div class="alert-box" id="priceSuccess"><?php echo htmlspecialchars($message); ?></div>
             <?php endif; ?>
@@ -145,31 +145,31 @@ $products = getSupplierProducts($supplierId);
                 <table class="inventory-table">
                     <thead>
                         <tr>
-                            <th>商品编号</th>
-                            <th>商品名称</th>
-                            <th>商品描述</th>
-                            <th>单价</th>
-                            <th>操作</th>
+                            <th>SKU</th>
+                            <th>Product Name</th>
+                            <th>Description</th>
+                            <th>Unit Price</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($products)): ?>
                             <tr>
-                                <td colspan="5" style="text-align:center;color:#888;padding:24px;">暂无可供产品</td>
+                                <td colspan="5" style="text-align:center;color:#888;padding:24px;">No products available</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($products as $product): ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($product['sku'] ?? $product['product_ID']); ?></td>
                                     <td><?php echo htmlspecialchars($product['product_name'] ?? ''); ?></td>
-                                    <td><?php echo htmlspecialchars($product['description'] ?? '暂无描述'); ?></td>
+                                    <td><?php echo htmlspecialchars($product['description'] ?? 'No description'); ?></td>
                                     <td>¥<?php echo number_format((float)($product['price'] ?? 0), 2); ?></td>
                                     <td>
                                         <form method="post" style="display:flex;gap:8px;align-items:center;">
                                             <input type="hidden" name="update_price" value="1">
                                             <input type="hidden" name="product_id" value="<?php echo (int)$product['product_ID']; ?>">
                                             <input type="number" step="0.01" name="price" value="<?php echo htmlspecialchars($product['price'] ?? 0); ?>" style="width:120px;">
-                                            <button class="btn btn-primary" type="submit">编辑</button>
+                                            <button class="btn btn-primary" type="submit">Update</button>
                                         </form>
                                     </td>
                                 </tr>

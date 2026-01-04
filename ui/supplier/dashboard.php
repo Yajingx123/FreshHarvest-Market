@@ -117,11 +117,11 @@ if ($supplierId > 0) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - 供应商端-数据概览</title>
+    <title>FreshHarvest - Supplier Overview</title>
     <!-- 引入Chart.js库 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -337,7 +337,7 @@ if ($supplierId > 0) {
     <?php include 'header.php'; ?>
 
     <main class="main">
-        <h2 style="margin-bottom: 30px; color: #333;">数据概览</h2>
+        <h2 style="margin-bottom: 30px; color: #333;">Overview</h2>
 
         <!-- 核心指标卡片 -->
         <div class="overview-cards">
@@ -346,7 +346,7 @@ if ($supplierId > 0) {
                     <i>📝</i>
                 </div>
                 <div class="card-content">
-                    <h3>今日订单数</h3>
+                    <h3>Orders Today</h3>
                     <div class="number"><?php echo $todayOrders; ?></div>
                 </div>
             </div>
@@ -355,7 +355,7 @@ if ($supplierId > 0) {
                     <i>🥬</i>
                 </div>
                 <div class="card-content">
-                    <h3>可供应货品数</h3>
+                    <h3>Active Products</h3>
                     <div class="number"><?php echo $productCount; ?> </div>
                 </div>
             </div>
@@ -364,7 +364,7 @@ if ($supplierId > 0) {
                     <i>💰</i>
                 </div>
                 <div class="card-content">
-                    <h3>今日销售额</h3>
+                    <h3>Sales Today</h3>
                     <div class="number"><?php echo '¥' . number_format($todaySales, 2); ?></div>
                 </div>
             </div>
@@ -373,7 +373,7 @@ if ($supplierId > 0) {
                     <i>🏪</i>
                 </div>
                 <div class="card-content">
-                    <h3>合作门店数</h3>
+                    <h3>Partner Stores</h3>
                     <div class="number"><?php echo $cooperativeStores; ?></div>
                 </div>
             </div>
@@ -382,39 +382,39 @@ if ($supplierId > 0) {
         <!-- 图表区域 -->
         <div class="chart-container">
             <div class="chart-card">
-                <h3>近7日销售额趋势</h3>
+                <h3>Sales (Last 7 Days)</h3>
                 <div class="chart-wrap">
                     <canvas id="salesChart"></canvas>
                 </div>
             </div>
             <div class="chart-card">
-                <h3>订单状态分布</h3>
+                <h3>Order Status</h3>
                 <div class="order-status">
                     <div class="status-item">
                         <div class="status-label">
                             <div class="status-dot dot-pending"></div>
-                            <span>待确认</span>
+                            <span>Pending</span>
                         </div>
                         <div class="status-value"><?php echo $orderStatus['pending']; ?></div>
                     </div>
                     <div class="status-item">
                         <div class="status-label">
                             <div class="status-dot dot-accepted"></div>
-                            <span>已收货</span>
+                            <span>Received</span>
                         </div>
                         <div class="status-value"><?php echo $orderStatus['received']; ?></div>
                     </div>
                     <div class="status-item">
                         <div class="status-label">
                             <div class="status-dot dot-shipped"></div>
-                            <span>已下单</span>
+                            <span>Ordered</span>
                         </div>
                         <div class="status-value"><?php echo $orderStatus['ordered']; ?></div>
                     </div>
                     <div class="status-item">
                         <div class="status-label">
                             <div class="status-dot dot-completed"></div>
-                            <span>已取消</span>
+                            <span>Cancelled</span>
                         </div>
                         <div class="status-value"><?php echo $orderStatus['cancelled']; ?></div>
                     </div>
@@ -425,15 +425,15 @@ if ($supplierId > 0) {
 
     <footer class="footer">
         <div class="footer-container">
-            <h3 class="logo" style="color: white; margin-bottom: 20px;">鲜选生鲜 - 供应商管理平台</h3>
+            <h3 class="logo" style="color: white; margin-bottom: 20px;">FreshHarvest - Supplier Portal</h3>
             <div style="display: flex; justify-content: center; gap: 30px; margin-bottom: 20px;">
-                <a href="#" style="color: #ccc; text-decoration: none;">供应商帮助中心</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">合作协议</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">结算规则</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">投诉反馈</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">联系平台</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Supplier Help Center</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Partnership Agreement</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Settlement Rules</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Feedback</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Contact Platform</a>
             </div>
-            <div class="copyright">© 2024 鲜选生鲜 版权所有 | 平台客服电话:400-888-XXXX</div>
+            <div class="copyright">© 2024 FreshHarvest. All rights reserved | Support: 400-888-XXXX</div>
         </div>
     </footer>
 
@@ -479,7 +479,7 @@ if ($supplierId > 0) {
                 data: {
                     labels: dateLabels,
                     datasets: [{
-                        label: '销售额（元）',
+                        label: 'Sales (CNY)',
                         data: salesData,
                         borderColor: '#1976d2',
                         backgroundColor: 'rgba(25, 118, 210, 0.15)',
@@ -507,7 +507,7 @@ if ($supplierId > 0) {
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    return '销售额: ¥' + context.parsed.y.toFixed(2);
+                                    return 'Sales: ¥' + context.parsed.y.toFixed(2);
                                 }
                             }
                         }

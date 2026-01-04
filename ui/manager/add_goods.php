@@ -7,13 +7,13 @@ header('Content-Type: application/json');
 
 // 只允许POST请求
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'error' => '非法请求']);
+    echo json_encode(['success' => false, 'error' => 'Invalid request']);
     exit;
 }
 
 // 验证action参数
 if (!isset($_POST['action']) || $_POST['action'] !== 'add_product') {
-    echo json_encode(['success' => false, 'error' => '无效的操作']);
+    echo json_encode(['success' => false, 'error' => 'Invalid action']);
     exit;
 }
 
@@ -31,18 +31,18 @@ $category_id = intval($_POST['category_id'] ?? 0);
 
 // 基础验证
 $errors = [];
-if (empty($name)) $errors[] = '产品名称不能为空';
+if (empty($name)) $errors[] = 'Product name is required.';
 // 验证售卖量
 if ($sale_quantity <= 0) {
-    $errors[] = '售卖量必须大于0';
+    $errors[] = 'Sales quantity must be greater than 0.';
 }
 // 验证单位是否在允许的范围内
 $allowed_units = ['g', 'kg', '只', '个', '枚', '斤', '公斤', '盒', '包', '袋'];
 if (!in_array($unit, $allowed_units)) {
-    $errors[] = '请选择有效的单位';
+    $errors[] = 'Please select a valid unit.';
 }
-if ($price < 0) $errors[] = '价格不能为负数';
-if ($category_id <= 0) $errors[] = '请选择产品类型';
+if ($price < 0) $errors[] = 'Price cannot be negative.';
+if ($category_id <= 0) $errors[] = 'Please select a product category.';
 
 // 验证分类和供应商匹配
 if ($category_id > 0 && !empty($supplier)) {
@@ -75,10 +75,10 @@ if ($category_id > 0 && !empty($supplier)) {
             
             // 3. 比较供应商能提供的品类（第二级）与产品的父类（第二级）
             if ($supplierCategory !== $productParentCategory) {
-                $errors[] = "该供应商（提供：{$supplierCategory}）不能提供此类型的产品（属于：{$productParentCategory}）";
+                $errors[] = "Supplier category ({$supplierCategory}) does not match product category ({$productParentCategory}).";
             }
         } else {
-            $errors[] = '无效的产品分类';
+            $errors[] = 'Invalid product category.';
         }
         $categoryStmt->close();
     }
@@ -96,7 +96,7 @@ while ($row = $thirdLevelResult->fetch_assoc()) {
 }
 
 if (!in_array($category_id, $allowed_categories)) {
-    $errors[] = '请选择正确的产品类型（果蔬、肉禽蛋、水产）';
+    $errors[] = 'Please select a valid product category.';
 }
 
 if (!empty($errors)) {

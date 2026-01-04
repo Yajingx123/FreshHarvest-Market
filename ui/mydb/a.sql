@@ -133,6 +133,9 @@ CREATE TABLE IF NOT EXISTS `mydb`.`Branch` (
 
 CREATE TABLE IF NOT EXISTS `mydb`.`User` (
   `user_ID` INT NOT NULL AUTO_INCREMENT,
+  `is_logged_in` BOOLEAN DEFAULT FALSE,
+  `last_login_time` TIMESTAMP NULL,
+  `session_id` VARCHAR(128) NULL,
   `user_name` VARCHAR(45) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
   `user_type` ENUM('customer', 'staff', 'supplier', 'CEO') NOT NULL,
@@ -143,7 +146,6 @@ CREATE TABLE IF NOT EXISTS `mydb`.`User` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `last_login` DATETIME NULL,
   `is_active` BOOLEAN DEFAULT TRUE,
-  `login_session_id` VARCHAR(128) NULL,
   PRIMARY KEY (`user_ID`))
 ENGINE = InnoDB;
 

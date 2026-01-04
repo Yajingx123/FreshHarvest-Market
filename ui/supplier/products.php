@@ -2,11 +2,11 @@
 // 供应商端 - 货品信息（状态实时刷新版）
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - 供应商端-货品信息</title>
+    <title>FreshHarvest - Supplier Products</title>
     <style>
         * {
             margin: 0;
@@ -306,52 +306,52 @@
 
     <main class="main">
         <section class="section">
-            <h2 class="section-title">货品信息管理</h2>
+            <h2 class="section-title">Product Management</h2>
             <div class="filter-bar">
-                <input type="text" class="filter-input" placeholder="搜索货品名称/编号" id="productSearch" oninput="filterProducts()">
+                <input type="text" class="filter-input" placeholder="Search product name / ID" id="productSearch" oninput="filterProducts()">
                 <select class="filter-select" id="categoryFilter" onchange="filterProducts()">
-                    <option value="">全部分类</option>
-                    <option value="vegetable">蔬菜类</option>
-                    <option value="fruit">水果类</option>
-                    <option value="meat">肉类</option>
-                    <option value="seafood">海鲜类</option>
-                    <option value="grain">粮油类</option>
+                    <option value="">All categories</option>
+                    <option value="vegetable">Vegetables</option>
+                    <option value="fruit">Fruit</option>
+                    <option value="meat">Meat</option>
+                    <option value="seafood">Seafood</option>
+                    <option value="grain">Grain & Oil</option>
                 </select>
                 <select class="filter-select" id="statusFilter" onchange="filterProducts()">
-                    <option value="">全部状态</option>
-                    <option value="online">可供应</option>
-                    <option value="offline">暂停供应</option>
+                    <option value="">All statuses</option>
+                    <option value="online">Available</option>
+                    <option value="offline">Unavailable</option>
                 </select>
-                <button class="btn btn-primary" onclick="openAddModal()">新增货品</button>
-                <button class="btn btn-warning" onclick="resetFilter()">重置筛选</button>
+                <button class="btn btn-primary" onclick="openAddModal()">Add product</button>
+                <button class="btn btn-warning" onclick="resetFilter()">Reset</button>
             </div>
 
             <table class="product-table">
                 <thead>
                     <tr>
-                        <th>货品编号</th>
-                        <th>货品名称</th>
-                        <th>分类</th>
-                        <th>规格</th>
-                        <th>供应价</th>
-                        <th>建议售价</th>
-                        <th>状态</th>
-                        <th>操作</th>
+                        <th>Product ID</th>
+                        <th>Product Name</th>
+                        <th>Category</th>
+                        <th>Spec</th>
+                        <th>Supply Price</th>
+                        <th>Suggested Price</th>
+                        <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="productTableBody">
                     <!-- 货品数据行将通过JavaScript动态生成或从服务器加载 -->
-                    <tr data-id="P001" data-name="有机生菜" data-category="vegetable" data-spec="500g/份" data-price="3.5" data-sellprice="5.9" data-status="online">
+                    <tr data-id="P001" data-name="Organic Lettuce" data-category="vegetable" data-spec="500g/pack" data-price="3.5" data-sellprice="5.9" data-status="online">
                         <td>P001</td>
-                        <td>有机生菜</td>
-                        <td>蔬菜类</td>
-                        <td>500g/份</td>
+                        <td>Organic Lettuce</td>
+                        <td>Vegetables</td>
+                        <td>500g/pack</td>
                         <td class="price-tag">¥3.50</td>
                         <td>¥5.90</td>
-                        <td><span class="status-tag status-accepted">可供应</span></td>
+                        <td><span class="status-tag status-accepted">Available</span></td>
                         <td>
-                            <button class="btn btn-primary" onclick="openEditModal('P001')">编辑</button>
-                            <button class="btn btn-success" onclick="toggleStatus('P001')">暂停供应</button>
+                            <button class="btn btn-primary" onclick="openEditModal('P001')">Edit</button>
+                            <button class="btn btn-success" onclick="toggleStatus('P001')">Disable</button>
                         </td>
                     </tr>
                     <!-- 更多货品行... -->
@@ -364,46 +364,46 @@
     <div class="modal" id="productModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title" id="modalTitle">新增货品</h3>
+                <h3 class="modal-title" id="modalTitle">Add Product</h3>
                 <span class="modal-close" onclick="closeModal()">&times;</span>
             </div>
             <div class="modal-body">
                 <form id="productForm">
                     <input type="hidden" id="formProductId">
                     <div class="form-group">
-                        <label class="form-label">货品名称</label>
+                        <label class="form-label">Product Name</label>
                         <input type="text" class="form-input" id="productName" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">分类</label>
+                        <label class="form-label">Category</label>
                         <select class="form-input" id="productCategory" required>
-                            <option value="vegetable">蔬菜类</option>
-                            <option value="fruit">水果类</option>
-                            <option value="meat">肉类</option>
-                            <option value="seafood">海鲜类</option>
-                            <option value="grain">粮油类</option>
+                            <option value="vegetable">Vegetables</option>
+                            <option value="fruit">Fruit</option>
+                            <option value="meat">Meat</option>
+                            <option value="seafood">Seafood</option>
+                            <option value="grain">Grain & Oil</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">规格</label>
-                        <input type="text" class="form-input" id="productSpec" required placeholder="例如：500g/份">
+                        <label class="form-label">Spec</label>
+                        <input type="text" class="form-input" id="productSpec" required placeholder="e.g. 500g/pack">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">供应价（元）</label>
+                        <label class="form-label">Supply price (CNY)</label>
                         <input type="number" step="0.01" min="0" class="form-input" id="productPrice" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">建议售价（元）</label>
+                        <label class="form-label">Suggested price (CNY)</label>
                         <input type="number" step="0.01" min="0" class="form-input" id="productSellPrice" required>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">状态</label>
+                        <label class="form-label">Status</label>
                         <select class="form-input" id="productStatus" required>
-                            <option value="online">可供应</option>
-                            <option value="offline">暂停供应</option>
+                            <option value="online">Available</option>
+                            <option value="offline">Unavailable</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">保存</button>
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 10px;">Save</button>
                 </form>
             </div>
         </div>
@@ -411,14 +411,14 @@
 
     <footer class="footer">
         <div class="footer-container">
-            <h3 class="logo" style="color: white; margin-bottom: 20px;">鲜选生鲜 - 供应商管理平台</h3>
+            <h3 class="logo" style="color: white; margin-bottom: 20px;">FreshHarvest - Supplier Portal</h3>
             <div style="display: flex; justify-content: center; gap: 30px; margin-bottom: 20px;">
-                <a href="#" style="color: #ccc; text-decoration: none;">供应商帮助中心</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">合作协议</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">投诉反馈</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">联系平台</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Supplier Help Center</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Partnership Agreement</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Feedback</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Contact Platform</a>
             </div>
-            <div class="copyright">© 2024 鲜选生鲜 版权所有 | 平台客服电话：400-888-XXXX</div>
+            <div class="copyright">© 2024 FreshHarvest. All rights reserved | Support: 400-888-XXXX</div>
         </div>
     </footer>
 
@@ -427,11 +427,11 @@
         let originalProducts = [];
         // 分类名称映射
         const categoryMap = {
-            'vegetable': '蔬菜类',
-            'fruit': '水果类',
-            'meat': '肉类',
-            'seafood': '海鲜类',
-            'grain': '粮油类'
+            'vegetable': 'Vegetables',
+            'fruit': 'Fruit',
+            'meat': 'Meat',
+            'seafood': 'Seafood',
+            'grain': 'Grain & Oil'
         };
 
         // 初始化
@@ -497,7 +497,7 @@
             } else {
                 // 无结果时显示提示
                 const noResultRow = document.createElement('tr');
-                noResultRow.innerHTML = `<td colspan="8" style="text-align: center; padding: 20px;">没有找到匹配的货品</td>`;
+                noResultRow.innerHTML = `<td colspan="8" style="text-align: center; padding: 20px;">No matching products found</td>`;
                 tbody.appendChild(noResultRow);
             }
         }
@@ -518,7 +518,7 @@
 
         // 以下为原有功能代码（保持不变）
         function openAddModal() {
-            document.getElementById('modalTitle').textContent = '新增货品';
+            document.getElementById('modalTitle').textContent = 'Add Product';
             document.getElementById('formProductId').value = '';
             document.getElementById('productForm').reset();
             document.getElementById('productModal').classList.add('show');
@@ -528,7 +528,7 @@
             // 实际应用中应从服务器获取数据
             const product = originalProducts.find(p => p.id === id);
             if (product) {
-                document.getElementById('modalTitle').textContent = '编辑货品';
+                document.getElementById('modalTitle').textContent = 'Edit Product';
                 document.getElementById('formProductId').value = product.id;
                 document.getElementById('productName').value = product.name;
                 document.getElementById('productCategory').value = product.category;
@@ -550,7 +550,7 @@
             if (product) {
                 product.status = product.status === 'online' ? 'offline' : 'online';
                 filterProducts(); // 刷新表格显示
-                alert(`货品 ${product.name} 状态已更新为：${product.status === 'online' ? '可供应' : '暂停供应'}`);
+                alert(`Product ${product.name} status updated to: ${product.status === 'online' ? 'Available' : 'Unavailable'}`);
             }
         }
 

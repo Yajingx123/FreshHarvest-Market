@@ -1,5 +1,18 @@
 <?php
-require_once __DIR__ . '/../../config/db_connect.php';
+
+function getDBConnection() {
+    $servername = "localhost";
+    $username = "customer_user";
+    $password = "YourPassword123!"; 
+    $dbname = "mydb";
+    
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        die("Database connection failed: " . $conn->connect_error);
+    }
+    $conn->set_charset("utf8mb4");
+    return $conn;
+}
 
 $customer_id = $_SESSION['customer_id'] ?? null;
 
@@ -82,6 +95,7 @@ function getOrderDetails($orderId) {
     $itemsQuery = "SELECT 
                     oi.item_ID,
                     p.product_name,
+                    p.sku,
                     oi.unit_price,
                     oi.quantity,
                     (oi.unit_price * oi.quantity) AS total
@@ -138,7 +152,7 @@ function getCustomerOrders($customerId, $status = NULL) {
             'total_amount' => $row['final_amount'], 
             'product_details' => $row['product_details'],
             'store_name' => $row['store_name'],
-            'shipping_address' => $row['shipping_address'] ?? '无'
+            'shipping_address' => $row['shipping_address'] ?? 'N/A'
         ];
     }
     $stmt->close();
@@ -451,7 +465,7 @@ function getFIFOStockItems($productId, $quantity, $branchId) {
 }
 function addToCartWithFIFO($customerId, $productId, $quantity, $branchId = 1) {
     if ($customerId <= 0 || $productId <= 0 || $quantity < 1) {
-        return ['success' => false, 'message' => '无效的参数'];
+        return ['success' => false, 'message' => 'Invalid parameters.'];
     }
 
     $conn = getDBConnection();
@@ -473,14 +487,14 @@ function addToCartWithFIFO($customerId, $productId, $quantity, $branchId = 1) {
         $storeResult = $storeStmt->get_result();
         
         if ($storeResult->num_rows === 0) {
-            throw new Exception("该商品在所选门店不存在。");
+            throw new Exception("This product is not available at the selected store.");
         }
         
         $storeInfo = $storeResult->fetch_assoc();
         $availableStock = $storeInfo['available_stock'] ?? 0;
         
         if ($availableStock < $quantity) {
-            throw new Exception("库存不足！所选门店可用库存为{$availableStock}");
+            throw new Exception("Insufficient stock. Available at this store: {$availableStock}.");
         }
         
         $storeStmt->close();
@@ -488,7 +502,7 @@ function addToCartWithFIFO($customerId, $productId, $quantity, $branchId = 1) {
         // 获取或创建该门店的购物车
         $orderId = getOrCreatePendingOrder($customerId, $branchId);
         if (!$orderId) {
-            throw new Exception("订单创建失败！");
+            throw new Exception("Order creation failed.");
         }
 
         $priceQuery = "SELECT unit_price FROM products WHERE product_ID = ? AND status = 'active'";
@@ -792,130 +806,104 @@ function checkUsernameExists($newUsername, $excludeCustomerId) {
     return $exists;
 }
 
-// 更新用户信息（包含修改username）
 function updateCustomerInfo($customerId, $data) {
     $conn = getDBConnection();
-    $conn->begin_transaction(); // 开启事务，确保两表更新同时成功/失败
-    $success = false; // 初始化成功状态
-
+    $conn->begin_transaction();
+    
     try {
-        // ========== 1. 先获取当前用户的关联信息（Customer + User表） ==========
-        $stmt = $conn->prepare("SELECT user_name, gender, phone, email, address FROM Customer WHERE customer_ID = ?");
+        // 1. 先获取当前用户名（用于关联更新user表）
+        $stmt = $conn->prepare("SELECT user_name FROM Customer WHERE customer_ID = ?");
         $stmt->bind_param("i", $customerId);
         $stmt->execute();
         $result = $stmt->get_result();
         $customer = $result->fetch_assoc();
         $stmt->close();
-
-        if (!$customer || empty($customer['user_name'])) {
-            throw new Exception("No associated user information was found, customer_ID:{$customerId}");
+        
+        if (!$customer) {
+            throw new Exception("User not found.");
         }
-        $oldUsername = $customer['user_name'];
-
-        // 1.2 从user表获取原有信息（用于对比是否需要更新）
-        $stmt = $conn->prepare("SELECT user_telephone, user_email FROM user WHERE user_name = ?");
-        $stmt->bind_param("s", $oldUsername);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
-        $stmt->close();
-
-        if (!$user) {
-            throw new Exception("未找到关联的user表信息,user_name:{$oldUsername}");
-        }
-
-        // ========== 2. 处理用户名更新（同步更新Customer和user表的user_name） ==========
-        $newUsername = $data['username'] ?? null;
-        if ($newUsername !== null && $newUsername !== '' && $newUsername !== $oldUsername) {
-            // 2.1 更新Customer表的user_name
-            $stmt = $conn->prepare("UPDATE Customer SET user_name = ? WHERE customer_ID = ?");
-            $stmt->bind_param("si", $newUsername, $customerId);
-            $stmt->execute();
-            $stmt->close();
-
-            // 2.2 更新user表的user_name（如果user表的主键是user_name，需同步更新）
-            $stmt = $conn->prepare("UPDATE user SET user_name = ? WHERE user_name = ?");
-            $stmt->bind_param("ss", $newUsername, $oldUsername);
-            $stmt->execute();
-            $stmt->close();
-
-            error_log("用户{$customerId}更新用户名：{$oldUsername} → {$newUsername}");
-            $oldUsername = $newUsername; // 更新后，后续操作使用新的username
-        }
-
-        // ========== 3. 处理字段更新（分表更新：user表存电话/邮箱，Customer表存性别/地址） ==========
-        $userUpdateParts = [];
+        $username = $customer['user_name'];
+        
+        // 2. 更新user表（只有用户认证相关字段）
+        $userUpdates = [];
         $userParams = [];
-        $userParamTypes = '';
-        // 定义user表可更新的字段（数据库字段名 => 前端传递的键名）
-        $userUpdatableFields = [
-            'user_telephone' => 'phone', 
-            'user_email' => 'email'      
-        ];
-        foreach ($userUpdatableFields as $dbField => $dataKey) {
-            if (isset($data[$dataKey]) && $data[$dataKey] !== '' && $data[$dataKey] !== $user[$dbField]) {
-                $userUpdateParts[] = "{$dbField} = ?";
-                $userParams[] = $data[$dataKey];
-                $userParamTypes .= 's';
-            }
+        $userTypes = '';
+        
+        // user表只存储认证信息
+        if (isset($data['phone'])) {
+            $userUpdates[] = "user_telephone = ?";
+            $userParams[] = $data['phone'];
+            $userTypes .= "s";
         }
-        // 执行user表的更新
-        if (!empty($userUpdateParts)) {
-            $sql = "UPDATE user SET " . implode(', ', $userUpdateParts) . " WHERE user_name = ?";
-            $userParams[] = $oldUsername;
-            $userParamTypes .= 's';
-
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param($userParamTypes, ...$userParams);
+        
+        if (isset($data['email'])) {
+            $userUpdates[] = "user_email = ?";
+            $userParams[] = $data['email'];
+            $userTypes .= "s";
+        }
+        
+        if (!empty($userUpdates)) {
+            $userSql = "UPDATE user SET " . implode(", ", $userUpdates) . " WHERE user_name = ?";
+            $userParams[] = $username;
+            $userTypes .= "s";
+            
+            $stmt = $conn->prepare($userSql);
+            $stmt->bind_param($userTypes, ...$userParams);
             $stmt->execute();
             $stmt->close();
-            error_log("用户{$customerId}更新user表字段:" . implode(', ', array_keys($userUpdatableFields)));
         }
-
-        // 3.2 更新Customer表的字段（gender、phone、email、address，根据业务调整）
-        $customerUpdateParts = [];
+        
+        // 3. 更新Customer表（完整的客户资料）
+        $customerUpdates = [];
         $customerParams = [];
-        $customerParamTypes = '';
-        // 定义Customer表可更新的字段（排除已在user表更新的字段，避免冗余）
-        $customerUpdatableFields = [
-            'gender' => 'gender',
-            'phone' => 'phone',
-            'email' => 'email',
-            'address' => 'address'
-        ];
-        foreach ($customerUpdatableFields as $dbField => $dataKey) {
-            if (isset($data[$dataKey]) && $data[$dataKey] !== '' && $data[$dataKey] !== $customer[$dbField]) {
-                $customerUpdateParts[] = "{$dbField} = ?";
-                $customerParams[] = $data[$dataKey];
-                $customerParamTypes .= 's';
-            }
+        $customerTypes = "";
+        
+        // Customer表存储完整的客户信息
+        if (isset($data['gender'])) {
+            $customerUpdates[] = "gender = ?";
+            $customerParams[] = $data['gender'];
+            $customerTypes .= "s";
         }
-        // 执行Customer表的更新
-        if (!empty($customerUpdateParts)) {
-            $sql = "UPDATE Customer SET " . implode(', ', $customerUpdateParts) . " WHERE customer_ID = ?";
+        
+        if (isset($data['phone'])) {
+            $customerUpdates[] = "phone = ?"; // 这里也更新，保持同步
+            $customerParams[] = $data['phone'];
+            $customerTypes .= "s";
+        }
+        
+        if (isset($data['email'])) {
+            $customerUpdates[] = "email = ?"; // 这里也更新，保持同步
+            $customerParams[] = $data['email'];
+            $customerTypes .= "s";
+        }
+        
+        if (isset($data['address'])) {
+            $customerUpdates[] = "address = ?";
+            $customerParams[] = $data['address'];
+            $customerTypes .= "s";
+        }
+        
+        if (!empty($customerUpdates)) {
+            $customerSql = "UPDATE Customer SET " . implode(", ", $customerUpdates) . " WHERE customer_ID = ?";
             $customerParams[] = $customerId;
-            $customerParamTypes .= 'i';
-
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param($customerParamTypes, ...$customerParams);
+            $customerTypes .= "i";
+            
+            $stmt = $conn->prepare($customerSql);
+            $stmt->bind_param($customerTypes, ...$customerParams);
             $stmt->execute();
             $stmt->close();
-            error_log("用户{$customerId}更新Customer表字段:" . implode(', ', array_keys($customerUpdatableFields)));
         }
-
-        // ========== 4. 提交事务 ==========
+        
         $conn->commit();
-        $success = true;
-        error_log("用户{$customerId}信息更新成功同步更新Customer和user表");
-
+        return true;
+        
     } catch (Exception $e) {
         $conn->rollback();
-        $success = false;
-        error_log("用户{$customerId}信息更新失败：" . $e->getMessage());
+        error_log("Failed to update customer info: " . $e->getMessage());
+        return false;
+    } finally {
+        $conn->close();
     }
-
-    $conn->close();
-    return $success;
 }
 
 // data.php 新增和修改部分
@@ -977,7 +965,7 @@ function getProductsByCategory($category = null) {
                 'stock' => $row['available_stock'], // 视图的available_stock
                 'stock_status' => $row['stock_status'], // 视图的stock_status
                 'store_id' => $row['store_id'], // 门店ID（关键）
-                'branch' => $row['store_name'] ?? '无' // 视图的branch_name（如果有）
+                'branch' => $row['store_name'] ?? 'N/A' // 视图的branch_name（如果有）
             ];
         }
     }
@@ -1030,8 +1018,8 @@ function getProductsByCategoryAndSearch($category = null, $search = null) {
                 'category' => $row['category_name'],
                 'stock' => $row['available_stock'], // 视图的可用库存字段
                 'stock_status' => $row['stock_status'],
-                //'store_id' => $row['store_id'], // 门店ID（关键）
-                'branch' => $row['store_name'] ?? '无'
+                'branch' => $row['store_name'] ?? 'N/A',
+                'sku' => $row['sku']
             ];
         }
     }
@@ -1063,7 +1051,7 @@ function getProductDetails($productId) {
             'stock' => $row['available_stock_in_store'],
             'stock_status' => $row['stock_status_in_store'],
             'store_id' => $row['store_id'], 
-            'branch' => $row['store_name'] ?? '无'
+            'branch' => $row['store_name'] ?? 'N/A'
         ];
     }
     
@@ -1102,7 +1090,7 @@ function getProductBranches($productId) {
             'name' => $row['store_name'],
             'available_stock' => $row['available_stock_in_store'] ?? 0,
             'total_stock' => $row['total_stock_in_store'] ?? 0,
-            'stock_status' => $row['stock_status_in_store'] ?? '有货',
+            'stock_status' => $row['stock_status_in_store'] ?? 'In stock',
             'address' => $row['store_address'] ?? '',
             'phone' => $row['store_phone'] ?? '',
             'batch_count' => $row['batch_count'] ?? 0
@@ -1216,7 +1204,7 @@ function updateCustomerPassword($customerId, $newPassword) {
     $conn = getDBConnection();
     
     if (!$conn) {
-        error_log("数据库连接失败");
+        error_log("Database connection failed");
         return false;
     }
     
@@ -1232,7 +1220,7 @@ function updateCustomerPassword($customerId, $newPassword) {
         $stmt = $conn->prepare($sql);
         
         if (!$stmt) {
-            error_log("准备查询失败: " . $conn->error);
+            error_log("Prepare failed: " . $conn->error);
             return false;
         }
         
@@ -1243,20 +1231,20 @@ function updateCustomerPassword($customerId, $newPassword) {
             $stmt->close();
             
             if ($affectedRows > 0) {
-                error_log("成功更新customer_ID:{$customerId}的密码");
+                error_log("Password updated for customer_ID:{$customerId}");
                 return true;
             } else {
-                error_log("未找到customer_ID为{$customerId}的对应记录");
+                error_log("No record found for customer_ID:{$customerId}");
                 return false;
             }
         } else {
-            error_log("执行更新失败: " . $stmt->error);
+            error_log("Update failed: " . $stmt->error);
             $stmt->close();
             return false;
         }
         
     } catch (Exception $e) {
-        error_log("更新密码过程中发生异常: " . $e->getMessage());
+        error_log("Password update error: " . $e->getMessage());
         return false;
     }
 }
@@ -1312,7 +1300,7 @@ function removeItemFromCart($itemId, $customerId) {
         $stmt->close();
         
         if (!$itemInfo) {
-            throw new Exception("商品不存在");
+            throw new Exception("Item not found.");
         }
         
         $orderId = $itemInfo['order_ID'];
@@ -1329,7 +1317,7 @@ function removeItemFromCart($itemId, $customerId) {
         $checkStmt->close();
         
         if (!$orderInfo || $orderInfo['customer_id'] != $customerId) {
-            throw new Exception("无权删除此商品");
+            throw new Exception("You do not have permission to remove this item.");
         }
         
         // 3. 解锁库存（如果有批次信息）
@@ -1391,7 +1379,7 @@ function removeItemFromCart($itemId, $customerId) {
         }
         
         $conn->commit();
-        return ['success' => true, 'message' => '商品删除成功'];
+        return ['success' => true, 'message' => 'Item removed successfully.'];
         
     } catch (Exception $e) {
         $conn->rollback();
@@ -1400,4 +1388,155 @@ function removeItemFromCart($itemId, $customerId) {
         $conn->close();
     }
 }
+
+/**
+ * 删除整个购物车（循环调用 removeItemFromCart）
+ * @param int $order_id 订单ID
+ * @param int $customer_id 客户ID
+ * @return array 操作结果
+ */
+function deleteEntireCart($order_id, $customer_id) {
+    $conn = getDBConnection();
+    
+    try {
+        // 1. 验证订单是否属于当前用户
+        $check_sql = "SELECT order_ID FROM CustomerOrder WHERE order_ID = ? AND customer_id = ?";
+        $stmt_check = $conn->prepare($check_sql);
+        $stmt_check->bind_param("ii", $order_id, $customer_id);
+        $stmt_check->execute();
+        $result = $stmt_check->get_result();
+        
+        if ($result->num_rows === 0) {
+            throw new Exception("Order not found or does not belong to this user.");
+        }
+        $stmt_check->close();
+        
+        // 2. 获取订单中的所有商品ID
+        $items_sql = "SELECT item_ID FROM OrderItem WHERE order_ID = ?";
+        $stmt_items = $conn->prepare($items_sql);
+        $stmt_items->bind_param("i", $order_id);
+        $stmt_items->execute();
+        $items_result = $stmt_items->get_result();
+        $item_ids = [];
+        
+        while ($row = $items_result->fetch_assoc()) {
+            $item_ids[] = $row['item_ID'];
+        }
+        $stmt_items->close();
+        
+        if (empty($item_ids)) {
+            // 如果没有商品，直接删除订单
+            $delete_order_sql = "DELETE FROM CustomerOrder WHERE order_ID = ?";
+            $stmt_delete = $conn->prepare($delete_order_sql);
+            $stmt_delete->bind_param("i", $order_id);
+            $stmt_delete->execute();
+            $stmt_delete->close();
+            
+            return ['success' => true, 'message' => 'Cart removed.'];
+        }
+        
+        // 3. 逐个删除商品（会调用 removeItemFromCart 中的库存解锁逻辑）
+        $deleted_count = 0;
+        $failed_items = [];
+        
+        foreach ($item_ids as $item_id) {
+            $result = removeItemFromCart($item_id, $customer_id);
+            if ($result['success']) {
+                $deleted_count++;
+            } else {
+                $failed_items[] = $item_id . ": " . $result['message'];
+            }
+        }
+        
+        // 4. 最终检查并清理（removeItemFromCart 已经会删除空订单）
+        if (count($failed_items) > 0) {
+            return [
+                'success' => false, 
+                'message' => "Some items failed to remove. Successfully removed {$deleted_count} items.",
+                'failed_items' => $failed_items
+            ];
+        }
+        
+        return ['success' => true, 'message' => "Cart removed. {$deleted_count} items deleted."];
+        
+    } catch (Exception $e) {
+        error_log("Failed to delete cart: " . $e->getMessage());
+        return ['success' => false, 'message' => 'Delete failed: ' . $e->getMessage()];
+    } finally {
+        $conn->close();
+    }
+}
+
+function getProductImageUrl($productSku, $returnFullPath = false) {
+    if (empty($productSku)) {
+        $defaultPath = 'images/default-product.png';
+        return $returnFullPath ? __DIR__ . '/../' . $defaultPath : $defaultPath;
+    }
+    
+    // 解析SKU格式：VEG-SPINACH-250
+    $parts = explode('-', $productSku);
+    
+    if (count($parts) < 2) {
+        $defaultPath = 'images/default-product.png';
+        return $returnFullPath ? __DIR__ . '/../' . $defaultPath : $defaultPath;
+    }
+    
+    $categoryCode = $parts[0]; // VEG
+    $productCode = $parts[1]; // SPINACH
+    
+    // 首先尝试按你的目录结构查找：picture/VEG/SPINACH/下的图片
+    $imageDir = "picture/{$categoryCode}/{$productCode}";
+    
+    // 首先检查目录是否存在
+    if (is_dir($imageDir)) {
+        // 查找目录中的图片文件
+        $imageFiles = glob("{$imageDir}/*.{jpg,jpeg,png,gif,webp}", GLOB_BRACE);
+        
+        if (!empty($imageFiles)) {
+            // 返回第一张图片
+            $imagePath = $imageFiles[0];
+            return $returnFullPath ? __DIR__ . '/../' . $imagePath : $imagePath;
+        }
+    }
+    
+    // 如果没有找到目录，尝试直接查找 picture/VEG/SPINACH.jpg 格式
+    $directImageFiles = glob("picture/{$categoryCode}/{$productCode}.*", GLOB_BRACE);
+    if (!empty($directImageFiles)) {
+        $imagePath = $directImageFiles[0];
+        return $returnFullPath ? __DIR__ . '/../' . $imagePath : $imagePath;
+    }
+    
+    // 尝试查找 picture/VEG-SPINACH.jpg 格式
+    $skuImageFiles = glob("picture/{$productSku}.*", GLOB_BRACE);
+    if (!empty($skuImageFiles)) {
+        $imagePath = $skuImageFiles[0];
+        return $returnFullPath ? __DIR__ . '/../' . $imagePath : $imagePath;
+    }
+    
+    // 如果都找不到，返回默认路径
+    $defaultPath = 'images/default-product.png';
+    return $returnFullPath ? __DIR__ . '/../' . $defaultPath : $defaultPath;
+}
+
+function getProductSkuByName($productName) {
+    $conn = getDBConnection();
+    
+    $sql = "SELECT sku FROM products WHERE product_name = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $productName);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($row = $result->fetch_assoc()) {
+        $sku = $row['sku'];
+        $stmt->close();
+        $conn->close();
+        return $sku;
+    }
+    
+    $stmt->close();
+    $conn->close();
+    return '';
+}
+
 ?>

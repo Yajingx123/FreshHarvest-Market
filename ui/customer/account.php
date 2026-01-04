@@ -1,9 +1,7 @@
 <?php 
-$pageTitle = "个人账户"; 
+$pageTitle = "Account";
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+session_start(); // 确保启动会话以获取登录状态
 include 'header.php'; 
 
 // 引入数据库操作函数
@@ -12,25 +10,47 @@ require_once __DIR__ . '/inc/data.php';
 // 获取当前登录用户的信息
 $customer_info = getCustomerFullInfo();
 
-// 处理密码修改逻辑
+// 处理表单提交逻辑
 $error_message = '';
 $success_message = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_password') {
-    $newPassword = trim($_POST['new_password'] ?? '');
-    $confirmPassword = trim($_POST['confirm_password'] ?? '');
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    $action = $_POST['action'];
     
-    if ($newPassword === '' && $confirmPassword === '') {
-    } elseif ($newPassword !== $confirmPassword) {
-        $error_message = 'The passwords entered twice are inconsistent.';
-    } elseif (strlen($newPassword) < 6) {
-        $error_message = 'The password length should be at least 6 characters.';
-    } else {
-        // 更新密码逻辑
-        if (updateCustomerPassword($customer_info['customer_ID'] ?? 0, $newPassword)) {
-            $success_message = 'The password has been modified successfully!';
+    if ($action === 'update_password') {
+        // 密码更新逻辑
+        $newPassword = trim($_POST['new_password'] ?? '');
+        $confirmPassword = trim($_POST['confirm_password'] ?? '');
+        
+        if ($newPassword === '' && $confirmPassword === '') {
+            // 如果密码为空，跳过密码更新
+        } elseif ($newPassword !== $confirmPassword) {
+            $error_message = 'The passwords entered twice are inconsistent.';
+        } elseif (strlen($newPassword) < 6) {
+            $error_message = 'The password length should be at least 6 characters.';
         } else {
-            $error_message = 'Password modification failed. Please try again.';
+            // 更新密码
+            if (updateCustomerPassword($customer_info['customer_ID'] ?? 0, $newPassword)) {
+                $success_message = 'Password updated successfully.';
+            } else {
+                $error_message = 'Password update failed. Please try again.';
+            }
+        }
+    } elseif ($action === 'update_info') {
+        // 新增：更新用户信息逻辑
+        $update_data = [
+            'gender' => $_POST['gender'] ?? '',
+            'phone' => $_POST['phone'] ?? '',
+            'email' => $_POST['email'] ?? '',
+            'address' => $_POST['address'] ?? ''
+        ];
+        
+        if (updateCustomerInfo($customer_info['customer_ID'] ?? 0, $update_data)) {
+            $success_message = 'Profile updated successfully.';
+            // 刷新用户信息
+            $customer_info = getCustomerFullInfo();
+        } else {
+            $error_message = 'Profile update failed. Please try again.';
         }
     }
 }
@@ -219,7 +239,7 @@ if ($success_message) {
         }
     }
     
-    /* ========== 退出确认弹窗样式 ========== */
+    /* ========== Sign out confirmation modal ========== */
     .logout-modal-overlay {
         position: fixed;
         top: 0;
@@ -318,7 +338,7 @@ if ($success_message) {
         transform: translateY(0);
     }
     
-    /* 成功提示弹窗样式 */
+    /* Success modal styles */
     .success-modal-overlay {
         position: fixed;
         top: 0;
@@ -378,15 +398,15 @@ if ($success_message) {
     }
 </style>
 
-<!-- 个人账户 -->
+<!-- Account -->
 <section id="account" class="module">
     <?php if (!$customer_info): ?>
         <div class="error-message">
-        The login status was not detected. Please <a href="../login/login.php">login</a>
+        Session not found. Please <a href="../login/login.php">sign in</a>.
         </div>
     <?php else: ?>
         <div class="product-section">
-            <!-- 个人信息编辑部分 -->
+            <!-- Profile form -->
             <div class="account-form-container">
                 <h2 class="section-title">Personal Account</h2>
                 
@@ -403,99 +423,99 @@ if ($success_message) {
                 <?php endif; ?>
                 
                 <form class="account-form" id="accountForm" method="post" action="">
-                    <input type="hidden" name="action" value="update_password">
-                    
-                    <div class="form-column">
-                        <div class="form-group">
-                            <label class="form-label" for="full-name">Name</label>
-                            <input type="text" id="full-name" class="form-input" 
-                                   value="<?php echo htmlspecialchars($customer_info['full_name'] ?? ''); ?>" disabled>
-                        </div>
+    <input type="hidden" name="action" id="formAction" value="update_info">
+    
+    <div class="form-column">
+        <div class="form-group">
+            <label class="form-label" for="full-name">Full name</label>
+            <input type="text" id="full-name" class="form-input" 
+                   value="<?php echo htmlspecialchars($customer_info['full_name'] ?? ''); ?>" disabled>
+        </div>
 
-                        <div class="form-group">
-                            <label class="form-label" for="username">Username</label>
-                            <input type="text" id="username" class="form-input" 
-                                   value="<?php echo htmlspecialchars($customer_info['user_name'] ?? ''); ?>" disabled>
-                        </div>
+        <div class="form-group">
+            <label class="form-label" for="username">Username</label>
+            <input type="text" id="username" class="form-input" 
+                   value="<?php echo htmlspecialchars($customer_info['user_name'] ?? ''); ?>" disabled>
+        </div>
 
-                        <div class="form-group">
-                            <label class="form-label" for="loyalty_level">Loyalty level</label>
-                            <input type="text" id="loyalty_level" class="form-input" 
-                                   value="<?php echo htmlspecialchars($customer_info['loyalty_level'] ?? ''); ?>" disabled>
-                        </div>
+        <div class="form-group">
+            <label class="form-label" for="loyalty_level">Loyalty level</label>
+            <input type="text" id="loyalty_level" class="form-input" 
+                   value="<?php echo htmlspecialchars($customer_info['loyalty_level'] ?? ''); ?>" disabled>
+        </div>
 
-                        <div class="form-group">
-                             <label class="form-label" for="gender">Gender</label>
-                             <select id="gender" class="form-input" disabled>
-                              <option value="Male" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Male' ? 'selected' : ''; ?>>Male</option>
-                             <option value="Female" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Female' ? 'selected' : ''; ?>>Female</option>
-                             </select>
-                        </div>
-                    </div>
-                    
-                    <div class="form-column">
-                        <div class="form-group">
-                            <label class="form-label" for="phone">Telephone</label>
-                            <input type="tel" id="phone" class="form-input" 
-                                   value="<?php echo htmlspecialchars($customer_info['customer_phone'] ?? ''); ?>" disabled>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label" for="email">E-mail</label>
-                            <input type="email" id="email" class="form-input" 
-                                   value="<?php echo htmlspecialchars($customer_info['email'] ?? ''); ?>" disabled>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label" for="address">Address</label>
-                            <input type="text" id="address" class="form-input" 
-                                   value="<?php echo htmlspecialchars($customer_info['address'] ?? ''); ?>" disabled>
-                        </div>
-                        
-                        <!-- 新增密码修改字段 -->
-                        <div class="form-group">
-                            <label class="form-label" for="new_password">New Password</label>
-                            <input type="password" id="new_password" name="new_password" class="form-input" 
-                                   placeholder="请输入新密码" disabled>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label" for="confirm_password">Confirm new password</label>
-                            <input type="password" id="confirm_password" name="confirm_password" class="form-input" 
-                                   placeholder="请再次输入新密码" disabled>
-                        </div>
-                        
-                        <div class="form-actions">
-                            <button type="button" class="edit-btn" id="editToggle">Edit information</button>
-                            <button type="submit" class="save-btn" id="saveBtn">Save edition</button>
-                            <button type="button" class="cancel-btn" id="cancelEdit">Cancel edition</button>
-                            <button type="button" class="logout-btn" onclick="showLogoutModal()">Log out</button>
-                        </div>
-                    </div>
-                </form>
+        <div class="form-group">
+            <label class="form-label" for="gender">Gender</label>
+            <select id="gender" name="gender" class="form-input" disabled>
+                <option value="Male" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Male' ? 'selected' : ''; ?>>Male</option>
+                <option value="Female" <?php echo isset($customer_info['gender']) && $customer_info['gender'] == 'Female' ? 'selected' : ''; ?>>Female</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="form-column">
+        <div class="form-group">
+            <label class="form-label" for="phone">Phone</label>
+            <input type="tel" id="phone" name="phone" class="form-input" 
+                   value="<?php echo htmlspecialchars($customer_info['customer_phone'] ?? ''); ?>" disabled>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label" for="email">Email</label>
+            <input type="email" id="email" name="email" class="form-input" 
+                   value="<?php echo htmlspecialchars($customer_info['email'] ?? ''); ?>" disabled>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label" for="address">Address</label>
+            <input type="text" id="address" name="address" class="form-input" 
+                   value="<?php echo htmlspecialchars($customer_info['address'] ?? ''); ?>" disabled>
+        </div>
+        
+        <!-- Password update -->
+        <div class="form-group">
+            <label class="form-label" for="new_password">New Password</label>
+            <input type="password" id="new_password" name="new_password" class="form-input" 
+                   placeholder="Enter new password" disabled>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label" for="confirm_password">Confirm new password</label>
+            <input type="password" id="confirm_password" name="confirm_password" class="form-input" 
+                   placeholder="Re-enter new password" disabled>
+        </div>
+        
+        <div class="form-actions">
+            <button type="button" class="edit-btn" id="editToggle">Edit information</button>
+            <button type="submit" class="save-btn" id="saveBtn">Save changes</button>
+            <button type="button" class="cancel-btn" id="cancelEdit">Cancel</button>
+            <button type="button" class="logout-btn" onclick="showLogoutModal()">Sign out</button>
+        </div>
+    </div>
+</form>
             </div>
         </div>
     <?php endif; ?>
 </section>
 
-<!-- 成功提示弹窗 -->
+<!-- Success modal -->
 <div class="success-modal-overlay" id="successModal">
     <div class="success-modal">
         <span class="close-success-modal" id="closeSuccessModal">×</span>
         <div class="success-icon">✓</div>
-        <div class="success-message" id="successModalMessage">The information has been modified successfully!</div>
+        <div class="success-message" id="successModalMessage">Your updates were saved.</div>
     </div>
 </div>
 
-<!-- 退出登录确认弹窗 -->
+<!-- Sign out confirmation modal -->
 <div class="logout-modal-overlay" id="logoutModal">
     <div class="logout-modal">
         <div class="logout-modal-icon">⚠️</div>
-        <h3 class="logout-modal-title">Confirm quit</h3>
-        <p class="logout-modal-message">Are you sure you want to log out? <br> After logging out, you need to log in again to access your account.</p>
+        <h3 class="logout-modal-title">Confirm sign out</h3>
+        <p class="logout-modal-message">Sign out now? <br> You will need to sign in again to access your account.</p>
         <div class="logout-modal-actions">
             <button type="button" class="logout-modal-btn logout-modal-cancel" id="cancelLogout">Cancel</button>
-            <button type="button" class="logout-modal-btn logout-modal-confirm" id="confirmLogout">Confirm logout</button>
+            <button type="button" class="logout-modal-btn logout-modal-confirm" id="confirmLogout">Sign out</button>
         </div>
     </div>
 </div>
@@ -571,31 +591,40 @@ if ($success_message) {
         editBtn.addEventListener('click', enterEditMode);
         cancelBtn.addEventListener('click', exitEditMode);
         
-        // 表单提交验证
-        form.addEventListener('submit', function(event) {
-            const newPassword = document.getElementById('new_password').value.trim();
-            const confirmPassword = document.getElementById('confirm_password').value.trim();
-            
-            // 如果填写了密码但两次不一致
-            if ((newPassword || confirmPassword) && newPassword !== confirmPassword) {
-                event.preventDefault();
-                alert('The passwords entered twice are inconsistent. Please re-enter.');
-                document.getElementById('new_password').value = '';
-                document.getElementById('confirm_password').value = '';
-                document.getElementById('new_password').focus();
-                return false;
-            }
-            
-            // 如果填写了密码但长度不够
-            if (newPassword && newPassword.length < 6) {
-                event.preventDefault();
-                alert('The password length should be at least 6 characters.');
-                document.getElementById('new_password').focus();
-                return false;
-            }
-            
-            return true;
-        });
+const actionInput = document.getElementById('formAction'); // 获取隐藏字段
+
+form.addEventListener('submit', function(event) {
+    const newPassword = document.getElementById('new_password').value.trim();
+    const confirmPassword = document.getElementById('confirm_password').value.trim();
+    
+    const hasPasswordChange = newPassword || confirmPassword;
+    
+    // 设置action
+    if (hasPasswordChange) {
+        actionInput.value = 'update_password';
+        
+        // 密码验证
+        if (newPassword !== confirmPassword) {
+            event.preventDefault();
+            alert('The passwords entered twice are inconsistent. Please re-enter.');
+            document.getElementById('new_password').value = '';
+            document.getElementById('confirm_password').value = '';
+            document.getElementById('new_password').focus();
+            return false;
+        }
+        
+        if (newPassword && newPassword.length < 6) {
+            event.preventDefault();
+            alert('The password length should be at least 6 characters.');
+            document.getElementById('new_password').focus();
+            return false;
+        }
+    } else {
+        actionInput.value = 'update_info';
+    }
+    
+    return true;
+});
         
         // 自动隐藏错误/成功消息
         const errorMessage = document.getElementById('errorMessage');
@@ -671,7 +700,7 @@ if ($success_message) {
     confirmLogoutBtn.addEventListener('click', function() {
         const logoutBtn = document.querySelector('.logout-btn');
         const originalLogoutBtnText = logoutBtn.textContent;
-        logoutBtn.textContent = '退出中...';
+        logoutBtn.textContent = 'Signing out...';
         logoutBtn.disabled = true;
         
         logoutModal.style.opacity = '0.5';

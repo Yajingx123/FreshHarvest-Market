@@ -3,11 +3,15 @@ header("Content-Type: text/html; charset=UTF-8");
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once __DIR__ . '/../config/db_connect.php';
 if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
 }
+
+$servername = "localhost";
+$username = "staff_user";
+$password = "YourPassword123!";
+$dbname = "mydb";
 
 $error_message = '';
 $success_message = $_SESSION['profile_success'] ?? '';
@@ -23,12 +27,12 @@ function fetchStaffProfile(mysqli $conn, int $staffId): ?array {
             WHERE staff_ID = ?
             LIMIT 1";
     if (!$stmt = $conn->prepare($sql)) {
-        throw new Exception('准备查询失败：' . $conn->error);
+        throw new Exception('Failed to prepare query: ' . $conn->error);
     }
     $stmt->bind_param('i', $staffId);
     if (!$stmt->execute()) {
         $stmt->close();
-        throw new Exception('查询员工信息失败：' . $conn->error);
+        throw new Exception('Failed to load staff profile: ' . $conn->error);
     }
     $result = $stmt->get_result();
     $data = $result->fetch_assoc();
@@ -37,14 +41,17 @@ function fetchStaffProfile(mysqli $conn, int $staffId): ?array {
 }
 
 if ($staffId === null) {
-    $error_message = '无法识别当前员工，请重新登录。';
+    $error_message = 'Unable to identify the current staff member. Please sign in again.';
 } else {
-    $conn = getDBConnection();
-    if ($conn) {
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        $error_message = 'Database connection failed: ' . $conn->connect_error;
+    } else {
         try {
+            $conn->set_charset('utf8mb4');
             $profile = fetchStaffProfile($conn, $staffId);
             if (!$profile) {
-                $error_message = '未找到员工资料。';
+                $error_message = 'Staff profile not found.';
             }
 
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$error_message) {
@@ -54,17 +61,17 @@ if ($staffId === null) {
                 $updateErrors = [];
 
                 if ($newPhone === '') {
-                    $updateErrors[] = '联系电话不能为空。';
+                    $updateErrors[] = 'Phone number is required.';
                 } elseif (!preg_match('/^[0-9+\-]{6,20}$/', $newPhone)) {
-                    $updateErrors[] = '联系电话格式不正确。';
+                    $updateErrors[] = 'Phone number format is invalid.';
                 }
 
                 if (!$profile) {
-                    $updateErrors[] = '当前员工信息不可用。';
+                    $updateErrors[] = 'Staff profile is unavailable.';
                 }
 
                 if ($newPassword !== '' && $newPassword !== $confirmPassword) {
-                    $updateErrors[] = '两次输入的密码不一致。';
+                    $updateErrors[] = 'Passwords do not match.';
                 }
 
                 if (empty($updateErrors)) {
@@ -75,12 +82,12 @@ if ($staffId === null) {
                         $stmtPhone->bind_param('si', $newPhone, $staffId);
                         if (!$stmtPhone->execute()) {
                             $canCommit = false;
-                            $error_message = '更新联系电话失败：' . $conn->error;
+                            $error_message = 'Failed to update phone number: ' . $conn->error;
                         }
                         $stmtPhone->close();
                     } else {
                         $canCommit = false;
-                        $error_message = '更新联系电话失败：' . $conn->error;
+                        $error_message = 'Failed to update phone number: ' . $conn->error;
                     }
 
                     if ($canCommit && $profile && $profile['user_name']) {
@@ -88,12 +95,12 @@ if ($staffId === null) {
                             $stmtUserPhone->bind_param('ss', $newPhone, $profile['user_name']);
                             if (!$stmtUserPhone->execute()) {
                                 $canCommit = false;
-                                $error_message = '同步用户联系电话失败：' . $conn->error;
+                                $error_message = 'Failed to sync user phone number: ' . $conn->error;
                             }
                             $stmtUserPhone->close();
                         } else {
                             $canCommit = false;
-                            $error_message = '同步用户联系电话失败：' . $conn->error;
+                            $error_message = 'Failed to sync user phone number: ' . $conn->error;
                         }
                     }
 
@@ -103,12 +110,12 @@ if ($staffId === null) {
                             $stmtPwd->bind_param('ss', $plainPassword, $profile['user_name']);
                             if (!$stmtPwd->execute()) {
                                 $canCommit = false;
-                                $error_message = '更新密码失败：' . $conn->error;
+                                $error_message = 'Failed to update password: ' . $conn->error;
                             }
                             $stmtPwd->close();
                         } else {
                             $canCommit = false;
-                            $error_message = '更新密码失败：' . $conn->error;
+                            $error_message = 'Failed to update password: ' . $conn->error;
                         }
                     }
 
@@ -117,11 +124,11 @@ if ($staffId === null) {
                         $error_message = implode(' ', $updateErrors);
                     } elseif ($canCommit && $newPassword !== '' && $newPassword === $confirmPassword) {
                         $conn->commit();
-                        header('Location: ../login/logout.php');
+                        //header('Location: ../login/logout.php');
                         exit();
                     } elseif ($canCommit) {
                         $conn->commit();
-                        $_SESSION['profile_success'] = '个人信息已更新。';
+                        $_SESSION['profile_success'] = 'Profile updated successfully.';
                         header('Location: profile.php');
                         exit();
                     } else {
@@ -139,25 +146,25 @@ if ($staffId === null) {
 }
 
 $positionMap = [
-    'Manager' => '店长',
-    'Sales' => '销售员',
-    'Deliveryman' => '配送员'
+    'Manager' => 'Manager',
+    'Sales' => 'Sales',
+    'Deliveryman' => 'Delivery'
 ];
 $statusMap = [
-    'active' => ['label' => '正常', 'color' => '#43a047'],
-    'on_leave' => ['label' => '请假', 'color' => '#fb8c00'],
-    'terminated' => ['label' => '已离职', 'color' => '#e53935']
+    'active' => ['label' => 'Active', 'color' => '#43a047'],
+    'on_leave' => ['label' => 'On leave', 'color' => '#fb8c00'],
+    'terminated' => ['label' => 'Terminated', 'color' => '#e53935']
 ];
 
-$displayName = '未登记';
-$displayBranch = '未知门店';
+$displayName = 'Not set';
+$displayBranch = 'Unknown branch';
 $employeeCode = '--';
-$positionLabel = '未分配';
+$positionLabel = 'Unassigned';
 $hireDate = '--';
-$statusLabel = '未知';
+$statusLabel = 'Unknown';
 $statusColor = '#666';
 $phoneNumber = '';
-$userEmail = '未填写';
+$userEmail = 'Not provided';
 
 if ($profile) {
     $nameParts = array_filter([$profile['last_name'] ?? '', $profile['first_name'] ?? '']);
@@ -178,7 +185,7 @@ if ($profile) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <?php include 'header.php'; ?>
 <!-- 添加退出确认弹窗的CSS -->
 <style>
@@ -299,8 +306,8 @@ if ($profile) {
     <main class="main">
         <section class="section">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                <h2 class="section-title">个人中心</h2>
-                <button type="button" class="btn btn-danger" onclick="showLogoutModal()">退出登录</button>
+                <h2 class="section-title">Profile</h2>
+                <button type="button" class="btn btn-danger" onclick="showLogoutModal()">Sign out</button>
             </div>
             <?php if ($error_message): ?>
                 <div style="background:#fff3e0;border:1px solid #ffc107;color:#b26a00;padding:12px 16px;border-radius:8px;margin-bottom:20px;">
@@ -316,54 +323,54 @@ if ($profile) {
                 <div class="form-row">
                     <div class="form-col">
                         <div class="form-group">
-                            <label class="form-label">员工姓名</label>
+                            <label class="form-label">Name</label>
                             <input type="text" class="form-control" value="<?php echo htmlspecialchars($displayName); ?>" readonly>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">员工邮箱</label>
+                            <label class="form-label">Email</label>
                             <input type="text" class="form-control" value="<?php echo htmlspecialchars($userEmail); ?>" readonly>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">员工编号</label>
+                            <label class="form-label">Employee ID</label>
                             <input type="text" class="form-control" value="<?php echo htmlspecialchars($employeeCode); ?>" readonly>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">所属门店</label>
+                            <label class="form-label">Branch</label>
                             <input type="text" class="form-control" value="<?php echo htmlspecialchars($displayBranch); ?>" readonly>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">岗位</label>
+                            <label class="form-label">Role</label>
                             <input type="text" class="form-control" value="<?php echo htmlspecialchars($positionLabel); ?>" readonly>
                         </div>
                     </div>
                     <div class="form-col">
                         <div class="form-group">
-                            <label class="form-label">联系电话</label>
+                            <label class="form-label">Phone</label>
                             <input type="text" class="form-control" name="phone" value="<?php echo htmlspecialchars($phoneNumber); ?>" data-editable="true" readonly>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">入职日期</label>
+                            <label class="form-label">Hire date</label>
                             <input type="text" class="form-control" value="<?php echo htmlspecialchars($hireDate); ?>" readonly>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">账号状态</label>
+                            <label class="form-label">Status</label>
                             <input type="text" class="form-control" value="<?php echo htmlspecialchars($statusLabel); ?>" readonly style="color: <?php echo htmlspecialchars($statusColor); ?>;">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">修改密码</label>
-                            <input type="password" class="form-control" name="new_password" placeholder="请输入新密码" data-editable="true" disabled>
+                            <label class="form-label">New password</label>
+                            <input type="password" class="form-control" name="new_password" placeholder="Enter new password" data-editable="true" disabled>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">确认新密码</label>
-                            <input type="password" class="form-control" name="confirm_password" placeholder="请再次输入新密码" data-editable="true" disabled>
+                            <label class="form-label">Confirm password</label>
+                            <input type="password" class="form-control" name="confirm_password" placeholder="Re-enter new password" data-editable="true" disabled>
                         </div>
                     </div>
                 </div>
                 <div class="form-actions" style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:20px;">
-                    <button type="button" class="btn btn-primary" id="editToggle">修改</button>
+                    <button type="button" class="btn btn-primary" id="editToggle">Edit</button>
                     <div id="editActionGroup" style="display:none;gap:12px;">
-                        <button type="submit" class="btn btn-primary">保存修改</button>
-                        <button type="button" class="btn btn-warning" id="cancelEdit">退出编辑</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <button type="button" class="btn btn-warning" id="cancelEdit">Cancel</button>
                     </div>
                 </div>
             </form>
@@ -374,11 +381,11 @@ if ($profile) {
 <div class="logout-modal-overlay" id="logoutModal">
     <div class="logout-modal">
         <div class="logout-modal-icon">⚠️</div>
-        <h3 class="logout-modal-title">确认退出</h3>
-        <p class="logout-modal-message">确定要退出登录吗？<br>退出后需要重新登录才能访问系统。</p>
+        <h3 class="logout-modal-title">Confirm sign out</h3>
+        <p class="logout-modal-message">Sign out now?<br>You will need to sign in again to access the system.</p>
         <div class="logout-modal-actions">
-            <button type="button" class="logout-modal-btn logout-modal-cancel" id="cancelLogout">取消</button>
-            <button type="button" class="logout-modal-btn logout-modal-confirm" id="confirmLogout">确认退出</button>
+            <button type="button" class="logout-modal-btn logout-modal-cancel" id="cancelLogout">Cancel</button>
+            <button type="button" class="logout-modal-btn logout-modal-confirm" id="confirmLogout">Sign out</button>
         </div>
     </div>
 </div>
@@ -417,7 +424,7 @@ if ($profile) {
         // 显示加载状态
         const logoutBtn = document.querySelector('.btn-danger');
         originalLogoutBtnText = logoutBtn.innerHTML;
-        logoutBtn.innerHTML = '退出中...';
+        logoutBtn.innerHTML = 'Signing out...';
         logoutBtn.disabled = true;
         
         // 添加退出动画
