@@ -11,9 +11,9 @@ $branch = getBranch($branchId); // 复用之前的函数
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title><?= $branch['branch_name'] ?> - 订单管理</title>
+    <title><?= $branch['branch_name'] ?> - Orders</title>
     <style>
         /* ===== 这是我追加的CSS美化样式 ===== */
         /* 这部分只改变外观，不影响任何功能 */
@@ -183,23 +183,23 @@ $branch = getBranch($branchId); // 复用之前的函数
     </style>
 </head>
 <body>
-    <h1><?= $branch['branch_name'] ?> - 订单管理</h1>
-    <a href="stores.php">返回门店列表</a>
+    <h1><?= $branch['branch_name'] ?> - Orders</h1>
+    <a href="stores.php">Back to stores</a>
 
     <?php if (!empty($orders)): ?>
         <!-- 统计信息 -->
         <div class="stats-container">
             <div class="stat-card">
                 <div class="stat-value"><?= count($orders) ?></div>
-                <div class="stat-label">总订单数</div>
+                <div class="stat-label">Total Orders</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">¥<?= array_sum(array_column($orders, 'total_amount')) ?></div>
-                <div class="stat-label">订单总额</div>
+                <div class="stat-label">Order Total</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">¥<?= array_sum(array_column($orders, 'final_amount')) ?></div>
-                <div class="stat-label">实收总额</div>
+                <div class="stat-label">Net Total</div>
             </div>
         </div>
     <?php endif; ?>
@@ -208,13 +208,13 @@ $branch = getBranch($branchId); // 复用之前的函数
         <div class="table-container">
             <table border="1">
                 <tr>
-                    <th>订单ID</th>
-                    <th>客户</th>
-                    <th>日期</th>
-                    <th>总金额</th>
-                    <th>实付金额</th>
-                    <th>状态</th>
-                    <th>商品详情</th>
+                    <th>Order ID</th>
+                    <th>Customer</th>
+                    <th>Date</th>
+                    <th>Total</th>
+                    <th>Paid</th>
+                    <th>Status</th>
+                    <th>Items</th>
                 </tr>
                 <?php foreach ($orders as $order): ?>
                 <tr>
@@ -226,21 +226,28 @@ $branch = getBranch($branchId); // 复用之前的函数
                     <td>
                         <?php
                         $statusClass = '';
+                        $statusLabel = $order['order_status'];
                         switch($order['order_status']) {
                             case '已完成':
+                            case 'Completed':
                                 $statusClass = 'status-completed';
+                                $statusLabel = 'Completed';
                                 break;
                             case '处理中':
+                            case 'Processing':
                                 $statusClass = 'status-processing';
+                                $statusLabel = 'Processing';
                                 break;
                             case '已取消':
+                            case 'Cancelled':
                                 $statusClass = 'status-cancelled';
+                                $statusLabel = 'Cancelled';
                                 break;
                             default:
                                 $statusClass = 'status-processing';
                         }
                         ?>
-                        <span class="status <?= $statusClass ?>"><?= $order['order_status'] ?></span>
+                        <span class="status <?= $statusClass ?>"><?= $statusLabel ?></span>
                     </td>
                     <td class="product-details"><?= $order['product_details'] ?></td>
                 </tr>
@@ -249,7 +256,7 @@ $branch = getBranch($branchId); // 复用之前的函数
         </div>
     <?php else: ?>
         <div class="empty-state">
-            当前门店暂无订单数据
+            No orders for this store
         </div>
     <?php endif; ?>
 </body>

@@ -6,7 +6,7 @@ DROP VIEW IF EXISTS product_catalog_view;
 DROP VIEW IF EXISTS v_order_history;
 DROP VIEW IF EXISTS v_favorite_products;
 DROP VIEW IF EXISTS v_wishlist_products;
-DROP VIEW IF EXISTS v_customer_product_info;
+DROP VIEW IF EXISTS v_customer_carts_by_branch;
 
 
 
@@ -152,6 +152,7 @@ WHERE co.status = 'Completed'
 GROUP BY p.product_ID, p.product_name, co.customer_ID
 ORDER BY total_spent DESC, purchase_count DESC;
 
+-- 6
 CREATE OR REPLACE VIEW v_wishlist_products AS
 SELECT 
     co.order_ID,
@@ -180,6 +181,7 @@ JOIN products p ON oi.product_ID = p.product_ID
 LEFT JOIN StockItem si ON oi.item_ID = si.item_ID
 WHERE co.status = 'Pending';
 
+-- 7
 CREATE OR REPLACE VIEW v_customer_carts_by_branch AS
 SELECT 
     co.customer_id,
@@ -199,3 +201,58 @@ JOIN products p ON oi.product_ID = p.product_ID
 WHERE co.status = 'Pending'
 GROUP BY co.order_ID, co.branch_id, b.branch_name
 ORDER BY b.branch_name;
+
+
+ CREATE USER IF NOT EXISTS 'login_user'@'localhost' IDENTIFIED BY 'LoginP@ss123!';
+
+-- 2. 授予登录验证所需的 SELECT 权限
+GRANT SELECT ON mydb.User TO 'login_user'@'localhost';
+GRANT SELECT ON mydb.Customer TO 'login_user'@'localhost';
+GRANT SELECT ON mydb.Supplier TO 'login_user'@'localhost';
+GRANT SELECT ON mydb.Staff TO 'login_user'@'localhost';
+
+
+
+-- 3. 授予注册功能所需的 INSERT 权限
+GRANT INSERT ON mydb.User TO 'login_user'@'localhost';
+GRANT INSERT ON mydb.Customer TO 'login_user'@'localhost';
+
+-- 4. 授予库存更新功能所需的权限
+GRANT SELECT, UPDATE ON mydb.Inventory TO 'login_user'@'localhost';
+GRANT SELECT ON mydb.StockItem TO 'login_user'@'localhost';
+GRANT INSERT ON mydb.StockItemCertificate TO 'login_user'@'localhost';
+
+-- 5. 刷新权限
+FLUSH PRIVILEGES;
+
+
+
+
+
+
+
+
+DROP USER IF EXISTS 'customer_user'@'localhost';
+CREATE USER 'customer_user'@'localhost' IDENTIFIED BY 'YourPassword123!';
+
+GRANT SELECT ON mydb.v_customer_profile TO 'customer_user'@'localhost';
+GRANT SELECT ON mydb.v_order_history TO 'customer_user'@'localhost';
+GRANT SELECT ON mydb.v_wishlist_products TO 'customer_user'@'localhost';
+GRANT SELECT ON mydb.v_customer_carts_by_branch TO 'customer_user'@'localhost';
+GRANT SELECT ON mydb.v_favorite_products TO 'customer_user'@'localhost';
+GRANT SELECT ON mydb.product_catalog_view TO 'customer_user'@'localhost';
+GRANT SELECT ON mydb.product_branch_view TO 'customer_user'@'localhost';
+GRANT SELECT ON mydb.Branch TO 'customer_user'@'localhost';
+GRANT SELECT ON mydb.Categories TO 'customer_user'@'localhost';
+GRANT SELECT ON mydb.products TO 'customer_user'@'localhost';
+GRANT SELECT, UPDATE ON mydb.Customer TO 'customer_user'@'localhost';
+GRANT SELECT, UPDATE ON mydb.User TO 'customer_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE, Delete ON mydb.CustomerOrder TO 'customer_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.OrderItem TO 'customer_user'@'localhost';
+GRANT SELECT, update ON mydb.Inventory TO 'customer_user'@'localhost';
+GRANT SELECT, UPDATE ON mydb.StockItem TO 'customer_user'@'localhost';
+GRANT LOCK TABLES ON mydb.* TO 'customer_user'@'localhost';
+GRANT TRIGGER ON mydb.* TO 'customer_user'@'localhost';
+GRANT EXECUTE ON PROCEDURE mydb.ProcessCustomerOrder TO 'customer_user'@'localhost';
+
+FLUSH PRIVILEGES;

@@ -11,86 +11,111 @@ if (!isset($employees) || !is_array($employees)) {
 }
 ?>
 <section class="section">
-    <h2 class="section-title">员工信息</h2>
+    <h2 class="section-title">Employees</h2>
     <div class="filter-bar" style="align-items:center;">
-        <input id="empSearch" class="filter-input" placeholder="按姓名、ID、职位搜索">
+        <input id="empSearch" class="filter-input" placeholder="Search by name, ID, or role">
         <select id="empRoleFilter" class="filter-select">
-            <option value="">所有职位</option>
-            <option value="Manager">经理</option>
-            <option value="Sales">销售</option>
-            <option value="Deliveryman">配送员</option>
+            <option value="">All roles</option>
+            <option value="Manager">Manager</option>
+            <option value="Sales">Sales</option>
+            <option value="Deliveryman">Delivery</option>
         </select>
         <select id="empStatusFilter" class="filter-select">
-            <option value="">所有状态</option>
-            <option value="在职">在职</option>
-            <option value="休假">休假</option>
-            <option value="离职">离职</option>
+            <option value="">All statuses</option>
+            <option value="Active">Active</option>
+            <option value="On leave">On leave</option>
+            <option value="Terminated">Terminated</option>
         </select>
         <select id="empBranchFilter" class="filter-select">
-           <option value="">所有门店</option>
-           <option value="未分配">未分配门店</option>  <!-- 添加这个 -->
+           <option value="">All branches</option>
+           <option value="Unassigned">Unassigned</option>
            <?php 
            // 提取唯一门店列表
-           $branchNames = array_unique(array_column($employees, 'branch_name'));
+           $branchNames = array_unique(array_map(function($branchName) {
+               if ($branchName === '' || $branchName === null || $branchName === '未分配' || $branchName === 'Unassigned') {
+                   return 'Unassigned';
+               }
+               return $branchName;
+           }, array_column($employees, 'branch_name')));
            foreach ($branchNames as $branch) {
-              $displayName = empty($branch) ? '未分配' : $branch;
-            echo "<option value=\"" . htmlspecialchars($displayName) . "\">" . htmlspecialchars($displayName) . "</option>";
-}
+              $isUnassigned = ($branch === 'Unassigned' || $branch === '');
+              $value = $isUnassigned ? 'Unassigned' : $branch;
+              $label = $isUnassigned ? 'Unassigned' : $branch;
+              echo "<option value=\"" . htmlspecialchars($value) . "\">" . htmlspecialchars($label) . "</option>";
+           }
     ?>
 </select>
-        <button id="empSearchBtn" class="btn btn-primary">搜索</button>
-        <button id="empAddBtn" class="btn btn-success" style="margin-left:auto;">新增员工</button>
+        <button id="empSearchBtn" class="btn btn-primary">Search</button>
+        <button id="empAddBtn" class="btn btn-success" style="margin-left:auto;">Add employee</button>
     </div>
 
     <div style="overflow:auto;">
         <table class="data-table" id="employeesTable">
             <thead>
                 <tr>
-                    <th>员工ID</th>
-                    <th>姓名</th>
-                    <th>职位</th>
-                    <th>薪资 (¥)</th>
-                    <th>入职时间</th>
-                    <th>门店</th>
-                    <th>联系电话</th>
-                    <th>状态</th>
-                    <th>操作</th>
+                    <th>Employee ID</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Salary (¥)</th>
+                    <th>Hire Date</th>
+                    <th>Branch</th>
+                    <th>Phone</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($employees)): ?>
                 <tr>
                     <td colspan="9" style="text-align:center;padding:20px;color:#666;">
-                        暂无员工数据
+                        No employee data
                     </td>
                 </tr>
                 <?php else: ?>
                 <?php foreach ($employees as $e): ?>
+                <?php
+                   $statusMap = [
+                       'active' => 'Active',
+                       'on_leave' => 'On leave',
+                       'terminated' => 'Terminated',
+                       '在职' => 'Active',
+                       '休假' => 'On leave',
+                       '离职' => 'Terminated',
+                       'Active' => 'Active',
+                       'On leave' => 'On leave',
+                       'Terminated' => 'Terminated'
+                   ];
+                   $statusLabel = $statusMap[$e['status']] ?? $e['status'];
+                   $statusClassMap = [
+                       'Active' => 'status-accepted',
+                       'On leave' => 'status-pending',
+                       'Terminated' => 'status-cancelled'
+                   ];
+                   $statusClass = $statusClassMap[$statusLabel] ?? '';
+                   $branchDisplay = $e['branch_name'] ?? '';
+                   if ($branchDisplay === '' || $branchDisplay === '未分配' || $branchDisplay === 'Unassigned') {
+                       $branchDisplay = 'Unassigned';
+                   }
+                ?>
                 <tr data-id="<?= htmlspecialchars($e['id']) ?>"
                     data-role="<?= htmlspecialchars($e['role']) ?>"
-                    data-status="<?= htmlspecialchars($e['status']) ?>"
-                    data-branch="<?= htmlspecialchars($e['branch_name'] ?? '') ?>">
+                    data-status="<?= htmlspecialchars($statusLabel) ?>"
+                    data-branch="<?= htmlspecialchars($branchDisplay) ?>">
                     <td><?= htmlspecialchars($e['id']) ?></td>
                     <td><?= htmlspecialchars($e['name']) ?></td>
                     <td><?= htmlspecialchars($e['role']) ?></td>
                     <td><?= number_format($e['salary'], 2) ?></td>
                     <td><?= htmlspecialchars($e['hire_date'] ?? $e['start_date']) ?></td>
-                    <td><?= htmlspecialchars($e['branch_name'] ?? '未分配') ?></td>
-                    <td><?= htmlspecialchars($e['phone'] ?? '未设置') ?></td>
+                    <td><?= htmlspecialchars($branchDisplay) ?></td>
+                    <td><?= htmlspecialchars($e['phone'] ?? 'Not set') ?></td>
                     <td style="white-space: nowrap;">
-                    <?php 
-                       $statusClass = '';
-                        if ($e['status'] === '在职') $statusClass = 'status-accepted';
-                        elseif ($e['status'] === '休假') $statusClass = 'status-pending';
-                        elseif ($e['status'] === '离职') $statusClass = 'status-cancelled';
-                    ?>
                     <span class="status-tag <?= $statusClass ?>" style="display: inline-block; min-width: 60px; text-align: center;">
-                    <?= htmlspecialchars($e['status']) ?>
+                    <?= htmlspecialchars($statusLabel) ?>
                     </span>
                     </td>
                     <td style="white-space: nowrap;">
-                         <button class="btn btn-primary btn-view" title="查看详情" style="width: 60px;">查看</button>
-                         <button class="btn btn-warning btn-manage" title="编辑信息" style="width: 60px; margin-left: 8px;">管理</button>
+                         <button class="btn btn-primary btn-view" title="View details" style="width: 70px;">View</button>
+                         <button class="btn btn-warning btn-manage" title="Manage" style="width: 70px; margin-left: 8px;">Manage</button>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -112,6 +137,21 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function formatEmployeeStatus(status) {
+    const map = {
+        active: 'Active',
+        on_leave: 'On leave',
+        terminated: 'Terminated',
+        '在职': 'Active',
+        '休假': 'On leave',
+        '离职': 'Terminated',
+        'Active': 'Active',
+        'On leave': 'On leave',
+        'Terminated': 'Terminated'
+    };
+    return map[status] || status || 'Unknown';
 }
 
 // helper: open manage page (id optional)
@@ -137,20 +177,20 @@ document.getElementById('employeesTable').addEventListener('click', function(e){
             const html = `
                 <div style="display:flex;gap:14px;align-items:flex-start;">
                     <div style="width:140px;height:140px;background:#f5f5f5;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#999;">
-                        员工照片
+                        Employee photo
                     </div>
                     <div style="flex:1;">
                         <h3 style="margin:0 0 8px 0">${escapeHtml(cells[1].textContent)} <small style="color:#666;font-weight:500">(${escapeHtml(cells[0].textContent)})</small></h3>
-                        <div style="color:#333;margin-bottom:6px;">职位：<strong>${escapeHtml(cells[2].textContent)}</strong></div>
-                        <div style="color:#333;margin-bottom:6px;">薪资：<strong>¥${escapeHtml(cells[3].textContent)}</strong></div>
-                        <div style="color:#333;margin-bottom:6px;">入职时间：<strong>${escapeHtml(cells[4].textContent)}</strong></div>
-                        <div style="color:#333;margin-bottom:6px;">门店：<strong>${escapeHtml(cells[5].textContent)}</strong></div>
-                        <div style="color:#333;margin-bottom:6px;">电话：<strong>${escapeHtml(cells[6].textContent)}</strong></div>
-                        <div style="color:#333;">状态：<strong>${escapeHtml(cells[7].textContent)}</strong></div>
+                        <div style="color:#333;margin-bottom:6px;">Role: <strong>${escapeHtml(cells[2].textContent)}</strong></div>
+                        <div style="color:#333;margin-bottom:6px;">Salary: <strong>¥${escapeHtml(cells[3].textContent)}</strong></div>
+                        <div style="color:#333;margin-bottom:6px;">Hire date: <strong>${escapeHtml(cells[4].textContent)}</strong></div>
+                        <div style="color:#333;margin-bottom:6px;">Branch: <strong>${escapeHtml(cells[5].textContent)}</strong></div>
+                        <div style="color:#333;margin-bottom:6px;">Phone: <strong>${escapeHtml(cells[6].textContent)}</strong></div>
+                        <div style="color:#333;">Status: <strong>${escapeHtml(cells[7].textContent)}</strong></div>
                     </div>
                 </div>
             `;
-            showAppModal('员工详情', html, {showCancel:false, okText:'关闭'});
+            showAppModal('Employee Details', html, {showCancel:false, okText:'Close'});
             return;
         }
         
@@ -160,7 +200,7 @@ document.getElementById('employeesTable').addEventListener('click', function(e){
                 <!-- 左侧：照片和基本信息 -->
                 <div style="width:150px;flex-shrink:0;">
                     <div style="width:140px;height:140px;background:#f5f5f5;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#999;margin-bottom:12px;">
-                        员工照片
+                        Employee photo
                     </div>
                     <div style="text-align:center;">
                         <strong style="display:block;">${escapeHtml(employee.name)}</strong>
@@ -172,52 +212,52 @@ document.getElementById('employeesTable').addEventListener('click', function(e){
                 <div style="flex:1;">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
                         <div>
-                            <div style="color:#666;font-size:13px;margin-bottom:4px;">职位</div>
+                            <div style="color:#666;font-size:13px;margin-bottom:4px;">Role</div>
                             <div style="color:#333;font-weight:500;">${escapeHtml(employee.role)}</div>
                         </div>
                         <div>
-                            <div style="color:#666;font-size:13px;margin-bottom:4px;">薪资</div>
+                            <div style="color:#666;font-size:13px;margin-bottom:4px;">Salary</div>
                             <div style="color:#333;font-weight:500;">¥${employee.salary ? employee.salary.toFixed(2) : '0.00'}</div>
                         </div>
                         <div>
-                            <div style="color:#666;font-size:13px;margin-bottom:4px;">入职时间</div>
+                            <div style="color:#666;font-size:13px;margin-bottom:4px;">Hire date</div>
                             <div style="color:#333;font-weight:500;">${escapeHtml(employee.hire_date || employee.start_date)}</div>
                         </div>
                         <div>
-                            <div style="color:#666;font-size:13px;margin-bottom:4px;">状态</div>
-                            <div style="color:#333;font-weight:500;">${escapeHtml(employee.status)}</div>
+                            <div style="color:#666;font-size:13px;margin-bottom:4px;">Status</div>
+                            <div style="color:#333;font-weight:500;">${escapeHtml(formatEmployeeStatus(employee.status))}</div>
                         </div>
                     </div>
                     
                     <div style="border-top:1px solid #eee;padding-top:16px;">
-                        <h4 style="margin:0 0 8px 0;font-size:15px;">联系信息</h4>
+                        <h4 style="margin:0 0 8px 0;font-size:15px;">Contact Info</h4>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                             <div>
-                                <div style="color:#666;font-size:13px;margin-bottom:4px;">邮箱</div>
-                                <div style="color:#333;">${escapeHtml(employee.email || '未设置')}</div>
+                                <div style="color:#666;font-size:13px;margin-bottom:4px;">Email</div>
+                                <div style="color:#333;">${escapeHtml(employee.email || 'Not set')}</div>
                             </div>
                             <div>
-                                <div style="color:#666;font-size:13px;margin-bottom:4px;">电话</div>
-                                <div style="color:#333;">${escapeHtml(employee.phone || '未设置')}</div>
+                                <div style="color:#666;font-size:13px;margin-bottom:4px;">Phone</div>
+                                <div style="color:#333;">${escapeHtml(employee.phone || 'Not set')}</div>
                             </div>
                         </div>
                     </div>
                     
                     <div style="border-top:1px solid #eee;padding-top:16px;">
-                        <h4 style="margin:0 0 8px 0;font-size:15px;">工作信息</h4>
+                        <h4 style="margin:0 0 8px 0;font-size:15px;">Work Info</h4>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                             <div>
-                                <div style="color:#666;font-size:13px;margin-bottom:4px;">所属门店</div>
-                                <div style="color:#333;">${escapeHtml(employee.branch_name || '未分配')}</div>
+                                <div style="color:#666;font-size:13px;margin-bottom:4px;">Branch</div>
+                                <div style="color:#333;">${escapeHtml(employee.branch_name || 'Unassigned')}</div>
                             </div>
                             <div>
-                                <div style="color:#666;font-size:13px;margin-bottom:4px;">用户名</div>
-                                <div style="color:#333;">${escapeHtml(employee.username || '未设置')}</div>
+                                <div style="color:#666;font-size:13px;margin-bottom:4px;">Username</div>
+                                <div style="color:#333;">${escapeHtml(employee.username || 'Not set')}</div>
                             </div>
                         </div>
                         ${employee.created_at ? `
                         <div style="margin-top:8px;">
-                            <div style="color:#666;font-size:13px;margin-bottom:4px;">创建时间</div>
+                            <div style="color:#666;font-size:13px;margin-bottom:4px;">Created</div>
                             <div style="color:#333;">${escapeHtml(employee.created_at)}</div>
                         </div>
                         ` : ''}
@@ -227,7 +267,7 @@ document.getElementById('employeesTable').addEventListener('click', function(e){
         `;
         
         if (typeof showAppModal === 'function') {
-            showAppModal('员工详情', html, {showCancel:false, okText:'关闭', width:'700px'});
+            showAppModal('Employee Details', html, {showCancel:false, okText:'Close', width:'700px'});
         } else {
             // 备用方案：使用原生弹窗
             const modal = document.createElement('div');
@@ -244,10 +284,10 @@ document.getElementById('employeesTable').addEventListener('click', function(e){
             
             modal.innerHTML = `
                 <div style="background:white;padding:20px;border-radius:8px;max-width:700px;max-height:80vh;overflow:auto;">
-                    <h3 style="margin-top:0;">员工详情</h3>
+                    <h3 style="margin-top:0;">Employee Details</h3>
                     ${html}
                     <div style="text-align:right;margin-top:20px;">
-                        <button onclick="this.closest('div[style*=\"position: fixed\"]').remove()" class="btn btn-primary">关闭</button>
+                        <button onclick="this.closest('div[style*=\"position: fixed\"]').remove()" class="btn btn-primary">Close</button>
                     </div>
                 </div>
             `;
@@ -285,9 +325,10 @@ function filterEmployees() {
         const matchSearch = !searchQuery || text.includes(searchQuery);
         const matchRole = !roleFilter || rowRole === roleFilter;
         const matchStatus = !statusFilter || rowStatus === statusFilter;
-        const matchBranch = !branchFilter || 
-                   (branchFilter === "未分配" && (rowBranch === "" || rowBranch === "未分配")) || 
-                   (branchFilter !== "未分配" && rowBranch === branchFilter);
+        const isUnassigned = rowBranch === "" || rowBranch === "Unassigned" || rowBranch === "未分配";
+        const matchBranch = !branchFilter ||
+                   (branchFilter === "Unassigned" && isUnassigned) || 
+                   (branchFilter !== "Unassigned" && rowBranch === branchFilter);
         
         row.style.display = (matchSearch && matchRole && matchStatus && matchBranch) ? '' : 'none';
     });

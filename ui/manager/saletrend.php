@@ -53,11 +53,11 @@ function getSortIcon($field, $currentField, $currentOrder) {
 ?>
 
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - 销售趋势分析</title>
+    <title>FreshHarvest - Sales Trends</title>
     <style>
         * {
             margin: 0;
@@ -272,24 +272,24 @@ function getSortIcon($field, $currentField, $currentOrder) {
 
     <main class="main">
         <section class="section">
-            <h2 class="section-title">销售趋势分析 - 分店销售数据</h2>
+            <h2 class="section-title">Sales Trends - Branch Performance</h2>
             
             <!-- 统计概览 -->
             <div class="stats-summary">
                 <div class="stat-card">
-                    <div class="stat-label">参与统计分店数</div>
+                    <div class="stat-label">Branches Included</div>
                     <div class="stat-value"><?php echo count($allBranches); ?></div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">总销售额</div>
+                    <div class="stat-label">Total Sales</div>
                     <div class="stat-value">¥<?php echo number_format($totalSales, 2); ?></div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">总订单数</div>
+                    <div class="stat-label">Total Orders</div>
                     <div class="stat-value"><?php echo number_format($totalOrders); ?></div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">平均客单价</div>
+                    <div class="stat-label">Average Order Value</div>
                     <div class="stat-value">¥<?php echo $totalOrders > 0 ? number_format($totalSales / $totalOrders, 2) : '0.00'; ?></div>
                 </div>
             </div>
@@ -301,17 +301,17 @@ function getSortIcon($field, $currentField, $currentOrder) {
                     $periodText = '';
                     switch ($timeFilter) {
                         case 'year':
-                            $periodText = $timeValue . '年';
+                            $periodText = $timeValue . ' (Year)';
                             break;
                         case 'month':
-                            $periodText = $timeValue . '月';
+                            $periodText = $timeValue . ' (Month)';
                             break;
                         case 'day':
                             $periodText = $timeValue;
                             break;
                     }
                     ?>
-                    当前筛选：<?php echo $periodText; ?> 的销售数据
+                    Current filter: sales data for <?php echo $periodText; ?>
                 </div>
             <?php endif; ?>
             
@@ -319,42 +319,42 @@ function getSortIcon($field, $currentField, $currentOrder) {
             <div class="filter-container">
                 <form method="get" class="filter-form">
                     <div class="form-group">
-                        <label class="form-label">时间筛选</label>
+                        <label class="form-label">Time Filter</label>
                         <select name="time_filter" class="form-select">
-                            <option value="">请选择时间维度</option>
-                            <option value="year" <?php echo $timeFilter == 'year' ? 'selected' : ''; ?>>年度</option>
-                            <option value="month" <?php echo $timeFilter == 'month' ? 'selected' : ''; ?>>月度</option>
-                            <option value="day" <?php echo $timeFilter == 'day' ? 'selected' : ''; ?>>日度</option>
+                            <option value="">Select period</option>
+                            <option value="year" <?php echo $timeFilter == 'year' ? 'selected' : ''; ?>>Year</option>
+                            <option value="month" <?php echo $timeFilter == 'month' ? 'selected' : ''; ?>>Month</option>
+                            <option value="day" <?php echo $timeFilter == 'day' ? 'selected' : ''; ?>>Day</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label">时间值</label>
+                        <label class="form-label">Time Value</label>
                         <?php if ($timeFilter == 'year'): ?>
                             <select name="time_value" class="form-select">
-                                <option value="">选择年份</option>
+                                <option value="">Select year</option>
                                 <?php foreach ($recentYears as $year): ?>
                                     <option value="<?php echo $year; ?>" <?php echo $timeValue == $year ? 'selected' : ''; ?>>
-                                        <?php echo $year; ?>年
+                                        <?php echo $year; ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
                         <?php elseif ($timeFilter == 'month'): ?>
                             <input type="month" name="time_value" class="form-input" 
-                                   value="<?php echo $timeValue; ?>" placeholder="例如：2024-01">
+                                   value="<?php echo $timeValue; ?>" placeholder="e.g. 2024-01">
                         <?php elseif ($timeFilter == 'day'): ?>
                             <input type="date" name="time_value" class="form-input" 
                                    value="<?php echo $timeValue; ?>">
                         <?php else: ?>
                             <input type="text" name="time_value" class="form-input" 
-                                   value="<?php echo $timeValue; ?>" placeholder="选择时间维度后输入" readonly>
+                                   value="<?php echo $timeValue; ?>" placeholder="Select a period first" readonly>
                         <?php endif; ?>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label">分店筛选</label>
+                        <label class="form-label">Branch</label>
                         <select name="branch" class="form-select">
-                            <option value="">所有分店</option>
+                            <option value="">All branches</option>
                             <?php foreach ($allBranches as $branch): ?>
                                 <option value="<?php echo $branch['name']; ?>" 
                                     <?php echo $branchFilter == $branch['name'] ? 'selected' : ''; ?>>
@@ -365,10 +365,10 @@ function getSortIcon($field, $currentField, $currentOrder) {
                     </div>
                     
                     <div class="form-group filter-actions">
-                        <label class="form-label">操作</label>
+                        <label class="form-label">Actions</label>
                         <div class="btn-group">
-                            <button type="submit" class="btn btn-primary">应用筛选</button>
-                            <a href="saletrend.php" class="btn btn-secondary">重置筛选</a>
+                            <button type="submit" class="btn btn-primary">Apply</button>
+                            <a href="saletrend.php" class="btn btn-secondary">Reset</a>
                         </div>
                     </div>
                 </form>
@@ -382,27 +382,27 @@ function getSortIcon($field, $currentField, $currentOrder) {
                             <tr>
                                 <th>
                                     <a href="<?php echo getSortLink('branch_name', $sortField, $sortOrder); ?>">
-                                        分店名称 <?php echo getSortIcon('branch_name', $sortField, $sortOrder); ?>
+                                        Branch <?php echo getSortIcon('branch_name', $sortField, $sortOrder); ?>
                                     </a>
                                 </th>
                                 <th>
                                     <a href="<?php echo getSortLink('total_sales', $sortField, $sortOrder); ?>">
-                                        总销售额 <?php echo getSortIcon('total_sales', $sortField, $sortOrder); ?>
+                                        Total Sales <?php echo getSortIcon('total_sales', $sortField, $sortOrder); ?>
                                     </a>
                                 </th>
                                 <th>
                                     <a href="<?php echo getSortLink('order_count', $sortField, $sortOrder); ?>">
-                                        订单数量 <?php echo getSortIcon('order_count', $sortField, $sortOrder); ?>
+                                        Orders <?php echo getSortIcon('order_count', $sortField, $sortOrder); ?>
                                     </a>
                                 </th>
                                 <th>
                                     <a href="<?php echo getSortLink('avg_order_value', $sortField, $sortOrder); ?>">
-                                        平均客单价 <?php echo getSortIcon('avg_order_value', $sortField, $sortOrder); ?>
+                                        Avg Order Value <?php echo getSortIcon('avg_order_value', $sortField, $sortOrder); ?>
                                     </a>
                                 </th>
                                 <th>
                                     <a href="<?php echo getSortLink('unique_customers', $sortField, $sortOrder); ?>">
-                                        客户数 <?php echo getSortIcon('unique_customers', $sortField, $sortOrder); ?>
+                                        Customers <?php echo getSortIcon('unique_customers', $sortField, $sortOrder); ?>
                                     </a>
                                 </th>
                             </tr>
@@ -422,7 +422,7 @@ function getSortIcon($field, $currentField, $currentOrder) {
                 </div>
             <?php else: ?>
                 <div class="no-data">
-                    没有找到符合条件的销售数据。请调整筛选条件。
+                    No sales data found. Adjust the filters and try again.
                 </div>
             <?php endif; ?>
         </section>
@@ -444,27 +444,27 @@ function getSortIcon($field, $currentField, $currentOrder) {
                     case 'year':
                         html = `
                             <select name="time_value" class="form-select">
-                                <option value="">选择年份</option>
+                                <option value="">Select year</option>
                                 <?php foreach ($recentYears as $year): ?>
                                     <option value="<?php echo $year; ?>" ${currentValue == '<?php echo $year; ?>' ? 'selected' : ''}>
-                                        <?php echo $year; ?>年
+                                        <?php echo $year; ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
                         `;
                         break;
                     case 'month':
-                        html = `<input type="month" name="time_value" class="form-input" value="${currentValue}" placeholder="例如：2024-01">`;
+                        html = `<input type="month" name="time_value" class="form-input" value="${currentValue}" placeholder="e.g. 2024-01">`;
                         break;
                     case 'day':
                         html = `<input type="date" name="time_value" class="form-input" value="${currentValue}">`;
                         break;
                     default:
-                        html = `<input type="text" name="time_value" class="form-input" value="${currentValue}" placeholder="选择时间维度后输入" readonly>`;
+                        html = `<input type="text" name="time_value" class="form-input" value="${currentValue}" placeholder="Select a period first" readonly>`;
                 }
                 
                 timeValueContainer.innerHTML = `
-                    <label class="form-label">时间值</label>
+                    <label class="form-label">Time Value</label>
                     ${html}
                 `;
             });
@@ -472,7 +472,7 @@ function getSortIcon($field, $currentField, $currentOrder) {
         
         // 确认重置筛选
         document.querySelector('.btn-secondary').addEventListener('click', function(e) {
-            if (!confirm('确定要重置所有筛选条件吗？')) {
+            if (!confirm('Reset all filters?')) {
                 e.preventDefault();
             }
         });

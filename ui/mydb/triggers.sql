@@ -30,13 +30,15 @@ BEGIN
             item_ID,
             transaction_type,
             date,
-            transaction_ID
+            transaction_ID,
+            note
         )
         VALUES (
             NEW.item_ID,
             @stock_adjust_reason,
             NOW(),
-            @stock_adjust_staff_id
+            @stock_adjust_staff_id,
+            @stock_adjust_note
         );
     ELSEIF NEW.purchase_order_ID IS NOT NULL
        AND NEW.customer_order_ID IS NULL
@@ -92,13 +94,15 @@ BEGIN
             item_ID,
             transaction_type,
             date,
-            transaction_ID
+            transaction_ID,
+            note
         )
         VALUES (
             NEW.item_ID,
             @stock_adjust_reason,
             NOW(),
-            @stock_adjust_staff_id
+            @stock_adjust_staff_id,
+            @stock_adjust_note
         );
     END IF;
 END //

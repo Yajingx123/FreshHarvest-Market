@@ -1,8 +1,6 @@
 <?php 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once __DIR__ . '/inc/data.php';    // 包含data.php
+session_start();
+require_once __DIR__ . '/inc/data.php';    // Includes data.php
 
 $customer_id = $_SESSION['customer_id'] ?? null;
 
@@ -10,7 +8,6 @@ $customer_id = $_SESSION['customer_id'] ?? null;
 $all_carts_data = getAllShoppingCarts($customer_id);
 $has_cart_items = $all_carts_data['total_carts'] > 0;
 
-// 获取详细的购物车项目用于显示
 $cart_items_detailed = [];
 $total_all_amount = 0;
 $total_discount = 0;
@@ -26,6 +23,9 @@ if ($has_cart_items) {
         $order_details = getOrderDetails($order_id);
         if ($order_details && !empty($order_details['items'])) {
             foreach ($order_details['items'] as $item) {
+                $productSku = ''; 
+                $productSku = getProductSkuByName($item['product_name']);
+
                 $cart_items_detailed[] = [
                     'order_id' => $order_id,
                     'branch_name' => $cart['branch_name'],
@@ -35,7 +35,9 @@ if ($has_cart_items) {
                     'unit_price' => $item['unit_price'],
                     'quantity' => $item['quantity'],
                     'item_total' => $item['total'],
-                    'stock_status' => '已锁定' // 默认状态
+                    'stock_status' => 'Locked',
+                    'sku' => $productSku, // 添加SKU
+                    'image_url' => getProductImageUrl($productSku) // 添加图片URL
                 ];
             }
         }
@@ -63,7 +65,7 @@ function processMultipleOrders($customer_id, $shipping_address, $order_ids) {
                 $stmt->bind_param("isi", $customer_id, $shipping_address, $order_id);
                 
                 if (!$stmt->execute()) {
-                    throw new Exception("存储过程执行失败: " . $conn->error);
+                    throw new Exception("Stored procedure failed: " . $conn->error);
                 }
                 
                 $stmt->close();
@@ -97,13 +99,13 @@ function processMultipleOrders($customer_id, $shipping_address, $order_ids) {
 if (isset($_POST['action']) && $_POST['action'] === 'checkout_ajax') {
     
     if (!isset($_SESSION['customer_id'])) {
-        echo json_encode(['success' => false, 'error' => '请先登录']);
+        echo json_encode(['success' => false, 'error' => 'Please sign in first.']);
         exit;
     }
     
     $shipping_address = $_POST['shipping_address'] ?? '';
     if (empty($shipping_address)) {
-        echo json_encode(['success' => false, 'error' => '请填写收货地址']);
+        echo json_encode(['success' => false, 'error' => 'Please enter a delivery address.']);
         exit;
     }
     
@@ -136,7 +138,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'checkout_ajax') {
     // 返回结果
     echo json_encode([
         'success' => $all_success,
-        'message' => $all_success ? '订单提交成功' : '部分订单处理失败',
+        'message' => $all_success ? 'Order submitted successfully.' : 'Some orders failed to process.',
         'results' => $results,
         'processed_count' => count($results)
     ]);
@@ -159,51 +161,22 @@ $customer_info = array_merge([
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     
     if ($_POST['action'] === 'delete_cart') {
-        $order_id = $_POST['order_id'] ?? 0;
-        $customer_id = $_SESSION['customer_id'] ?? 0;
+    $order_id = $_POST['order_id'] ?? 0;
+    $customer_id = $_SESSION['customer_id'] ?? 0;
+    
+    if ($order_id > 0 && $customer_id > 0) {
+        $result = deleteEntireCart($order_id, $customer_id);
         
-        if ($order_id > 0 && $customer_id > 0) {
-            $conn = getDBConnection();
-            
-            // 1. 解锁库存
-            $unlock_query = "UPDATE Inventory inv
-                           JOIN StockItem si ON inv.batch_ID = si.batch_ID 
-                              AND inv.product_ID = si.product_ID 
-                              AND inv.branch_ID = si.branch_ID
-                           SET inv.locked_inventory = inv.locked_inventory - 1
-                           WHERE si.customer_order_ID = ? 
-                             AND si.status = 'pending'";
-            $stmt1 = $conn->prepare($unlock_query);
-            $stmt1->bind_param("i", $order_id);
-            $stmt1->execute();
-            $stmt1->close();
-            
-            // 2. 恢复StockItem状态
-            $update_stock_query = "UPDATE StockItem 
-                                  SET status = 'in_stock', customer_order_ID = NULL 
-                                  WHERE customer_order_ID = ? AND status = 'pending'";
-            $stmt2 = $conn->prepare($update_stock_query);
-            $stmt2->bind_param("i", $order_id);
-            $stmt2->execute();
-            $stmt2->close();
-            
-            // 3. 删除OrderItem
-            $delete_items_query = "DELETE FROM OrderItem WHERE order_ID = ?";
-            $stmt3 = $conn->prepare($delete_items_query);
-            $stmt3->bind_param("i", $order_id);
-            $stmt3->execute();
-            $stmt3->close();
-            
-            // 4. 删除CustomerOrder
-            $delete_order_query = "DELETE FROM CustomerOrder WHERE order_ID = ? AND customer_id = ?";
-            $stmt4 = $conn->prepare($delete_order_query);
-            $stmt4->bind_param("ii", $order_id, $customer_id);
-            $stmt4->execute();
-            $stmt4->close();
-            
-            $conn->close();
+        if ($result['success']) {
+            $_SESSION['success_message'] = $result['message'];
+        } else {
+            $_SESSION['error_message'] = $result['message'];
         }
-    }elseif ($_POST['action'] === 'remove_item') {
+    }
+    
+    header('Location: cart.php');
+    exit();
+}elseif ($_POST['action'] === 'remove_item') {
         // 删除单个商品
         $item_id = $_POST['item_id'] ?? '';
         
@@ -863,12 +836,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     
 </style>
 
-<!-- 购物车 -->
+<!-- Cart -->
 <section id="cart" class="module">
     <div class="product-section">
-        <!-- 配送地址侧边栏 -->
+        <!-- Delivery address -->
         <div class="address-sidebar">
-            <h2 class="section-title">Confirmation of Delivery address</h2>
+            <h2 class="section-title">Delivery address</h2>
             <form class="account-form">
                 <div class="form-group">
                     <label class="form-label" for="receiver-name">Receiver</label>
@@ -894,33 +867,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 
                 <div class="form-group">
                     <label class="form-label" for="receiver-note">Tips</label>
-                    <textarea id="receiver-note" class="form-input" rows="3" style="resize: none;">放门口即可</textarea>
+                    <textarea id="receiver-note" class="form-input" rows="3" style="resize: none;">Leave at the door</textarea>
                 </div>
             </form>
         </div>
 
-<!-- 购物车主内容区 -->
+<!-- Cart main -->
 <div class="cart-main">
-    <h2 class="section-title">My shopping cart</h2>
+    <h2 class="section-title">My cart</h2>
     
-    <!-- 购物车商品列表 -->
+    <!-- Cart items -->
     <div class="cart-list-wrapper">
         <?php if (!$has_cart_items): ?>
             <div style="text-align: center; padding: 50px 0; color: #999;">
-                The shopping cart is empty.
+                Your cart is empty.
             </div>
         <?php else: ?>
-            <!-- 按门店分组显示 -->
+            <!-- Group by store -->
             <?php foreach ($all_carts_data['carts'] as $cart): ?>
                 <div class="cart-group" style="margin-bottom: 30px; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0;">
                         <h4 style="margin: 0; color: #2d884d; font-size: 16px;">
-                            门店: <?php echo htmlspecialchars($cart['branch_name']); ?>
+                            Store: <?php echo htmlspecialchars($cart['branch_name']); ?>
                         </h4>
                         <form method="POST" action="cart.php" style="margin: 0;">
                             <input type="hidden" name="order_id" value="<?php echo $cart['order_id']; ?>">
                             <input type="hidden" name="action" value="delete_cart">
-                            <button type="submit" class="remove-from-cart" style="color: #ff4d4f;">删除整个门店购物车</button>
+                            <button type="submit" class="remove-from-cart" style="color: #ff4d4f;">Remove store cart</button>
                         </form>
                     </div>
                     
@@ -928,28 +901,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $order_details = getOrderDetails($cart['order_id']);
                     if ($order_details && !empty($order_details['items'])): 
                     ?>
-                        <?php foreach ($order_details['items'] as $item): ?>
-                            <div class="cart-item" data-item-id="<?php echo $item['item_ID']; ?>" style="padding-left: 0;">
-                                <div class="product-img"> 
-                                    <!-- 商品图片 -->
-                                </div>
-                                <div class="cart-item-info" style="flex: 1;">
-                                    <div class="cart-item-name"><?php echo htmlspecialchars($item['product_name']); ?></div>
-                                    <div class="cart-item-price">¥<?php echo number_format($item['unit_price'], 2); ?></div>
-                                </div>
-                                <div class="cart-item-quantity">
-            <span style="margin-right: 10px;">数量: <?php echo $item['quantity']; ?></span>
+<?php foreach ($order_details['items'] as $item): ?>
+    <?php 
+        $productSku = $item['sku'];
+        $imageUrl = getProductImageUrl($productSku);
+        $imageFullPath = getProductImageUrl($productSku, true);
+        
+        $categoryCode = explode('-', $productSku)[0] ?? '';
+        $icon = '📦';
+        $bgColor = '#f5f5f5';
+        
+        $categoryIcons = [
+            'VEG' => ['icon' => '🥬', 'color' => '#e8f5e8'],
+            'FRU' => ['icon' => '🍎', 'color' => '#ffeaea'],
+            'FRUIT' => ['icon' => '🍎', 'color' => '#ffeaea'],
+            'MEAT' => ['icon' => '🥩', 'color' => '#ffebee'],
+            'SHRIMP' => ['icon' => '🦐', 'color' => '#e3f2fd'],
+            'FISH' => ['icon' => '🐟', 'color' => '#e0f2f1'],
+            'EGG' => ['icon' => '🥚', 'color' => '#fff8e1'],
+            'SEA' => ['icon' => '🦀', 'color' => '#e0f7fa'],
+        ];
+        
+        $categoryUpper = strtoupper($categoryCode);
+        if (isset($categoryIcons[$categoryUpper])) {
+            $icon = $categoryIcons[$categoryUpper]['icon'];
+            $bgColor = $categoryIcons[$categoryUpper]['color'];
+        }
+    ?>
+    <div class="cart-item" data-item-id="<?php echo $item['item_ID']; ?>" style="padding-left: 0;">
+        <div class="product-img">
+            <?php if (file_exists($imageFullPath) && $imageUrl !== 'images/default-product.png'): ?>
+                <img src="<?php echo htmlspecialchars($imageUrl); ?>" 
+                     alt="<?php echo htmlspecialchars($item['product_name']); ?>"
+                     style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
+            <?php else: ?>
+                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 30px; background-color: <?php echo $bgColor; ?>; border-radius: 8px;">
+                    <?php echo $icon; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+        <div class="cart-item-info" style="flex: 1;">
+            <div class="cart-item-name"><?php echo htmlspecialchars($item['product_name']); ?></div>
+            <div class="cart-item-price">¥<?php echo number_format($item['unit_price'], 2); ?></div>
+        </div>
+        <div class="cart-item-quantity">
+            <span style="margin-right: 10px;">Qty: <?php echo $item['quantity']; ?></span>
         </div>
         <form method="POST" action="cart.php" style="display: inline;">
             <input type="hidden" name="item_id" value="<?php echo $item['item_ID']; ?>">
             <input type="hidden" name="action" value="remove_item">
-            <button type="submit" class="remove-from-cart">删除</button>
+            <button type="submit" class="remove-from-cart">Remove</button>
         </form>
-        </div>
-        <?php endforeach; ?>
+    </div>
+<?php endforeach; ?>
                         
                         <div style="text-align: right; margin-top: 15px; padding-top: 10px; border-top: 1px dashed #f0f0f0;">
-                            <div>小计: ¥<?php echo number_format($cart['final_amount'], 2); ?></div>
+                            <div>Subtotal: ¥<?php echo number_format($cart['final_amount'], 2); ?></div>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -957,33 +964,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         <?php endif; ?>
     </div>
     
-    <!-- 分隔线 -->
+    <!-- Divider -->
     <div class="checkout-divider"></div>
     
-    <!-- 结算栏 -->
+    <!-- Checkout bar -->
     <div class="checkout-bar">
         <div style="text-align: right;">
-            <div>商品总数: <?php echo count($cart_items_detailed); ?> 件</div>
-            <div>涉及门店: <?php echo count($all_carts_data['carts']); ?> 家</div>
-            <div>商品总价: <span style="text-decoration: line-through; color: #999;">¥<?php echo number_format($total_all_amount + $total_discount, 2); ?></span></div>
+            <div>Total items: <?php echo count($cart_items_detailed); ?></div>
+            <div>Stores: <?php echo count($all_carts_data['carts']); ?></div>
+            <div>Subtotal: <span style="text-decoration: line-through; color: #999;">¥<?php echo number_format($total_all_amount + $total_discount, 2); ?></span></div>
             <?php if ($total_discount > 0): ?>
-                <div>会员折扣: <span style="color: #ff4d4f;">-¥<?php echo number_format($total_discount, 2); ?></span></div>
+                <div>Member discount: <span style="color: #ff4d4f;">-¥<?php echo number_format($total_discount, 2); ?></span></div>
             <?php endif; ?>
-            <div class="total-amount">实付金额<span>¥<?php echo number_format($total_all_amount, 2); ?></span></div>
+            <div class="total-amount">Total<span>¥<?php echo number_format($total_all_amount, 2); ?></span></div>
         </div>
-        <button class="checkout-btn" type="button" <?php echo !$has_cart_items ? 'disabled' : ''; ?>>合并结算</button>
+        <button class="checkout-btn" type="button" <?php echo !$has_cart_items ? 'disabled' : ''; ?>>Checkout all</button>
     </div>
 </div>  <!-- 这里关闭 cart-main -->
 </section>
 
-<!-- 结算弹窗 -->
+<!-- Checkout modal -->
 <div class="modal-overlay" id="checkoutModal">
     <div class="modal">
         <button class="modal-close">&times;</button>
         <h3 class="modal-title">Order confirmation</h3>
         <div class="order-details">
             <div class="detail-section">
-                <h4 class="detail-title">Products details</h4>
+                <h4 class="detail-title">Order items</h4>
                 <div id="order-items"></div>
             </div>
             <div class="detail-section">
@@ -991,20 +998,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 <div id="shipping-info"></div>
             </div>
             <div class="detail-section">
-    <h4 class="detail-title">Total amount</h4>
-    <div style="margin-bottom: 8px;">Original price:<span style="text-decoration: line-through; color: #999;">¥<?php echo number_format($total_all_amount + $total_discount, 2); ?></span></div>
+    <h4 class="detail-title">Total</h4>
+    <div style="margin-bottom: 8px;">Subtotal: <span style="text-decoration: line-through; color: #999;">¥<?php echo number_format($total_all_amount + $total_discount, 2); ?></span></div>
     <?php if ($total_discount > 0): ?>
-        <div style="margin-bottom: 8px;">VIP Discounts:<?php echo $total_discount * 100; ?>%:<span style="color: #ff4d4f;">-¥<?php echo number_format($total_discount, 2); ?></span></div>
+        <div style="margin-bottom: 8px;">Member discount: <?php echo $total_discount * 100; ?>%: <span style="color: #ff4d4f;">-¥<?php echo number_format($total_discount, 2); ?></span></div>
     <?php endif; ?>
-    <div id="order-total" class="cart-item-price">Actual payment:¥<?php echo number_format($total_all_amount, 2); ?></div>
+    <div id="order-total" class="cart-item-price">Total: ¥<?php echo number_format($total_all_amount, 2); ?></div>
 </div>
 
 </div>        
         <div class="detail-section">
-            <h4 class="detail-title">Pattern of payment</h4>
+            <h4 class="detail-title">Payment method</h4>
             <div class="payment-methods">
                 <div class="payment-option selected" data-method="wechat">
-                    <div>We chat</div>
+                    <div>WeChat</div>
                 </div>
                 <div class="payment-option" data-method="alipay">
                     <div>Alipay</div>
@@ -1016,73 +1023,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     </div>
 </div>
 
-<!-- 修改成功弹窗内容 -->
+<!-- Success modal -->
 <div class="modal-overlay" id="successModal">
     <div class="modal">
         <button class="modal-close">&times;</button>
         <div class="success-message">
             <div class="success-icon">✓</div>
-            <h3 class="modal-title">payment success</h3>
-            <p>Your order has been paid for. Order number:<span id="success-order-id"></span></p>
+            <h3 class="modal-title">Payment successful</h3>
+            <p>Your order has been paid. Order #: <span id="success-order-id"></span></p>
             <p style="margin-top: 15px;">
-                <span id="countdown">3</span> seconds later, the shopping cart page will be automatically returned.
+                Returning to the cart in <span id="countdown">3</span> seconds.
             </p>
         </div>
     </div>
 </div>
 
-<!-- 删除确认弹窗 -->
+<!-- Delete item confirmation -->
 <div class="confirm-modal-overlay" id="deleteConfirmModal">
     <div class="confirm-modal">
         <div class="confirm-modal-icon">
             <i class="fas fa-trash-alt"></i>
         </div>
         <div class="confirm-modal-content">
-            <h3 class="confirm-modal-title">确认删除</h3>
-            <p class="confirm-modal-message" id="deleteConfirmMessage">确定要删除这个商品吗？</p>
+            <h3 class="confirm-modal-title">Confirm removal</h3>
+            <p class="confirm-modal-message" id="deleteConfirmMessage">Remove this item?</p>
             <div class="confirm-modal-buttons">
-                <button type="button" class="confirm-btn confirm-btn-cancel" id="deleteCancelBtn">取消</button>
-                <button type="button" class="confirm-btn confirm-btn-confirm" id="deleteConfirmBtn">确定删除</button>
+                <button type="button" class="confirm-btn confirm-btn-cancel" id="deleteCancelBtn">Cancel</button>
+                <button type="button" class="confirm-btn confirm-btn-confirm" id="deleteConfirmBtn">Remove</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 删除门店确认弹窗 -->
+<!-- Delete store cart confirmation -->
 <div class="confirm-modal-overlay" id="deleteCartConfirmModal">
     <div class="confirm-modal">
         <div class="confirm-modal-icon">
             <i class="fas fa-shopping-cart"></i>
         </div>
         <div class="confirm-modal-content">
-            <h3 class="confirm-modal-title">确认删除</h3>
-            <p class="confirm-modal-message" id="deleteCartConfirmMessage">确定要删除整个门店的购物车吗？</p>
+            <h3 class="confirm-modal-title">Confirm removal</h3>
+            <p class="confirm-modal-message" id="deleteCartConfirmMessage">Remove all items from this store?</p>
             <div class="confirm-modal-buttons">
-                <button type="button" class="confirm-btn confirm-btn-cancel" id="deleteCartCancelBtn">取消</button>
-                <button type="button" class="confirm-btn confirm-btn-confirm" id="deleteCartConfirmBtn">确定删除</button>
+                <button type="button" class="confirm-btn confirm-btn-cancel" id="deleteCartCancelBtn">Cancel</button>
+                <button type="button" class="confirm-btn confirm-btn-confirm" id="deleteCartConfirmBtn">Remove</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 操作成功提示 -->
+<!-- Success toast -->
 <div class="confirm-modal-overlay" id="successToast">
     <div class="confirm-modal" style="max-width: 300px;">
         <div class="confirm-modal-icon success-modal-icon">
             <i class="fas fa-check-circle"></i>
         </div>
         <div class="confirm-modal-content">
-            <h3 class="confirm-modal-title">操作成功</h3>
-            <p class="confirm-modal-message" id="successToastMessage">操作已完成</p>
+            <h3 class="confirm-modal-title">Success</h3>
+            <p class="confirm-modal-message" id="successToastMessage">Done</p>
         </div>
     </div>
 </div>
 
-<!-- 加载中提示 -->
+<!-- Loading -->
 <div class="confirm-modal-overlay" id="loadingModal">
     <div class="confirm-modal" style="max-width: 200px; padding: 40px 20px; text-align: center;">
         <div class="loading-spinner" style="width: 40px; height: 40px; border-width: 4px; margin: 0 auto 20px;"></div>
-        <p style="color: #666; font-size: 16px;">处理中...</p>
+        <p style="color: #666; font-size: 16px;">Processing...</p>
     </div>
 </div>
 
@@ -1138,7 +1145,7 @@ document.addEventListener('submit', function(e) {
             
             // 获取商品名称
             const itemName = form.closest('.cart-item').querySelector('.cart-item-name').textContent;
-            document.getElementById('deleteConfirmMessage').textContent = `确定要删除 "${itemName}" 吗？`;
+            document.getElementById('deleteConfirmMessage').textContent = `Remove "${itemName}"?`;
             deleteConfirmModal.classList.add('active');
             return false;
         }
@@ -1153,7 +1160,7 @@ document.addEventListener('submit', function(e) {
             
             // 获取门店名称
             const branchName = form.closest('.cart-group').querySelector('h4').textContent;
-            document.getElementById('deleteCartConfirmMessage').textContent = `确定要删除 "${branchName}" 的全部商品吗？`;
+            document.getElementById('deleteCartConfirmMessage').textContent = `Remove all items from "${branchName}"?`;
             deleteCartConfirmModal.classList.add('active');
             return false;
         }
@@ -1190,15 +1197,15 @@ document.addEventListener('submit', function(e) {
         })
         .then(response => {
             if (response.ok) {
-                showSuccess(isItemDelete ? '商品删除成功' : '购物车删除成功');
+                showSuccess(isItemDelete ? 'Item removed.' : 'Cart removed.');
                 performDeleteAnimation(currentForm, isItemDelete ? 'item' : 'cart');
             } else {
-                throw new Error('删除失败');
+                throw new Error('Removal failed.');
             }
         })
         .catch(error => {
-            console.error('删除错误:', error);
-            showError('删除失败，请重试');
+            console.error('Removal error:', error);
+            showError('Removal failed. Please try again.');
         })
         .finally(() => {
             confirmBtn.classList.remove('loading');
@@ -1282,9 +1289,9 @@ document.addEventListener('submit', function(e) {
         }
     });
     
-    // === 结算相关代码 ===
+    // === Checkout logic ===
     if (!checkoutBtn) {
-        console.error('结算按钮未找到!');
+        console.error('Checkout button not found!');
         return;
     }
     
@@ -1293,14 +1300,14 @@ document.addEventListener('submit', function(e) {
     console.log('orderIds:', <?php echo json_encode($all_order_ids); ?>);
     <?php endif; ?>
 
-    // 打开结算弹窗
+    // Open checkout modal
     checkoutBtn.addEventListener('click', function() {
-        console.log('结算按钮被点击');
+        console.log('Checkout button clicked');
         populateOrderDetails();
         checkoutModal.classList.add('active');
     });
 
-    // 关闭弹窗
+    // Close modal
     closeButtons.forEach(button => {
         button.addEventListener('click', function() {
             checkoutModal.classList.remove('active');
@@ -1308,7 +1315,7 @@ document.addEventListener('submit', function(e) {
         });
     });
 
-    // 选择支付方式
+    // Payment method selection
     if (paymentOptions.length > 0) {
         paymentOptions.forEach(option => {
             option.addEventListener('click', function() {
@@ -1318,16 +1325,16 @@ document.addEventListener('submit', function(e) {
         });
     }
 
-    // 填充订单详情
+    // Fill order details
     function populateOrderDetails() {
-        console.log('开始填充订单详情');
+        console.log('Populating order details');
         
         const orderItemsContainer = document.getElementById('order-items');
         const shippingInfoContainer = document.getElementById('shipping-info');
         const orderTotalContainer = document.getElementById('order-total');
         
         if (!orderItemsContainer) {
-            console.error('order-items容器未找到');
+            console.error('order-items container not found');
             return;
         }
         
@@ -1335,13 +1342,13 @@ document.addEventListener('submit', function(e) {
         const cartGroups = document.querySelectorAll('.cart-group');
         
         if (cartGroups.length === 0) {
-            orderItemsContainer.innerHTML = '<p>购物车为空</p>';
+            orderItemsContainer.innerHTML = '<p>Your cart is empty.</p>';
             return;
         }
         
         let totalItems = 0;
         cartGroups.forEach(group => {
-            const branchName = group.querySelector('h4')?.textContent || '未知门店';
+            const branchName = group.querySelector('h4')?.textContent || 'Unknown store';
             const cartItems = group.querySelectorAll('.cart-item');
             
             const branchHeader = document.createElement('div');
@@ -1354,11 +1361,11 @@ document.addEventListener('submit', function(e) {
             orderItemsContainer.appendChild(branchHeader);
             
             cartItems.forEach(item => {
-                const name = item.querySelector('.cart-item-name')?.textContent || '未知商品';
+                const name = item.querySelector('.cart-item-name')?.textContent || 'Unknown item';
                 const priceText = item.querySelector('.cart-item-price')?.textContent || '¥0';
                 const price = priceText.replace('¥', '');
-                const quantityText = item.querySelector('.cart-item-quantity span')?.textContent || '数量: 0';
-                const quantity = parseInt(quantityText.replace('数量: ', '')) || 0;
+                const quantityText = item.querySelector('.cart-item-quantity span')?.textContent || 'Qty: 0';
+                const quantity = parseInt(quantityText.replace('Qty: ', '')) || 0;
                 const itemTotal = (parseFloat(price) * quantity).toFixed(2);
                 
                 const itemElement = document.createElement('div');
@@ -1383,22 +1390,22 @@ document.addEventListener('submit', function(e) {
         
         if (shippingInfoContainer) {
             shippingInfoContainer.innerHTML = `
-                <p>收件人: ${receiverName}</p>
-                <p>电话: ${receiverPhone}</p>
-                <p>地址: ${receiverAddress}</p>
-                <p>备注: ${receiverNote}</p>
+                <p>Receiver: ${receiverName}</p>
+                <p>Phone: ${receiverPhone}</p>
+                <p>Address: ${receiverAddress}</p>
+                <p>Note: ${receiverNote}</p>
             `;
         }
         
         if (orderTotalContainer) {
             const totalAmountSpan = document.querySelector('.total-amount span');
             if (totalAmountSpan) {
-                orderTotalContainer.textContent = `实付金额: ${totalAmountSpan.textContent}`;
+                orderTotalContainer.textContent = `Total: ${totalAmountSpan.textContent}`;
             }
         }
     }
 
-    // 提交订单
+    // Submit order
     if (submitOrderBtn) {
         submitOrderBtn.addEventListener('click', function() {
             const receiverName = document.getElementById('receiver-name').value;
@@ -1407,7 +1414,7 @@ document.addEventListener('submit', function(e) {
             const receiverNote = document.getElementById('receiver-note').value;
             
             if (!receiverName || !receiverPhone || !receiverAddress) {
-                showError('请填写完整的收货信息');
+                showError('Please complete the delivery information.');
                 return;
             }
             
@@ -1418,14 +1425,14 @@ document.addEventListener('submit', function(e) {
             <?php endif; ?>
             
             if (orderIds.length === 0) {
-                showError('购物车为空，无法提交订单');
+                showError('Your cart is empty. Unable to submit order.');
                 return;
             }
             
-            const shippingAddress = `${receiverAddress} (${receiverName}, ${receiverPhone}) 备注: ${receiverNote}`;
+            const shippingAddress = `${receiverAddress} (${receiverName}, ${receiverPhone}) Note: ${receiverNote}`;
             const originalText = this.textContent;
             this.disabled = true;
-            this.textContent = '处理中...';
+            this.textContent = 'Processing...';
             
             fetch('cart.php', {
                 method: 'POST',
@@ -1438,16 +1445,16 @@ document.addEventListener('submit', function(e) {
             })
             .then(response => response.json())
             .then(data => {
-                console.log('服务器响应:', data);
+                console.log('Server response:', data);
                 if (data.success) {
                     checkoutModal.classList.remove('active');
                     
-                    let successMessage = `成功处理 ${data.processed_count} 个订单`;
+                    let successMessage = `Processed ${data.processed_count} orders.`;
                     if (data.results) {
                         successMessage += '<br>';
                         data.results.forEach(result => {
-                            const status = result.success ? '成功' : '失败';
-                            successMessage += `订单 ${result.order_id}: ${status} ${result.message}<br>`;
+                            const status = result.success ? 'Success' : 'Failed';
+                            successMessage += `Order ${result.order_id}: ${status} ${result.message}<br>`;
                         });
                     }
                     
@@ -1467,12 +1474,12 @@ document.addEventListener('submit', function(e) {
                         }, 1000);
                     }
                 } else {
-                    showError(data.error || '订单提交失败');
+                    showError(data.error || 'Order submission failed.');
                 }
             })
             .catch(error => {
-                console.error('请求错误:', error);
-                showError('网络错误，请稍后重试');
+                console.error('Request error:', error);
+                showError('Network error. Please try again later.');
             })
             .finally(() => {
                 this.disabled = false;

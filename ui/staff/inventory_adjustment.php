@@ -3,11 +3,15 @@ header("Content-Type: text/html; charset=UTF-8");
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-require_once __DIR__ . '/../config/db_connect.php';
 if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
 }
+
+$servername = "localhost";
+$username = "staff_user";
+$password = "YourPassword123!";
+$dbname = "mydb";
 
 $branchId = $_SESSION['staff_branch_id'] ?? null;
 $staffId = $_SESSION['staff_id'] ?? null;
@@ -17,14 +21,17 @@ $error_message = '';
 $batch = null;
 
 if (!$branchId || !$staffId) {
-    $error_message = '无法识别当前员工或门店，请重新登录。';
+    $error_message = 'Unable to identify the staff member or branch. Please sign in again.';
 } elseif ($batchId === '') {
-    $error_message = '缺少批次信息。';
+    $error_message = 'Missing batch information.';
 }
 
 if ($error_message === '') {
-    $conn = getDBConnection();
-    if ($conn) {
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        $error_message = 'Database connection failed: ' . $conn->connect_error;
+    } else {
+        $conn->set_charset('utf8mb4');
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['adjust_action'])) {
             $newQuantity = isset($_POST['new_quantity']) ? (int)$_POST['new_quantity'] : -1;
@@ -32,21 +39,21 @@ if ($error_message === '') {
             $note = trim($_POST['adjust_note'] ?? '');
 
             if ($newQuantity < 0 || $originalQuantity === null) {
-                $error_message = '请填写正确的盘点数量。';
+                $error_message = 'Please provide a valid adjustment quantity.';
             } elseif ($newQuantity >= $originalQuantity) {
-                $error_message = '盘点只能减少库存数量。';
+                $error_message = 'Adjustments can only reduce stock.';
             } elseif ($note === '') {
-                $error_message = '请填写出库原因。';
+                $error_message = 'Please provide a reason.';
             } else {
                 try {
                     $stmtAdjust = $conn->prepare('CALL staff_adjust_inventory(?, ?, ?, ?, ?, ?, ?)');
                     if (!$stmtAdjust) {
-                        throw new Exception('准备盘点存储过程失败：' . $conn->error);
+                        throw new Exception('Failed to prepare adjustment procedure: ' . $conn->error);
                     }
                     $reason = 'adjustment';
                     $stmtAdjust->bind_param('siisiis', $batchId, $branchId, $newQuantity, $reason, $staffId, $originalQuantity, $note);
                     if (!$stmtAdjust->execute()) {
-                        throw new Exception('执行盘点存储过程失败：' . $stmtAdjust->error);
+                        throw new Exception('Failed to execute adjustment procedure: ' . $stmtAdjust->error);
                     }
                     $stmtAdjust->close();
                     while ($conn->more_results() && $conn->next_result()) {
@@ -55,7 +62,7 @@ if ($error_message === '') {
                             $extra->free();
                         }
                     }
-                    $_SESSION['inventory_success'] = '盘点已提交，库存已更新。';
+                    $_SESSION['inventory_success'] = 'Adjustment submitted. Inventory updated.';
                     header('Location: inventory.php');
                     exit();
                 } catch (Exception $e) {
@@ -80,7 +87,7 @@ if ($error_message === '') {
                 $stmt->close();
             }
             if (!$batch) {
-                $error_message = '未找到对应批次信息。';
+                $error_message = 'Batch information not found.';
             }
         }
         $conn->close();
@@ -88,12 +95,12 @@ if ($error_message === '') {
 }
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <?php include 'header.php'; ?>
 <body>
     <main class="main">
         <section class="section">
-            <h2 class="section-title">库存盘点</h2>
+            <h2 class="section-title">Inventory Adjustment</h2>
             <?php if ($error_message): ?>
                 <div class="alert-box alert-error"><?php echo htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8'); ?></div>
             <?php endif; ?>
@@ -101,21 +108,21 @@ if ($error_message === '') {
                 <form method="post" style="max-width:520px;">
                     <input type="hidden" name="adjust_action" value="1">
                     <input type="hidden" name="original_quantity" value="<?php echo (int)$batch['quantity_on_hand']; ?>">
-                    <div class="info"><b>商品：</b><?php echo htmlspecialchars($batch['product_name'] . ' (' . $batch['sku'] . ')', ENT_QUOTES, 'UTF-8'); ?></div>
-                    <div class="info"><b>批次：</b><?php echo htmlspecialchars($batch['batch_ID'], ENT_QUOTES, 'UTF-8'); ?></div>
-                    <div class="info"><b>当前库存：</b><?php echo (int)$batch['quantity_on_hand']; ?></div>
-                    <div class="info"><b>供应商：</b><?php echo htmlspecialchars($batch['supplier_name'] ?? '未知供应商', ENT_QUOTES, 'UTF-8'); ?></div>
+                    <div class="info"><b>Product:</b> <?php echo htmlspecialchars($batch['product_name'] . ' (' . $batch['sku'] . ')', ENT_QUOTES, 'UTF-8'); ?></div>
+                    <div class="info"><b>Batch:</b> <?php echo htmlspecialchars($batch['batch_ID'], ENT_QUOTES, 'UTF-8'); ?></div>
+                    <div class="info"><b>Current stock:</b> <?php echo (int)$batch['quantity_on_hand']; ?></div>
+                    <div class="info"><b>Supplier:</b> <?php echo htmlspecialchars($batch['supplier_name'] ?? 'Unknown Supplier', ENT_QUOTES, 'UTF-8'); ?></div>
                     <div class="info">
-                        <b>调整后库存：</b>
+                        <b>Stock after adjustment:</b>
                         <input type="number" name="new_quantity" min="0" max="<?php echo (int)$batch['quantity_on_hand']; ?>" value="<?php echo (int)$batch['quantity_on_hand']; ?>" required style="width:120px;margin-left:8px;">
                     </div>
                     <div class="info" style="align-items:flex-start;">
-                        <b>出库原因：</b>
+                        <b>Reason:</b>
                         <textarea name="adjust_note" rows="3" required style="margin-left:8px;flex:1;min-width:220px;"></textarea>
                     </div>
                     <div class="actions" style="margin-top:18px;">
-                        <button class="btn btn-success" type="submit">提交盘点</button>
-                        <a class="btn btn-warning" href="inventory.php" style="margin-left:10px;display:inline-block;text-decoration:none;">取消</a>
+                        <button class="btn btn-success" type="submit">Submit adjustment</button>
+                        <a class="btn btn-warning" href="inventory.php" style="margin-left:10px;display:inline-block;text-decoration:none;">Cancel</a>
                     </div>
                 </form>
             <?php endif; ?>

@@ -10,30 +10,30 @@ if (!isset($customers) || !is_array($customers)) {
 }
 ?>
 <section class="section">
-    <h2 class="section-title">顾客信息</h2>
+    <h2 class="section-title">Customers</h2>
     <div class="filter-bar" style="align-items:center;">
-        <input id="custSearch" class="filter-input" placeholder="按姓名/手机号/ID搜索">
-        <button id="custSearchBtn" class="btn btn-primary">搜索</button>
+        <input id="custSearch" class="filter-input" placeholder="Search by name / phone / ID">
+        <button id="custSearchBtn" class="btn btn-primary">Search</button>
     </div>
 
     <div style="overflow:auto;">
         <table class="data-table" id="customersTable">
             <thead>
                 <tr>
-                    <th>顾客ID</th>
-                    <th>姓名</th>
-                    <th>手机</th>
-                    <th>注册日期</th>
-                    <th>购买次数</th>
-                    <th>总消费 (¥)</th>
-                    <th>VIP等级</th>
+                    <th>Customer ID</th>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Registered</th>
+                    <th>Orders</th>
+                    <th>Total Spent (¥)</th>
+                    <th>Tier</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($customers)): ?>
                 <tr>
                     <td colspan="7" style="text-align:center;padding:20px;color:#666;">
-                        暂无顾客数据
+                        No customer data
                     </td>
                 </tr>
                 <?php else: ?>
@@ -53,7 +53,7 @@ if (!isset($customers) || !is_array($customers)) {
                         
                         switch ($loyaltyText) {
                             case 'VVIP':
-                                $loyaltyText = '至尊VIP';
+                                $loyaltyText = 'Elite VIP';
                                 $loyaltyClass = 'vip-vvip';
                                 break;
                             case 'VIP':
@@ -62,7 +62,7 @@ if (!isset($customers) || !is_array($customers)) {
                                 break;
                             case 'Regular':
                             default:
-                                $loyaltyText = '普通';
+                                $loyaltyText = 'Regular';
                                 $loyaltyClass = 'vip-regular';
                                 break;
                         }

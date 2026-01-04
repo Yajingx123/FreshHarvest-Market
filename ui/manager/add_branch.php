@@ -17,10 +17,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 验证
     if (empty($branchName)) {
-        $errors[] = "门店名称不能为空";
+        $errors[] = "Branch name is required.";
     }
     if (empty($address)) {
-        $errors[] = "门店地址不能为空";
+        $errors[] = "Address is required.";
     }
 
     if (empty($errors)) {
@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = true;
         } catch (Exception $e) {
             $conn->rollback();
-            $errors[] = "新增失败: " . $e->getMessage();
+            $errors[] = "Create failed: " . $e->getMessage();
         }
     }
 }
@@ -71,9 +71,9 @@ $managers = getAvailableManagers();
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>新增门店</title>
+    <title>Add Branch</title>
     <style>
         body {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -223,7 +223,7 @@ $managers = getAvailableManagers();
     </style>
 </head>
 <body>
-    <h1>新增门店</h1>
+    <h1>Add Branch</h1>
     <?php if (!empty($errors)): ?>
         <?php foreach ($errors as $error): ?>
             <div class="error"><?= $error ?></div>
@@ -232,39 +232,39 @@ $managers = getAvailableManagers();
     
     <?php if ($success): ?>
         <div class="success">
-            门店新增成功！
+            Branch created successfully.
             <br>
-            <a href="stores.php">返回门店列表</a>
+            <a href="stores.php">Back to stores</a>
         </div>
     <?php else: ?>
         <form method="post">
             <div class="form-group">
-                <label>门店名称 *</label>
+                <label>Branch Name *</label>
                 <input type="text" name="branch_name" required>
             </div>
             <div class="form-group">
-                <label>地址 *</label>
+                <label>Address *</label>
                 <textarea name="address" required></textarea>
             </div>
             <div class="form-group">
-                <label>联系电话</label>
+                <label>Phone</label>
                 <input type="text" name="phone">
             </div>
             <div class="form-group">
-                <label>邮箱</label>
+                <label>Email</label>
                 <input type="email" name="email">
             </div>
             <div class="form-group">
-                <label>门店经理</label>
+                <label>Manager</label>
                 <select name="manager_id">
-                    <option value="0">无</option>
+                    <option value="0">None</option>
                     <?php foreach ($managers as $m): ?>
                         <option value="<?= $m['staff_ID'] ?>"><?= $m['name'] ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <button type="submit">保存</button>
-            <a href="stores.php">取消</a>
+            <button type="submit">Save</button>
+            <a href="stores.php">Cancel</a>
         </form>
     <?php endif; ?>
 </body>

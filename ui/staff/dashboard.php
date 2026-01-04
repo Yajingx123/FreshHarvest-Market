@@ -2,7 +2,6 @@
 ob_start();
 header("Content-Type: text/html; charset=UTF-8");
 session_start();
-require_once __DIR__ . '/../config/db_connect.php';
 // Ensure PHP uses the same timezone as your team (adjust if needed)
 date_default_timezone_set('Asia/Shanghai');
 // 检查staff是否已登录
@@ -11,8 +10,18 @@ if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== tru
     exit();
 }
 
+// 数据库配置
+$servername = "localhost";
+$username = "staff_user";
+$password = "YourPassword123!";
+$dbname = "mydb";
+
 // 连接数据库
-$conn = getDBConnection();
+$conn = new mysqli($servername, $username, $password, $dbname);
+if ($conn->connect_error) {
+    die("Database connection failed: " . $conn->connect_error);
+}
+$conn->set_charset("utf8mb4");
 
 // 获取staff的branch_ID
 $staff_branch_id = $_SESSION['staff_branch_id'];
@@ -160,24 +169,24 @@ $female_count = 5;
 $conn->close();
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <?php include 'header.php'; ?>
 <body>
     <main class="main">
         <section class="section">
-            <h2 class="section-title">今日工作概览</h2>
+            <h2 class="section-title">Today's Overview</h2>
             <div class="dashboard-cards">
-                <div class="card"><div class="card-icon">🔄</div><div class="card-title">待补货</div><div class="card-value"><?php echo $restock_count; ?></div></div>
-                <div class="card"><div class="card-icon">💰</div><div class="card-title">今日成交订单数</div><div class="card-value"><?php echo $orders_today; ?></div></div>
-                <div class="card"><div class="card-icon">👥</div><div class="card-title">在职员工数</div><div class="card-value"><?php echo $staff_count; ?></div></div>
+                <div class="card"><div class="card-icon">🔄</div><div class="card-title">Restock Needed</div><div class="card-value"><?php echo $restock_count; ?></div></div>
+                <div class="card"><div class="card-icon">💰</div><div class="card-title">Orders Today</div><div class="card-value"><?php echo $orders_today; ?></div></div>
+                <div class="card"><div class="card-icon">👥</div><div class="card-title">Active Staff</div><div class="card-value"><?php echo $staff_count; ?></div></div>
             </div>
             <div style="display:flex;gap:32px;margin-top:32px;flex-wrap:wrap;justify-content:center;">
                 <div style="flex:1;min-width:320px;background:#e3f2fd;border-radius:8px;padding:24px;text-align:center;display:flex;flex-direction:column;align-items:center;">
-                    <h3 style="font-size:16px;color:#1976d2;margin-bottom:16px;">门店收益（折线图）</h3>
+                    <h3 style="font-size:16px;color:#1976d2;margin-bottom:16px;">Store Revenue (Line)</h3>
                     <canvas id="lineChart" width="320" height="220" style="margin:0 auto;"></canvas>
                 </div>
                 <div style="flex:1;min-width:320px;background:#fce4ec;border-radius:8px;padding:24px;text-align:center;display:flex;flex-direction:column;align-items:center;">
-                    <h3 style="font-size:16px;color:#ad1457;margin-bottom:16px;">一周订单量（柱状图）</h3>
+                    <h3 style="font-size:16px;color:#ad1457;margin-bottom:16px;">Weekly Orders (Bar)</h3>
                     <canvas id="barChart" width="320" height="220" style="margin:0 auto;"></canvas>
                 </div>
             </div>
@@ -192,7 +201,7 @@ $conn->close();
         data: {
             labels: <?php echo json_encode($date_labels, JSON_UNESCAPED_UNICODE); ?>,
             datasets: [{
-                label: '收益（元）',
+                label: 'Revenue (CNY)',
                 data: [<?php echo implode(',', $week_revenue); ?>],
                 borderColor: '#1976d2',
                 backgroundColor: 'rgba(25,118,210,0.08)',
@@ -218,7 +227,7 @@ $conn->close();
         data: {
             labels: <?php echo json_encode($date_labels, JSON_UNESCAPED_UNICODE); ?>,
             datasets: [{
-                label: '订单量',
+                label: 'Orders',
                 data: [<?php echo implode(',', $week_orders); ?>],
                 backgroundColor: '#ad1457'
             }]

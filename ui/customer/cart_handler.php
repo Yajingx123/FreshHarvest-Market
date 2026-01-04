@@ -1,11 +1,9 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+session_start();
 header("Content-Type: application/json");
 
 if (!isset($_SESSION['customer_id'])) {
-    echo json_encode(['success' => false, 'message' => '请先登录']);
+    echo json_encode(['success' => false, 'message' => 'Please sign in first.']);
     exit;
 }
 
@@ -27,5 +25,5 @@ if ($action === 'add_to_cart') {
     exit;
 }
 
-echo json_encode(['success' => false, 'message' => '无效的操作']);
+echo json_encode(['success' => false, 'message' => 'Invalid action.']);
 ?>

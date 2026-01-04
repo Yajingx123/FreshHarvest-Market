@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $firstName = trim($_POST['first_name'] ?? '');
         $lastName = trim($_POST['last_name'] ?? '');
         if (empty($firstName) || empty($lastName)) {
-            $errors[] = '姓名不能为空';
+            $errors[] = 'Name is required.';
         } else {
             $updateData['first_name'] = $firstName;
             $updateData['last_name'] = $lastName;
@@ -31,9 +31,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // 验证邮箱 - 对应User表的user_email
         $email = trim($_POST['email'] ?? '');
         if (empty($email)) {
-            $errors[] = '邮箱地址不能为空';
+            $errors[] = 'Email is required.';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $errors[] = '邮箱格式不正确';
+            $errors[] = 'Invalid email format.';
         } else {
             $updateData['user_email'] = $email;
         }
@@ -41,9 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // 验证电话 - 对应User表的user_telephone
         $phone = trim($_POST['phone'] ?? '');
         if (empty($phone)) {
-            $errors[] = '联系电话不能为空';
+            $errors[] = 'Phone number is required.';
         } elseif (!preg_match('/^\d{10,15}$/', $phone)) { // 简化验证
-            $errors[] = '电话号码必须是10-15位数字';
+            $errors[] = 'Phone number must be 10-15 digits.';
         } else {
             $updateData['user_telephone'] = $phone;
         }
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // 验证联系人 - 对应Supplier表的contact_person
         $contactPerson = trim($_POST['contact_person'] ?? '');
         if (empty($contactPerson)) {
-            $errors[] = '联系人不能为空';
+            $errors[] = 'Contact person is required.';
         } else {
             $updateData['contact_person'] = $contactPerson;
         }
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         // 验证地址 - 对应Supplier表的address
         $address = trim($_POST['address'] ?? '');
         if (empty($address)) {
-            $errors[] = '联系地址不能为空';
+            $errors[] = 'Address is required.';
         } else {
             $updateData['address'] = $address;
         }
@@ -68,11 +68,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if (empty($errors) && !empty($updateData) && isset($_SESSION['supplier_username'])) {
             $result = updateSupplierInfo($_SESSION['supplier_username'], $updateData);
             if ($result) {
-                $success = '信息更新成功！';
+                $success = 'Profile updated successfully.';
                 // 重新获取最新信息
                 $supplierInfo = getSupplierInfo($_SESSION['supplier_username']);
             } else {
-                $errors[] = '保存失败，请稍后重试';
+                $errors[] = 'Save failed. Please try again later.';
             }
         }
     } 
@@ -88,15 +88,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else {
             // 验证密码
             if ($newPassword !== $confirmPassword) {
-                $passwordErrors[] = '两次输入的密码不一致';
+                $passwordErrors[] = 'Passwords do not match.';
             } elseif (strlen($newPassword) < 6) {
-                $passwordErrors[] = '密码长度至少为6位';
+                $passwordErrors[] = 'Password must be at least 6 characters.';
             } else {
                 // 更新密码
                 if (updateSupplierPassword($_SESSION['supplier_username'], $newPassword)) {
-                    $passwordSuccess = '密码修改成功！';
+                    $passwordSuccess = 'Password updated successfully.';
                 } else {
-                    $passwordErrors[] = '密码修改失败，请重试';
+                    $passwordErrors[] = 'Password update failed. Please try again.';
                 }
             }
         }
@@ -115,11 +115,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - 供应商信息</title>
+    <title>FreshHarvest - Supplier Profile</title>
     <style>
         /* 保持所有原有样式不变 */
         * {
@@ -793,8 +793,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     
     <div class="profile-wrapper">
         <div class="profile-header">
-            <h1 class="profile-title">供应商信息中心</h1>
-            <p class="profile-subtitle">查看和管理您的供应商账户信息</p>
+            <h1 class="profile-title">Supplier Profile</h1>
+            <p class="profile-subtitle">View and manage your supplier account</p>
         </div>
         
         <?php if (!empty($supplierInfo)): ?>
@@ -816,7 +816,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         <span class="profile-badge">
                             <?php 
                             $status = $supplierInfo['status'] ?? 'active';
-                            echo $status === 'active' ? '✅ 账户正常' : '⏳ 账户审核中';
+                            echo $status === 'active' ? '✅ Account active' : '⏳ Account pending';
                             ?>
                         </span>
                     </div>
@@ -859,34 +859,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     <div class="profile-grid">
 <div class="profile-section">
     <h3 class="section-title">
-        <i>👤</i> 基本信息
+        <i>👤</i> Basic Info
     </h3>
     <div class="info-item">
-        <span class="info-label">用户名</span>
+        <span class="info-label">Username</span>
         <span class="info-value">
             <i>👤</i>
             <?php echo htmlspecialchars($supplierInfo['user_name']); ?>
         </span>
     </div>
     <div class="info-item" data-field="name">
-        <span class="info-label">姓名</span>
+        <span class="info-label">Name</span>
         <span class="info-value">
             <i>📝</i>
             <?php echo htmlspecialchars($supplierInfo['first_name'] . ' ' . $supplierInfo['last_name']); ?>
         </span>
     </div>
     <div class="info-item" data-field="email">
-        <span class="info-label">邮箱地址</span>
+        <span class="info-label">Email</span>
         <span class="info-value">
             <i>📧</i>
             <?php echo htmlspecialchars($supplierInfo['user_email']); ?>
         </span>
     </div>
     <div class="info-item" data-field="phone">
-        <span class="info-label">联系电话</span>
+        <span class="info-label">Phone</span>
         <span class="info-value">
             <i>📱</i>
-            <?php echo htmlspecialchars($supplierInfo['user_telephone'] ?? '未设置'); ?>
+            <?php echo htmlspecialchars($supplierInfo['user_telephone'] ?? 'Not set'); ?>
         </span>
     </div>
 </div>
@@ -894,36 +894,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         <!-- 供应商信息 -->
 <div class="profile-section">
     <h3 class="section-title">
-        <i>🏢</i> 供应商信息
+        <i>🏢</i> Supplier Info
     </h3>
     <div class="info-item">
-        <span class="info-label">供应商名称</span>
+        <span class="info-label">Supplier Name</span>
         <span class="info-value">
             <i>🏷️</i>
-            <?php echo htmlspecialchars($supplierInfo['user_name'] ?? '未设置'); ?>
+            <?php echo htmlspecialchars($supplierInfo['user_name'] ?? 'Not set'); ?>
         </span>
     </div>
     <div class="info-item" data-field="contact_person">
-        <span class="info-label">联系人</span>
+        <span class="info-label">Contact Person</span>
         <span class="info-value">
             <i>👥</i>
-            <?php echo htmlspecialchars($supplierInfo['contact_person'] ?? '未设置'); ?>
+            <?php echo htmlspecialchars($supplierInfo['contact_person'] ?? 'Not set'); ?>
         </span>
     </div>
     <div class="info-item" data-field="address">
-        <span class="info-label">联系地址</span>
+        <span class="info-label">Address</span>
         <span class="info-value">
             <i>📍</i>
-            <?php echo htmlspecialchars($supplierInfo['address'] ?? '未设置'); ?>
+            <?php echo htmlspecialchars($supplierInfo['address'] ?? 'Not set'); ?>
         </span>
     </div>
     <div class="info-item">
-        <span class="info-label">待处理订单</span>
+        <span class="info-label">Pending Orders</span>
         <span class="info-value">
             <i>📦</i>
-            <?php echo $pendingCount > 0 ? 
-                '<span style="color:#e74c3c; font-weight:bold;">' . $pendingCount . ' 个待处理</span>' : 
-                '<span style="color:#27ae60;">无待处理订单</span>'; ?>
+            <?php echo $pendingCount > 0 ?
+                '<span style="color:#e74c3c; font-weight:bold;">' . $pendingCount . ' pending</span>' :
+                '<span style="color:#27ae60;">No pending orders</span>'; ?>
         </span>
     </div>
 </div>
@@ -931,38 +931,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         <!-- 账户信息 -->
                         <div class="profile-section">
                             <h3 class="section-title">
-                                <i>🔐</i> 账户信息
+                                <i>🔐</i> Account Info
                             </h3>
                             <div class="info-item">
-                                <span class="info-label">账户状态</span>
+                                <span class="info-label">Account Status</span>
                                 <span class="info-value">
                                     <?php if(($supplierInfo['status'] ?? 'active') === 'active'): ?>
-                                        <span class="status-badge status-active">✅ 正常使用</span>
+                                        <span class="status-badge status-active">✅ Active</span>
                                     <?php else: ?>
-                                        <span class="status-badge status-pending">⏳ 审核中</span>
+                                        <span class="status-badge status-pending">⏳ Pending</span>
                                     <?php endif; ?>
                                 </span>
                             </div>
                             <div class="info-item">
-                                <span class="info-label">注册时间</span>
+                                <span class="info-label">Registered</span>
                                 <span class="info-value">
                                     <i>📅</i>
-                                    <?php echo htmlspecialchars(date('Y年m月d日 H:i', strtotime($supplierInfo['created_at']))); ?>
+                                    <?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($supplierInfo['created_at']))); ?>
                                 </span>
                             </div>
                             <!-- 新增密码修改区域 -->
                             <div class="info-item" data-field="password" id="passwordSection">
-                                <span class="info-label">修改密码</span>
+                                <span class="info-label">Change Password</span>
                                 <div class="password-input-group" style="display: none;">
                                     <div class="password-input-item">
                                         <input type="password" name="new_password" class="password-input" 
-                                               placeholder="请输入新密码" autocomplete="new-password">
-                                        <span class="password-hint">密码长度至少6位</span>
+                                               placeholder="Enter new password" autocomplete="new-password">
+                                        <span class="password-hint">Password must be at least 6 characters</span>
                                     </div>
                                     <div class="password-input-item">
                                         <input type="password" name="confirm_password" class="password-input" 
-                                               placeholder="请再次输入新密码" autocomplete="new-password">
-                                        <span class="password-hint">两次输入的密码必须一致</span>
+                                               placeholder="Re-enter new password" autocomplete="new-password">
+                                        <span class="password-hint">Passwords must match</span>
                                     </div>
                                 </div>
                                 <span class="info-value">
@@ -982,21 +982,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     <div class="action-buttons">                        
                         <button type="button" class="btn btn-primary" id="editBtn">
                            <span class="icon">✏️</span>
-                           编辑信息
+                           Edit
                         </button>
 
                         <button type="button" class="btn btn-success" id="saveBtn" style="display:none;">
                            <span class="icon">💾</span>
-                             保存修改
+                             Save
                            </button>
 
                         <button type="button" class="btn btn-warning" id="cancelBtn" style="display:none;">
                            <span class="icon">↩️</span>
-                           取消编辑
+                           Cancel
                            </button>
                         <button type="button" class="btn btn-danger" onclick="showLogoutModal()">
                           <span class="icon">🚪</span>
-                          退出登录
+                          Sign out
                         </button>
                     </div>
                 </div>
@@ -1004,11 +1004,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         <?php else: ?>
             <div class="empty-state">
                 <div class="empty-icon">🔒</div>
-                <h3 class="empty-text">未获取到供应商信息</h3>
-                <p style="color: #95a5a6; margin-bottom: 30px;">请先登录您的供应商账户</p>
+                <h3 class="empty-text">Supplier profile not found</h3>
+                <p style="color: #95a5a6; margin-bottom: 30px;">Please sign in to your supplier account</p>
                 <button class="btn btn-primary" onclick="location.href='../login/logout.php'">
                     <span class="icon">🔑</span>
-                    前往登录
+                    Go to sign in
                 </button>
             </div>
         <?php endif; ?>
@@ -1016,11 +1016,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     <div class="logout-modal-overlay" id="logoutModal">
     <div class="logout-modal">
         <div class="logout-modal-icon">⚠️</div>
-        <h3 class="logout-modal-title">确认退出</h3>
-        <p class="logout-modal-message">确定要退出登录吗？<br>退出后需要重新登录才能访问账户。</p>
+        <h3 class="logout-modal-title">Confirm sign out</h3>
+        <p class="logout-modal-message">Sign out now?<br>You will need to sign in again to access the account.</p>
         <div class="logout-modal-actions">
-            <button type="button" class="logout-modal-btn logout-modal-cancel" id="cancelLogout">取消</button>
-            <button type="button" class="logout-modal-btn logout-modal-confirm" id="confirmLogout">确认退出</button>
+            <button type="button" class="logout-modal-btn logout-modal-cancel" id="cancelLogout">Cancel</button>
+            <button type="button" class="logout-modal-btn logout-modal-confirm" id="confirmLogout">Sign out</button>
         </div>
     </div>
 </div>
@@ -1061,7 +1061,7 @@ confirmLogoutBtn.addEventListener('click', function() {
     // 保存原始HTML内容（包括图标）
     const originalContent = logoutBtn.innerHTML;
     
-    logoutBtn.innerHTML = '<span class="icon">⏳</span>退出中...';
+    logoutBtn.innerHTML = '<span class="icon">⏳</span>Signing out...';
     logoutBtn.disabled = true;
     
     // 添加退出动画
@@ -1164,7 +1164,7 @@ function createEditInputs() {
         const firstNameInput = document.createElement('input');
         firstNameInput.type = 'text';
         firstNameInput.name = 'first_name';
-        firstNameInput.placeholder = '名';
+        firstNameInput.placeholder = 'First name';
         firstNameInput.value = nameParts[0] || '';
         firstNameInput.style.cssText = 'flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;';
         
@@ -1172,7 +1172,7 @@ function createEditInputs() {
         const lastNameInput = document.createElement('input');
         lastNameInput.type = 'text';
         lastNameInput.name = 'last_name';
-        lastNameInput.placeholder = '姓';
+        lastNameInput.placeholder = 'Last name';
         lastNameInput.value = nameParts.slice(1).join(' ') || '';
         lastNameInput.style.cssText = 'flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;';
         
@@ -1182,16 +1182,16 @@ function createEditInputs() {
     }
     
     // 邮箱 - 直接使用email作为name
-    createSimpleInput('email', 'email', '请输入邮箱', 'email');
+    createSimpleInput('email', 'email', 'Enter email', 'email');
     
     // 电话 - 直接使用phone作为name
-    createSimpleInput('phone', 'tel', '请输入11位手机号', 'phone');
+    createSimpleInput('phone', 'tel', 'Enter phone number', 'phone');
     
     // 联系人
-    createSimpleInput('contact_person', 'text', '请输入联系人', 'contact_person');
+    createSimpleInput('contact_person', 'text', 'Enter contact person', 'contact_person');
     
     // 联系地址（使用textarea）
-    createTextareaInput('address', 'address', '请输入联系地址');
+    createTextareaInput('address', 'address', 'Enter address');
 }
 
 // 创建简单输入框
@@ -1210,7 +1210,7 @@ function createSimpleInput(field, type, placeholder, name = null) {
         input.name = name || field;
         input.placeholder = placeholder;
         // 使用纯文本值，移除"未设置"字样
-        const cleanValue = textNodes.replace('未设置', '').trim();
+        const cleanValue = textNodes.replace('Not set', '').trim();
         input.value = cleanValue;
         input.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;';
         item.appendChild(input);
@@ -1232,7 +1232,7 @@ function createTextareaInput(field, name, placeholder) {
         textarea.name = name;
         textarea.placeholder = placeholder;
         // 使用纯文本值，移除"未设置"字样
-        const cleanValue = textNodes.replace('未设置', '').trim();
+        const cleanValue = textNodes.replace('Not set', '').trim();
         textarea.value = cleanValue;
         textarea.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; min-height: 60px; resize: vertical;';
         item.appendChild(textarea);
@@ -1258,7 +1258,7 @@ function validateForm() {
     const firstName = document.querySelector('input[name="first_name"]');
     const lastName = document.querySelector('input[name="last_name"]');
     if (!firstName || !lastName || !firstName.value.trim() || !lastName.value.trim()) {
-        errors.push('姓名不能为空');
+        errors.push('Name is required.');
         isValid = false;
         highlightError(firstName);
         highlightError(lastName);
@@ -1268,11 +1268,11 @@ function validateForm() {
     if (email) {
         const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
         if (!email.value.trim()) {
-            errors.push('邮箱地址不能为空');
+            errors.push('Email is required.');
             isValid = false;
             highlightError(email);
         } else if (!emailRegex.test(email.value)) {
-            errors.push('邮箱格式不正确，必须包含@和有效的域名后缀（如.com）');
+            errors.push('Invalid email format. Include @ and a valid domain (e.g. .com).');
             isValid = false;
             highlightError(email);
         }
@@ -1283,11 +1283,11 @@ function validateForm() {
     if (phone) {
         const phoneRegex = /^1[3-9]\d{9}$/;
         if (!phone.value.trim()) {
-            errors.push('联系电话不能为空');
+            errors.push('Phone number is required.');
             isValid = false;
             highlightError(phone);
         } else if (!phoneRegex.test(phone.value)) {
-            errors.push('电话号码必须是11位有效手机号码');
+            errors.push('Phone number must be a valid 10-15 digit number.');
             isValid = false;
             highlightError(phone);
         }
@@ -1296,7 +1296,7 @@ function validateForm() {
     // 验证联系人
     const contactPerson = document.querySelector('input[name="contact_person"]');
     if (!contactPerson || !contactPerson.value.trim()) {
-        errors.push('联系人不能为空');
+        errors.push('Contact person is required.');
         isValid = false;
         highlightError(contactPerson);
     }
@@ -1304,7 +1304,7 @@ function validateForm() {
     // 验证地址
     const address = document.querySelector('textarea[name="address"]');
     if (!address || !address.value.trim()) {
-        errors.push('联系地址不能为空');
+        errors.push('Address is required.');
         isValid = false;
         highlightError(address);
     }
@@ -1320,17 +1320,17 @@ function validateForm() {
     if (hasPasswordInput) {
         // 如果输入了密码，验证密码
         if (!newPassword.value.trim() || !confirmPassword.value.trim()) {
-            errors.push('请输入完整的密码和确认密码');
+            errors.push('Please enter both password fields.');
             isValid = false;
             highlightError(newPassword);
             highlightError(confirmPassword);
         } else if (newPassword.value !== confirmPassword.value) {
-            errors.push('两次输入的密码不一致');
+            errors.push('Passwords do not match.');
             isValid = false;
             highlightError(newPassword);
             highlightError(confirmPassword);
         } else if (newPassword.value.length < 6) {
-            errors.push('密码长度至少为6位');
+            errors.push('Password must be at least 6 characters.');
             isValid = false;
             highlightError(newPassword);
         } else {
@@ -1359,6 +1359,7 @@ function highlightError(element) {
         }, 3000);
     }
 }
+
 
 // 显示错误信息
 function showErrorMessages(errors) {
@@ -1413,7 +1414,7 @@ function saveChanges() {
     
     // 显示加载状态
     const saveBtn = document.getElementById('saveBtn');
-    saveBtn.innerHTML = '<span class="icon">⏳</span>保存中...';
+    saveBtn.innerHTML = '<span class="icon">⏳</span>Saving...';
     saveBtn.disabled = true;
     
     // 收集表单数据
@@ -1457,7 +1458,7 @@ function saveChanges() {
             // 有PHP错误，显示错误信息
             const errors = Array.from(errorMessage.querySelectorAll('li')).map(li => li.textContent.trim());
             showErrorMessages(errors);
-            saveBtn.innerHTML = '<span class="icon">💾</span>保存修改';
+            saveBtn.innerHTML = '<span class="icon">💾</span>Save';
             saveBtn.disabled = false;
         } else {
             // 没有错误，重新加载页面
@@ -1466,9 +1467,9 @@ function saveChanges() {
     })
     .catch(error => {
         console.error('保存失败:', error);
-        saveBtn.innerHTML = '<span class="icon">💾</span>保存修改';
+        saveBtn.innerHTML = '<span class="icon">💾</span>Save';
         saveBtn.disabled = false;
-        alert('保存失败，请稍后重试');
+        alert('Save failed. Please try again.');
     });
 }
 

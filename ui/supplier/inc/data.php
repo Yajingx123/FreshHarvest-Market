@@ -1,5 +1,17 @@
 <?php
-require_once __DIR__ . '/../../config/db_connect.php';
+function getDBConnection() {
+    $servername = "localhost";
+    $username = "supplier_user";
+    $password = "YourPassword123!"; // 统一为当前root密码
+    $dbname = "mydb";
+    
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        die("数据库连接失败: " . $conn->connect_error);
+    }
+    $conn->set_charset("utf8mb4");
+    return $conn;
+}
 
 function getCurrentSupplierId() {
     return isset($_SESSION['supplier_id']) ? (int)$_SESSION['supplier_id'] : 0;
@@ -114,6 +126,42 @@ function getPurchaseOrderDetail($orderId) {
         $order['items'][] = $row;
     }
     $stmt->close();
+
+    // 获取退回商品和退款金额
+    $stmt = $conn->prepare("
+        SELECT
+            p.product_ID,
+            p.product_name,
+            p.sku,
+            COUNT(*) AS return_qty,
+            COALESCE(SUM(pi.unit_cost), 0) AS refund_amount
+        FROM StockItemCertificate sc
+        JOIN StockItem si ON sc.item_ID = si.item_ID
+        JOIN PurchaseItem pi ON pi.item_ID = si.item_ID
+        JOIN products p ON p.product_ID = pi.product_ID
+        JOIN PurchaseOrder po ON po.purchase_order_ID = pi.purchase_order_ID
+        WHERE sc.transaction_type = 'return'
+          AND po.purchase_order_ID = ?
+          AND po.supplier_ID = ?
+        GROUP BY p.product_ID, p.product_name, p.sku
+        ORDER BY p.product_name
+    ");
+    $stmt->bind_param("ii", $orderId, $supplierId);
+    $stmt->execute();
+    $order['returns'] = [];
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $order['returns'][] = $row;
+    }
+    $stmt->close();
+
+    $refundTotal = 0.0;
+    foreach ($order['returns'] as $row) {
+        $refundTotal += (float)$row['refund_amount'];
+    }
+    $orderTotal = isset($order['total_amount']) ? (float)$order['total_amount'] : 0.0;
+    $order['refund_total'] = $refundTotal;
+    $order['final_amount'] = max($orderTotal - $refundTotal, 0.0);
     
     return $order;
 }
@@ -493,13 +541,131 @@ function updateSupplierPassword($username, $newPassword) {
             $stmt->close();
             return false;
         }
-        
     } catch (Exception $e) {
         error_log("更新密码过程中发生异常: " . $e->getMessage());
         return false;
     }
 }
 
+function updateSupplierInfo($username, $updateData) {
+    try {
+        $conn = getDBConnection();
+        
+        if ($conn->connect_error) {
+            throw new Exception("数据库连接失败: " . $conn->connect_error);
+        }
+        
+        // 开始事务
+        $conn->autocommit(false);
+        
+        $success = true;
+        
+        // 1. 准备更新 User 表的数据
+        $userUpdateData = [];
+        if (isset($updateData['first_name'])) {
+            $userUpdateData['first_name'] = $updateData['first_name'];
+        }
+        if (isset($updateData['last_name'])) {
+            $userUpdateData['last_name'] = $updateData['last_name'];
+        }
+        if (isset($updateData['user_email'])) {
+            $userUpdateData['user_email'] = $updateData['user_email'];
+        }
+        if (isset($updateData['user_telephone'])) {
+            $userUpdateData['user_telephone'] = $updateData['user_telephone'];
+        }
+        
+        // 2. 更新 User 表
+        if (!empty($userUpdateData)) {
+            $userSetParts = [];
+            $userParams = [];
+            $userTypes = '';
+            
+            foreach ($userUpdateData as $field => $value) {
+                $userSetParts[] = "{$field} = ?";
+                $userParams[] = $value;
+                $userTypes .= 's'; // 所有字段都是字符串类型
+            }
+            
+            // 添加用户名作为 WHERE 条件
+            $userTypes .= 's';
+            $userParams[] = $username;
+            
+            $userSql = "UPDATE User SET " . implode(', ', $userSetParts) . " WHERE user_name = ?";
+            $userStmt = $conn->prepare($userSql);
+            
+            if ($userStmt === false) {
+                throw new Exception("User表更新语句准备失败: " . $conn->error);
+            }
+            
+            $userStmt->bind_param($userTypes, ...$userParams);
+            if (!$userStmt->execute()) {
+                $success = false;
+                error_log("更新User表失败: " . $userStmt->error);
+            }
+            $userStmt->close();
+        }
+        
+        // 3. 准备更新 Supplier 表的数据
+        $supplierUpdateData = [];
+        if (isset($updateData['contact_person'])) {
+            $supplierUpdateData['contact_person'] = $updateData['contact_person'];
+        }
+        if (isset($updateData['address'])) {
+            $supplierUpdateData['address'] = $updateData['address'];
+        }
+        
+        // 4. 更新 Supplier 表
+        if (!empty($supplierUpdateData)) {
+            $supplierSetParts = [];
+            $supplierParams = [];
+            $supplierTypes = '';
+            
+            foreach ($supplierUpdateData as $field => $value) {
+                $supplierSetParts[] = "{$field} = ?";
+                $supplierParams[] = $value;
+                $supplierTypes .= 's';
+            }
+            
+            // 添加用户名作为 WHERE 条件
+            $supplierTypes .= 's';
+            $supplierParams[] = $username;
+            
+            $supplierSql = "UPDATE Supplier SET " . implode(', ', $supplierSetParts) . " WHERE user_name = ?";
+            $supplierStmt = $conn->prepare($supplierSql);
+            
+            if ($supplierStmt === false) {
+                throw new Exception("Supplier表更新语句准备失败: " . $conn->error);
+            }
+            
+            $supplierStmt->bind_param($supplierTypes, ...$supplierParams);
+            if (!$supplierStmt->execute()) {
+                $success = false;
+                error_log("更新Supplier表失败: " . $supplierStmt->error);
+            }
+            $supplierStmt->close();
+        }
+        
+        // 5. 根据结果提交或回滚事务
+        if ($success) {
+            $conn->commit();
+            $conn->close();
+            return true;
+        } else {
+            $conn->rollback();
+            $conn->close();
+            return false;
+        }
+        
+    } catch (Exception $e) {
+        // 发生异常时回滚事务
+        if (isset($conn) && $conn->autocommit === false) {
+            $conn->rollback();
+        }
+        error_log("更新供应商信息失败: " . $e->getMessage());
+        return false;
+    }
+}
 if (isset($_GET['action']) && $_GET['action'] == 'logout') {
     logout();
 }

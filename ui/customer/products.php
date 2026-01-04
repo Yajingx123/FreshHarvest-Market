@@ -1,5 +1,6 @@
 <?php
 require_once 'inc/data.php'; // 确保路径正确
+$pageTitle = 'Products';
 require_once 'header.php'; // 引入导航栏
 
 // 获取分类和商品数据
@@ -14,17 +15,18 @@ if (!empty($products)) { // 判断$products是否非空
     foreach ($products as $product) {
            // 即使getProductBranches返回空，也给branches赋值为空数组
            $product['branches'] = getProductBranches($product['id']) ?? [];
+           $product['image_url'] = getProductImageUrl($product['sku']);
            $productsWithBranches[] = $product;
     }
 }
 ?>
 
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>商品列表</title>
+    <title>Products</title>
     <style>
     .product-section {
         background-color: #fff;
@@ -538,6 +540,42 @@ if (!empty($products)) { // 判断$products是否非空
             width: auto;
         }
     }
+    .product-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.product-card:hover .product-img img {
+    transform: scale(1.05);
+}
+
+.modal-product-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+/* 图片加载时的样式 */
+.product-img {
+    overflow: hidden;
+    position: relative;
+}
+
+.product-img .loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+}
 </style>
 </head>
 <body>
@@ -552,10 +590,10 @@ if (!empty($products)) { // 判断$products是否非空
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                             </svg>
-                            产品搜索
+                            Product search
                         </h3>
                         <div class="search-container">
-                            <input type="text" class="search-input" id="searchInput" placeholder="搜索产品名称..." value="<?php echo htmlspecialchars($searchKeyword); ?>">
+                            <input type="text" class="search-input" id="searchInput" placeholder="Search products..." value="<?php echo htmlspecialchars($searchKeyword); ?>">
                             <span class="search-icon" id="searchIcon">🔍︎</span>
                         </div>
                         
@@ -563,12 +601,12 @@ if (!empty($products)) { // 判断$products是否非空
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
                             </svg>
-                            产品排序
+                            Sort products
                         </h3>
                         <select class="sort-select" id="sortSelect">
-                            <option value="default">默认排序</option>
-                            <option value="price-asc">价格从低到高</option>
-                            <option value="price-desc">价格从高到低</option>
+                            <option value="default">Default</option>
+                            <option value="price-asc">Price: low to high</option>
+                            <option value="price-desc">Price: high to low</option>
                         </select>
                     </div>
                     
@@ -578,12 +616,12 @@ if (!empty($products)) { // 判断$products是否非空
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M3 6h18M3 12h18M3 18h18"></path>
                         </svg>
-                        产品分类
+                        Categories
                     </h3>
                     <ul class="category-list">
                         <li class="category-item">
                             <a href="products.php?category=all<?php echo $searchKeyword ? '&search=' . urlencode($searchKeyword) : ''; ?>" class="category-link <?php echo $selectedCategory === 'all' ? 'active' : ''; ?>">
-                                全部商品
+                                All products
                                 <span class="category-count">
                                     <?php 
                                     $total = 0;
@@ -608,19 +646,61 @@ if (!empty($products)) { // 判断$products是否非空
                 <!-- 产品内容区 -->
                 <div class="product-content">
                     <div class="product-header">
-                        <h2><?php echo $selectedCategory === 'all' ? '全部商品' : htmlspecialchars($selectedCategory); ?></h2>
+                        <h2><?php echo $selectedCategory === 'all' ? 'All products' : htmlspecialchars($selectedCategory); ?></h2>
                     </div>
                     <?php if ($searchKeyword): ?>
-                        <p style="margin-top: -10px; margin-bottom: 10px;">搜索关键词：<?php echo htmlspecialchars($searchKeyword); ?>（共<?php echo count($products); ?>个商品）</p>
+                        <p style="margin-top: -10px; margin-bottom: 10px;">Search: <?php echo htmlspecialchars($searchKeyword); ?> (<?php echo count($products); ?> items)</p>
                     <?php endif; ?>
                     
                     <div class="product-grid" id="productGrid">
                         <?php if (empty($products)): ?>
-                            <p style="grid-column: 1 / -1; text-align: center; color: #666; padding: 40px;">没有找到相关商品</p>
+                            <p style="grid-column: 1 / -1; text-align: center; color: #666; padding: 40px;">No products found</p>
                         <?php else: ?>
                             <?php foreach ($products as $product): ?>
                             <div class="product-card" data-id="<?php echo $product['id']; ?>">
-                                <div class="product-img">📦</div>
+
+                                <div class="product-img">
+    <?php 
+        // 获取图片URL（用于显示）
+        $imageUrl = getProductImageUrl($product['sku']);
+        // 获取完整路径（用于检查文件是否存在）
+        $imageFullPath = getProductImageUrl($product['sku'], true);
+        
+        if (file_exists($imageFullPath) && $imageUrl !== 'images/default-product.png'): 
+    ?>
+        <img src="<?php echo htmlspecialchars($imageUrl); ?>" 
+             alt="<?php echo htmlspecialchars($product['name']); ?>"
+             style="width: 100%; height: 100%; object-fit: cover;"
+             onerror="this.onerror=null; this.parentElement.innerHTML='<div style=\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:48px;background-color:#f5f5f5;\'>📦</div>';">
+    <?php else: ?>
+        <!-- 显示占位符 -->
+        <?php 
+            $categoryCode = explode('-', $product['sku'])[0] ?? '';
+            $icon = '📦';
+            $bgColor = '#f5f5f5';
+            
+            $categoryIcons = [
+                'VEG' => ['icon' => '🥬', 'color' => '#e8f5e8'],
+                'FRU' => ['icon' => '🍎', 'color' => '#ffeaea'],
+                'MEAT' => ['icon' => '🥩', 'color' => '#ffebee'],
+                'SHRIMP' => ['icon' => '🦐', 'color' => '#e3f2fd'],
+                'FISH' => ['icon' => '🐟', 'color' => '#e0f2f1'],
+                'EGG' => ['icon' => '🥚', 'color' => '#fff8e1'],
+                'SEA' => ['icon' => '🦀', 'color' => '#e0f7fa'],
+            ];
+            
+            $categoryUpper = strtoupper($categoryCode);
+            if (isset($categoryIcons[$categoryUpper])) {
+                $icon = $categoryIcons[$categoryUpper]['icon'];
+                $bgColor = $categoryIcons[$categoryUpper]['color'];
+            }
+        ?>
+        <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 48px; background-color: <?php echo $bgColor; ?>;">
+            <?php echo $icon; ?>
+        </div>
+    <?php endif; ?>
+</div>
+
                                 <div class="product-info">
                                     <div class="product-name"><?php echo htmlspecialchars($product['name']); ?></div>
                                     <div class="product-price">
@@ -628,7 +708,17 @@ if (!empty($products)) { // 判断$products是否非空
                                         <span class="original-price">¥<?php echo number_format($product['price'], 2); ?></span>
                                     </div>
                                     <div class="product-stock">
-                                        <?php echo $product['stock_status']; ?> (剩余: <?php echo $product['stock_status'] === '无货' ? 0 : $product['stock']; ?>)
+                                        <?php
+                                        $stockStatusMap = [
+                                            '有货' => 'In stock',
+                                            '无货' => 'Out of stock',
+                                            '库存紧张' => 'Low stock',
+                                            '库存预警' => 'Low stock'
+                                        ];
+                                        $stockStatusLabel = $stockStatusMap[$product['stock_status']] ?? $product['stock_status'];
+                                        $stockCount = ($product['stock_status'] === '无货' || $product['stock_status'] === 'Out of stock') ? 0 : $product['stock'];
+                                        ?>
+                                        <?php echo $stockStatusLabel; ?> (Remaining: <?php echo $stockCount; ?>)
                                     </div>
                                 </div>
                             </div>
@@ -678,7 +768,7 @@ if (!empty($products)) { // 判断$products是否非空
                 }
                 return null;
             } catch (error) {
-                console.error('获取库存信息失败:', error);
+                console.error('Failed to fetch stock info:', error);
                 return null;
             }
         }
@@ -694,7 +784,7 @@ if (!empty($products)) { // 判断$products是否非空
                 const maxQuantityText = document.getElementById('maxQuantityText');
                 
                 if (stockInfoElement) {
-                    stockInfoElement.textContent = '加载中...';
+                    stockInfoElement.textContent = 'Loading...';
                 }
                 
                 // 动态获取库存信息
@@ -718,7 +808,7 @@ if (!empty($products)) { // 判断$products是否非空
                         
                         // 更新提示文本
                         if (maxQuantityText) {
-                            maxQuantityText.textContent = `最多可购 ${availableStock} 件`;
+                            maxQuantityText.textContent = `Max available: ${availableStock}`;
                         }
                     }
                 });
@@ -740,7 +830,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const maxQuantityText = document.getElementById('maxQuantityText');
             
             if (stockInfoElement) {
-                stockInfoElement.textContent = '加载中...';
+                stockInfoElement.textContent = 'Loading...';
             }
             
             // 动态获取库存信息
@@ -764,7 +854,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // 更新提示文本
                     if (maxQuantityText) {
-                        maxQuantityText.textContent = `最多可购 ${availableStock} 件`;
+                        maxQuantityText.textContent = `Max available: ${availableStock}`;
                     }
                 }
             });
@@ -783,21 +873,52 @@ document.addEventListener('DOMContentLoaded', function() {
                     let branchSelectHtml = '';
                     if (product.branches && product.branches.length > 0) {
                         branchSelectHtml = `<div class="product-detail-item">
-                            <label>选择门店：</label>
+                            <label>Select store:</label>
                             <select id="branchSelect" data-product-id="${productId}" 
                                     style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 250px;">
                                 ${product.branches.map(branch => 
                                     `<option value="${branch.id}" 
                                              data-available="${branch.available_stock}">
-                                        ${branch.name} (库存: ${branch.available_stock})
+                                        ${branch.name} (Stock: ${branch.available_stock})
                                     </option>`
                                 ).join('')}
                             </select>
                         </div>`;
                     }
                     
-                    // 构建弹窗内容
-                    modalProductImg.textContent = '📦';
+// 设置弹窗中的产品图片
+const categoryCode = product.sku ? product.sku.split('-')[0] : '';
+let icon = '📦';
+let bgColor = '#f5f5f5';
+
+const categoryIcons = {
+    'VEG': {icon: '🥬', color: '#e8f5e8'},
+    'FRU': {icon: '🍎', color: '#ffeaea'},
+    'FRUIT': {icon: '🍎', color: '#ffeaea'},
+    'MEAT': {icon: '🥩', color: '#ffebee'},
+    'SHRIMP': {icon: '🦐', color: '#e3f2fd'},
+    'FISH': {icon: '🐟', color: '#e0f2f1'},
+    'EGG': {icon: '🥚', color: '#fff8e1'},
+    'SEA': {icon: '🦀', color: '#e0f7fa'},
+};
+
+if (categoryIcons[categoryCode.toUpperCase()]) {
+    icon = categoryIcons[categoryCode.toUpperCase()].icon;
+    bgColor = categoryIcons[categoryCode.toUpperCase()].color;
+}
+
+
+const imageUrl = product.image_url;
+if (imageUrl && imageUrl !== 'images/default-product.png') {
+    modalProductImg.innerHTML = `<img src="${imageUrl}" 
+                                      alt="${htmlEscape(product.name)}"
+                                      style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
+} else {
+    modalProductImg.innerHTML = `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 80px; background-color: ${bgColor}; border-radius: 8px;">
+        ${icon}
+    </div>`;
+}
+                    const stockStatusLabel = mapStockStatus(product.stock_status);
                     modalProductInfo.innerHTML = `
                         <h3 class="modal-product-name">${htmlEscape(product.name)}</h3>
                         <div class="modal-product-price">
@@ -806,39 +927,39 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                         
                         <div class="product-detail-item">
-                            <label>分类：</label>
+                            <label>Category:</label>
                             <span>${htmlEscape(product.category)}</span>
                         </div>
                         <div class="product-detail-item">
-                            <label>全公司库存：</label>
-                            <span>${product.stock} (${product.stock_status})</span>
+                            <label>Company stock:</label>
+                            <span>${product.stock} (${stockStatusLabel})</span>
                         </div>
                         
                         ${branchSelectHtml}
                         
                         <div class="product-detail-item">
-                            <label>门店库存：</label>
+                            <label>Store stock:</label>
                             <span id="storeStockInfo">${product.branches.length > 0 ? product.branches[0].available_stock : 0}</span>
                         </div>
                         
                         ${product.branches.length > 0 ? `
                          <div class="branch-info">
-                            <h4>各门店库存情况：</h4>
+                            <h4>Store availability:</h4>
                             ${product.branches.map(branch => `
                             <div class="branch-item">
                         <div>
                         <div class="branch-name">${htmlEscape(branch.name)}</div>
                               ${branch.address ? `<div class="branch-address">${htmlEscape(branch.address)}</div>` : ''}
                         </div>
-                           <div class="branch-stock">${branch.available_stock} 件</div>
+                           <div class="branch-stock">${branch.available_stock}</div>
                         </div>
                         `).join(' ')}
                        </div>
                       ` : ''}
                         
                         <div class="product-description">
-                            <h4>产品详情</h4>
-                            <p>${htmlEscape(product.description || '暂无描述')}</p>
+                            <h4>Product details</h4>
+                            <p>${htmlEscape(product.description || 'No description')}</p>
                         </div>
                         
                         <!-- 数量控制 -->
@@ -849,13 +970,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                    style="width: 60px; text-align: center; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
                             <button class="quantity-btn" onclick="changeQuantity(1)">+</button>
                             <span style="margin-left: 10px; color: #666;" id="maxQuantityText">
-                                最多可购 ${product.branches.length > 0 ? product.branches[0].available_stock : 0} 件
+                                Max available: ${product.branches.length > 0 ? product.branches[0].available_stock : 0}
                             </span>
                         </div>
                         
                         <!-- 加入购物车按钮 -->
                         <button class="add-to-cart-btn" onclick="addToCart(${productId}, document.getElementById('quantity').value)" style="margin-top: 15px;">
-                            加入购物车
+                            Add to cart
                         </button>
                     `;
                     
@@ -898,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const availableStock = selectedOption ? parseInt(selectedOption.getAttribute('data-available')) || 0 : 0;
             
             if (quantity > availableStock) {
-                alert(`库存不足！当前门店可用库存为 ${availableStock} 件`);
+                alert(`Not enough stock. This store has ${availableStock} available.`);
                 return;
             }
             
@@ -919,18 +1040,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     modalProductInfo.innerHTML = `
                         <div class="cart-success-message">
                             <div class="cart-success-icon">✓</div>
-                            <div class="cart-success-text">已加入购物车</div>
+                            <div class="cart-success-text">Added to cart</div>
                         </div>
                     `;
                     
                     setTimeout(closeModalFunc, 1000);
                 } else {
-                    alert('加入购物车失败：' + data.message);
+                    alert('Failed to add to cart: ' + data.message);
                 }
             })
             .catch(error => {
-                console.error('请求错误：', error);
-                alert('加入购物车时发生网络错误');
+                console.error('Request error:', error);
+                alert('A network error occurred while adding to the cart.');
             });
         }
         
@@ -1004,6 +1125,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
+        function mapStockStatus(status) {
+            const map = {
+                '有货': 'In stock',
+                '无货': 'Out of stock',
+                '库存紧张': 'Low stock',
+                '库存预警': 'Low stock',
+                'In stock': 'In stock',
+                'Out of stock': 'Out of stock',
+                'Low stock': 'Low stock'
+            };
+            return map[status] || status || 'Unknown';
+        }
+
         // 辅助函数：防止XSS攻击
         function htmlEscape(str) {
             if (!str) return '';

@@ -2,11 +2,9 @@
 <?php include 'header.php'; ?>
 
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+session_start();
 require_once __DIR__ . '/inc/data.php';
-// 检查登录状态
+// Check login status
 if (!isset($_SESSION['customer_logged_in']) || $_SESSION['customer_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
@@ -17,6 +15,18 @@ $currentOrderId = $_GET['order_id'] ?? 0;
 $currentOrder = $currentOrderId ? getOrderDetails($currentOrderId) : null;
 $currentStatus = $_GET['status'] ?? 'all';
 $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $currentStatus);
+$statusMap = [
+    'Pending' => 'Pending',
+    'Delivering' => 'Delivering',
+    'Completed' => 'Completed',
+    'Cancelled' => 'Cancelled',
+    '已完成' => 'Completed',
+    '处理中' => 'Processing',
+    '已取消' => 'Cancelled',
+    '待处理' => 'Pending',
+    '已下单' => 'Ordered',
+    '已收货' => 'Received'
+];
 ?>
 
 <style>
@@ -97,7 +107,7 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
         background-color: #fff1f0;
         color: #ff4d4f;
     }
-    /* 优化的展开样式 - 浅绿色底色 */
+    /* Expanded details styles */
     .order-detail-content {
         border: 1px solid #eee;
         border-top: none;
@@ -160,7 +170,7 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
         text-decoration: none;
         margin-top: 10px;
     }
-    /* 模态框样式 */
+    /* Modal styles */
     .order-detail-modal {
         position: fixed;
         top: 0;
@@ -239,17 +249,17 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
     }
 </style>
 
-<!-- 我的订单 -->
+<!-- Orders -->
 <main class="order-page">
     <section class="product-section">
-        <h2 class="section-title">我的订单</h2>
+        <h2 class="section-title">My Orders</h2>
         
-        <!-- 订单标签切换 -->
+        <!-- Order status tabs -->
         <div class="tabs">
             <div class="tab <?= ($currentStatus === 'all') ? 'active' : '' ?>" data-status="all">All orders</div>
             <div class="tab <?= ($currentStatus === 'Pending') ? 'active' : '' ?>" data-status="Pending">Pending</div>
             <div class="tab <?= ($currentStatus === 'Delivering') ? 'active' : '' ?>" data-status="Delivering">Delivering</div>
-            <div class="tab <?= ($currentStatus === 'Completed') ? 'active' : '' ?>" data-status="Completed">Complete</div>
+            <div class="tab <?= ($currentStatus === 'Completed') ? 'active' : '' ?>" data-status="Completed">Completed</div>
             <div class="tab <?= ($currentStatus === 'Cancelled') ? 'active' : '' ?>" data-status="Cancelled">Cancelled</div>
         </div>
         
@@ -257,27 +267,26 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
             <div class="order-list">
                 <?php if (!empty($orders)): ?>
                     <?php foreach ($orders as $order): ?>
+                        <?php
+                        $statusLabel = $statusMap[$order['status']] ?? $order['status'];
+                        $statusKey = strtolower(str_replace(' ', '-', $statusLabel));
+                        ?>
                         <div class="order-item" 
                              data-order="<?= $order['id'] ?>" 
-                             data-status="<?= $order['status'] ?>">
+                             data-status="<?= $statusLabel ?>">
                             <div class="order-details">
-                                <h3>Order number:<?= $order['order_number'] ?></h3>
-                                <p>Order time:<?= $order['order_date'] ?></p>
-                                <p>Branch:<?= $order['store_name'] ?></p>
-                                <p>Products:<?= $order['product_details'] ?></p>
+                                <h3>Order #: <?= $order['order_number'] ?></h3>
+                                <p>Order time: <?= $order['order_date'] ?></p>
+                                <p>Store: <?= $order['store_name'] ?></p>
+                                <p>Items: <?= $order['product_details'] ?></p>
                                 <p>Amount: ¥<?= number_format($order['total_amount'], 2) ?></p>
                             </div>
-                            <span class="order-status status-<?= strtolower($order['status']) ?>">
-                                <?= [
-                                    'Pending' => 'pending',
-                                    'Delivering' => 'delivering',
-                                    'Completed' => 'completed',
-                                    'Cancelled' => 'cancelled'
-                                ][$order['status']] ?? $order['status'] ?>
+                            <span class="order-status status-<?= $statusKey ?>">
+                                <?= $statusLabel ?>
                             </span>
                         </div>
                         
-                        <!-- 订单详情（内联展开） -->
+                        <!-- Inline order details -->
                         <div class="order-detail-content" id="detail-<?= $order['id'] ?>">
                             <?php 
                             $orderDetails = getOrderDetails($order['id']);
@@ -291,9 +300,9 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
                             </div>
                             <?php endforeach; ?>
                             <div class="detail-summary">
-                                合计：¥<?= number_format($orderDetails['final_amount'], 2) ?>
+                                Total: ¥<?= number_format($orderDetails['final_amount'], 2) ?>
                                 <?php if (isset($orderDetails['shipping_fee']) && $orderDetails['shipping_fee'] > 0): ?>
-                                    （Including delivery fee ¥<?= number_format($orderDetails['shipping_fee'], 2) ?>）
+                                    (Includes delivery fee ¥<?= number_format($orderDetails['shipping_fee'], 2) ?>)
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -301,8 +310,8 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
                 <?php else: ?>
                     <div class="empty-state">
                         <img src="images/empty-orders.png" alt="There are no orders for the moment.">
-                        <p>You have no order record yet. Go shopping quickly~</p>
-                        <a href="products.php" class="btn-primary">go for a stroll</a>
+                        <p>You don't have any orders yet. Start shopping!</p>
+                        <a href="products.php" class="btn-primary">Browse products</a>
                     </div>
                 <?php endif; ?>
             </div>
@@ -310,33 +319,28 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
     </section>
 
     <?php if ($currentOrder): ?>
-        <!-- 模态框详情视图 -->
+        <!-- Modal order details -->
         <section class="order-detail-modal">
             <div class="modal-content">
                 <h3>Order details: #<?= $currentOrder['order_number'] ?></h3>
                 <div class="detail-section">
-                    <h4>Order information:</h4>
-                    <p>Order number:<?= $currentOrder['order_number'] ?></p>
-                    <p>Order time:<?= $currentOrder['order_date'] ?></p>
-                    <p>Branch:<?= $currentOrder['store_name'] ?></p>
-                    <p>Address:<?= $currentOrder['shipping_address'] ?? '未设置' ?></p>
-                    <p>Order status<?= [
-                        'Pending' => 'pending',
-                        'Delivering' => 'delivering',
-                        'Completed' => 'completed',
-                        'Cancelled' => 'cancelled'
-                    ][$currentOrder['order_status']] ?? $currentOrder['order_status'] ?></p>
+                    <h4>Order info</h4>
+                    <p>Order #: <?= $currentOrder['order_number'] ?></p>
+                    <p>Order time: <?= $currentOrder['order_date'] ?></p>
+                    <p>Store: <?= $currentOrder['store_name'] ?></p>
+                    <p>Address: <?= $currentOrder['shipping_address'] ?? 'Not set' ?></p>
+                    <p>Status: <?= $statusMap[$currentOrder['order_status']] ?? $currentOrder['order_status'] ?></p>
                 </div>
 
                 <div class="detail-section">
-                    <h4>商品明细</h4>
+                    <h4>Items</h4>
                     <table class="items-table">
                         <thead>
                             <tr>
-                                <th>商品名称</th>
-                                <th>单价</th>
-                                <th>数量</th>
-                                <th>小计</th>
+                                <th>Product</th>
+                                <th>Unit Price</th>
+                                <th>Qty</th>
+                                <th>Subtotal</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -353,65 +357,65 @@ $orders = getCustomerOrders($customerId, $currentStatus === 'all' ? null : $curr
                 </div>
 
                 <div class="detail-section total-section">
-                    <p>原始总金额：¥<?= number_format($currentOrder['total_amount'], 2) ?></p>
-                    <p>折扣后金额：¥<?= number_format($currentOrder['final_amount'], 2) ?></p>
+                    <p>Subtotal: ¥<?= number_format($currentOrder['total_amount'], 2) ?></p>
+                    <p>Total: ¥<?= number_format($currentOrder['final_amount'], 2) ?></p>
                     <?php if (isset($currentOrder['shipping_fee']) && $currentOrder['shipping_fee'] > 0): ?>
-                        <p>配送费：¥<?= number_format($currentOrder['shipping_fee'], 2) ?></p>
+                        <p>Delivery fee: ¥<?= number_format($currentOrder['shipping_fee'], 2) ?></p>
                     <?php endif; ?>
                 </div>
 
-                <button class="close-modal" onclick="window.location='orders.php?status=<?= htmlspecialchars($currentStatus) ?>'">关闭</button>
+                <button class="close-modal" onclick="window.location='orders.php?status=<?= htmlspecialchars($currentStatus) ?>'">Close</button>
             </div>
         </section>
     <?php endif; ?>
 </main>
 
 <script>
-    // 订单标签切换
+    // Status tab switching
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', function() {
-            // 更新标签状态
+            // Update active tab
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             this.classList.add('active');
             
-            // 跳转到对应状态页面
+            // Navigate to selected status
             const status = this.getAttribute('data-status');
             window.location.href = 'orders.php?status=' + status;
         });
     });
 
-    // 订单详情展开/折叠（仅用于内联视图）
+    // Toggle inline order details
     document.querySelectorAll('.order-item').forEach(item => {
         item.addEventListener('click', function(e) {
-            // 防止点击链接时触发折叠
+            // Avoid toggling when clicking links
             if (e.target.tagName === 'A') return;
             
             const orderId = this.getAttribute('data-order');
             const detail = document.getElementById(`detail-${orderId}`);
             
-            // 关闭其他打开的详情
+            // Close other details
             document.querySelectorAll('.order-detail-content').forEach(d => {
                 if (d !== detail) d.classList.remove('active');
             });
             
-            // 切换当前详情
+            // Toggle current detail
             detail.classList.toggle('active');
         });
     });
     
-    // 如果URL中有order_id参数，自动展开对应订单
+    // Auto-open details if order_id is provided
     document.addEventListener('DOMContentLoaded', function() {
         const urlParams = new URLSearchParams(window.location.search);
         const orderId = urlParams.get('order_id');
         const status = urlParams.get('status') || 'all';
         
         if (orderId) {
-            // 跳转到详情视图（通过URL参数），这里保留内联展开功能
+            // Keep inline expand when order_id is present
             const detail = document.getElementById(`detail-${orderId}`);
             if (detail) {
-                // 滚动到对应订单
+                // Scroll to order
                 detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                // 展开详情
+                // Expand detail
                 detail.classList.add('active');
             }
         }

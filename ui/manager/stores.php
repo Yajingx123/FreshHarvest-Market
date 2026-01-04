@@ -11,40 +11,60 @@ if (!isset($branches) || !is_array($branches)) {
 }
 ?>
 <section class="section">
-    <h2 class="section-title">门店列表</h2>
+    <h2 class="section-title">Stores</h2>
     <div class="filter-bar" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-        <input id="storeSearch" class="filter-input" placeholder="按门店名称、地址或经理名搜索" style="flex:1;max-width:300px;">
+        <input id="storeSearch" class="filter-input" placeholder="Search by store name, address, or manager" style="flex:1;max-width:300px;">
         <select id="storeStatusFilter" class="filter-select">
-            <option value="">所有状态</option>
-            <option value="营业中">营业中</option>
-            <option value="装修中">装修中</option>
-            <option value="已停业">已停业</option>
+            <option value="">All statuses</option>
+            <option value="Open">Open</option>
+            <option value="Renovating">Renovating</option>
+            <option value="Closed">Closed</option>
         </select>
-        <button class="btn btn-primary" id="storeSearchBtn">搜索</button>
-        <button class="btn btn-success" id="storeAddBtn" style="margin-left:auto;">新增门店</button>
+        <button class="btn btn-primary" id="storeSearchBtn">Search</button>
+        <button class="btn btn-success" id="storeAddBtn" style="margin-left:auto;">Add store</button>
     </div>
     <div style="max-height:520px;overflow:auto;">
         <table class="data-table" style="min-width:1300px;">
             <thead>
                 <tr>
-                    <th>门店ID</th>
-                    <th>门店名称</th>
-                    <th>地址</th>
-                    <th>联系电话</th>
-                    <th>邮箱</th>
-                    <th>经理名</th>
-                    <th>经理电话</th>
-                    <th>员工数</th>
-                    <th>状态</th>
-                    <th>建立时间</th>
-                    <th>操作</th>
+                    <th>Store ID</th>
+                    <th>Store Name</th>
+                    <th>Address</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Manager</th>
+                    <th>Manager Phone</th>
+                    <th>Staff</th>
+                    <th>Status</th>
+                    <th>Established</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="storesTbody">
                 <?php if (!empty($branches)): ?>
                     <?php foreach ($branches as $branch): ?>
+                    <?php
+                        $statusLabelMap = [
+                            'active' => 'Open',
+                            '营业中' => 'Open',
+                            'Open' => 'Open',
+                            'under_renovation' => 'Renovating',
+                            '装修中' => 'Renovating',
+                            'Renovating' => 'Renovating',
+                            'inactive' => 'Closed',
+                            '已停业' => 'Closed',
+                            'Closed' => 'Closed'
+                        ];
+                        $statusLabel = $statusLabelMap[$branch['status']] ?? $branch['status'];
+                        $statusClassMap = [
+                            'Open' => 'status-accepted',
+                            'Renovating' => 'status-pending',
+                            'Closed' => 'status-rejected'
+                        ];
+                        $status_class = $statusClassMap[$statusLabel] ?? '';
+                    ?>
                     <tr data-id="<?= htmlspecialchars($branch['id']) ?>" 
-                        data-status="<?= htmlspecialchars($branch['status']) ?>">
+                        data-status="<?= htmlspecialchars($statusLabel) ?>">
                         <td>#<?= htmlspecialchars($branch['id']) ?></td>
                         <td><?= htmlspecialchars($branch['name']) ?></td>
                         <td><?= htmlspecialchars($branch['address']) ?></td>
@@ -54,32 +74,16 @@ if (!isset($branches) || !is_array($branches)) {
                         <td><?= htmlspecialchars($branch['manager_phone']) ?></td>
                         <td><?= $branch['staff_count'] ?></td>
                         <td>
-                            <?php 
-                            $status_class = '';
-                            switch ($branch['status']) {
-                                case '营业中':
-                                    $status_class = 'status-accepted';
-                                    break;
-                                case '装修中':
-                                    $status_class = 'status-pending';
-                                    break;
-                                case '已停业':
-                                    $status_class = 'status-rejected';
-                                    break;
-                                default:
-                                    $status_class = '';
-                            }
-                            ?>
                             <span class="status-tag <?= $status_class ?>">
-                                <?= htmlspecialchars($branch['status']) ?>
+                                <?= htmlspecialchars($statusLabel) ?>
                             </span>
                         </td>
                         <td><?= htmlspecialchars($branch['established_date']) ?></td>
                         <td>
                             <div class="action-buttons">
-                                <button class="btn btn-primary btn-view" title="查看详情">查看</button>
-                                <button class="btn btn-warning btn-edit" title="编辑信息">编辑</button>
-                                <button class="btn btn-info btn-manage" title="管理员工">员工</button>
+                                <button class="btn btn-primary btn-view" title="View details">View</button>
+                                <button class="btn btn-warning btn-edit" title="Edit">Edit</button>
+                                <button class="btn btn-info btn-manage" title="Manage staff">Staff</button>
                             </div>
                         </td>
                     </tr>
@@ -87,7 +91,7 @@ if (!isset($branches) || !is_array($branches)) {
                 <?php else: ?>
                     <tr>
                         <td colspan="11" style="text-align:center;color:#666;padding:18px;">
-                            暂无门店数据
+                            No stores found
                         </td>
                     </tr>
                 <?php endif; ?>
@@ -112,6 +116,21 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function formatBranchStatus(status) {
+    const map = {
+        active: 'Open',
+        inactive: 'Closed',
+        under_renovation: 'Renovating',
+        '营业中': 'Open',
+        '装修中': 'Renovating',
+        '已停业': 'Closed',
+        'Open': 'Open',
+        'Renovating': 'Renovating',
+        'Closed': 'Closed'
+    };
+    return map[status] || status || 'Unknown';
+}
+
 // 查看门店详情
 function showBranchDetails(branchId) {
     const branch = branchesData.find(b => b.id == branchId);
@@ -121,7 +140,7 @@ function showBranchDetails(branchId) {
         <div style="display:flex;gap:20px;align-items:flex-start;">
             <div style="width:150px;flex-shrink:0;">
                 <div style="width:140px;height:140px;background:#f5f5f5;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#999;margin-bottom:12px;">
-                    门店图片
+                    Store photo
                 </div>
                 <div style="text-align:center;">
                     <strong style="display:block;">${escapeHtml(branch.name)}</strong>
@@ -132,33 +151,33 @@ function showBranchDetails(branchId) {
             <div style="flex:1;">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
                     <div>
-                        <div style="color:#666;font-size:13px;margin-bottom:4px;">联系电话</div>
-                        <div style="color:#333;font-weight:500;">${escapeHtml(branch.phone || '未设置')}</div>
+                        <div style="color:#666;font-size:13px;margin-bottom:4px;">Phone</div>
+                        <div style="color:#333;font-weight:500;">${escapeHtml(branch.phone || 'Not set')}</div>
                     </div>
                     <div>
-                        <div style="color:#666;font-size:13px;margin-bottom:4px;">邮箱</div>
-                        <div style="color:#333;">${escapeHtml(branch.email || '未设置')}</div>
+                        <div style="color:#666;font-size:13px;margin-bottom:4px;">Email</div>
+                        <div style="color:#333;">${escapeHtml(branch.email || 'Not set')}</div>
                     </div>
                     <div>
-                        <div style="color:#666;font-size:13px;margin-bottom:4px;">地址</div>
+                        <div style="color:#666;font-size:13px;margin-bottom:4px;">Address</div>
                         <div style="color:#333;">${escapeHtml(branch.address)}</div>
                     </div>
                     <div>
-                        <div style="color:#666;font-size:13px;margin-bottom:4px;">状态</div>
-                        <div style="color:#333;font-weight:500;">${escapeHtml(branch.status)}</div>
+                        <div style="color:#666;font-size:13px;margin-bottom:4px;">Status</div>
+                        <div style="color:#333;font-weight:500;">${escapeHtml(formatBranchStatus(branch.status))}</div>
                     </div>
                 </div>
                 
                 <div style="border-top:1px solid #eee;padding-top:16px;">
-                    <h4 style="margin:0 0 8px 0;font-size:15px;">经理信息</h4>
+                    <h4 style="margin:0 0 8px 0;font-size:15px;">Manager Info</h4>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div>
-                            <div style="color:#666;font-size:13px;margin-bottom:4px;">经理姓名</div>
+                            <div style="color:#666;font-size:13px;margin-bottom:4px;">Manager Name</div>
                             <div style="color:#333;font-weight:500;">${escapeHtml(branch.manager_name)}</div>
                         </div>
                         <div>
-                            <div style="color:#666;font-size:13px;margin-bottom:4px;">经理电话</div>
-                            <div style="color:#333;">${escapeHtml(branch.manager_phone || '未设置')}</div>
+                            <div style="color:#666;font-size:13px;margin-bottom:4px;">Manager Phone</div>
+                            <div style="color:#333;">${escapeHtml(branch.manager_phone || 'Not set')}</div>
                         </div>
                     </div>
                 </div>
@@ -166,11 +185,11 @@ function showBranchDetails(branchId) {
                 <div style="border-top:1px solid #eee;padding-top:16px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div>
-                            <div style="color:#666;font-size:13px;margin-bottom:4px;">员工数量</div>
-                            <div style="color:#333;font-weight:500;font-size:20px;">${branch.staff_count} 人</div>
+                            <div style="color:#666;font-size:13px;margin-bottom:4px;">Staff</div>
+                            <div style="color:#333;font-weight:500;font-size:20px;">${branch.staff_count}</div>
                         </div>
                         <div>
-                            <div style="color:#666;font-size:13px;margin-bottom:4px;">建立时间</div>
+                            <div style="color:#666;font-size:13px;margin-bottom:4px;">Established</div>
                             <div style="color:#333;">${escapeHtml(branch.established_date)}</div>
                         </div>
                     </div>
@@ -181,19 +200,19 @@ function showBranchDetails(branchId) {
         <div style="margin-top:20px;padding-top:20px;border-top:1px solid #eee;">
             <div style="display:flex;gap:10px;">
                 <button class="btn btn-info" onclick="viewBranchStaff(${branch.id})" style="flex:1;">
-                    <i class="fas fa-users" style="margin-right:6px;"></i>查看员工列表
+                    <i class="fas fa-users" style="margin-right:6px;"></i>View staff
                 </button>
                 <button class="btn btn-warning" onclick="editBranch(${branch.id})" style="flex:1;">
-                    <i class="fas fa-edit" style="margin-right:6px;"></i>编辑门店信息
+                    <i class="fas fa-edit" style="margin-right:6px;"></i>Edit store
                 </button>
                 <button class="btn btn-success" onclick="viewBranchOrders(${branch.id})" style="flex:1;">
-                    <i class="fas fa-shopping-cart" style="margin-right:6px;"></i>查看订单
+                    <i class="fas fa-shopping-cart" style="margin-right:6px;"></i>View orders
                 </button>
             </div>
         </div>
     `;
     
-    showAppModal('门店详情', html, {showCancel:false, okText:'关闭', width:'800px'});
+    showAppModal('Store Details', html, {showCancel:false, okText:'Close', width:'800px'});
 }
 
 // 查看门店员工
@@ -214,11 +233,11 @@ function viewBranchStaff(branchId) {
         <table class="data-table" style="width:100%;">
             <thead>
                 <tr>
-                    <th>员工ID</th>
-                    <th>姓名</th>
-                    <th>职位</th>
-                    <th>联系电话</th>
-                    <th>入职日期</th>
+                    <th>Employee ID</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Phone</th>
+                    <th>Hire Date</th>
                 </tr>
             </thead>
             <tbody>
@@ -229,9 +248,9 @@ function viewBranchStaff(branchId) {
             <tr>
                 <td>#${escapeHtml(emp.id)}</td>
                 <td>${escapeHtml(emp.name)}</td>
-                <td>${escapeHtml(emp.role || '未设置')}</td>
-                <td>${escapeHtml(emp.phone || '未设置')}</td>
-                <td>${escapeHtml(emp.hire_date || '未设置')}</td>
+                <td>${escapeHtml(emp.role || 'Not set')}</td>
+                <td>${escapeHtml(emp.phone || 'Not set')}</td>
+                <td>${escapeHtml(emp.hire_date || 'Not set')}</td>
             </tr>
             `;
         });
@@ -242,7 +261,7 @@ function viewBranchStaff(branchId) {
     } else {
         employeesHtml = `
         <div style="text-align:center;padding:30px;color:#666;">
-            该门店暂无员工数据
+            No staff data for this store
         </div>
         `;
     }
@@ -250,14 +269,14 @@ function viewBranchStaff(branchId) {
     // 显示弹窗
     const html = `
         <div>
-            <h4 style="margin-top:0;margin-bottom:16px;">${escapeHtml(branch.name)} 的员工列表 (${branchEmployees.length}人)</h4>
+            <h4 style="margin-top:0;margin-bottom:16px;">${escapeHtml(branch.name)} staff list (${branchEmployees.length})</h4>
             <div style="max-height:400px;overflow:auto;">
                 ${employeesHtml}
             </div>
         </div>
     `;
     
-    showAppModal('门店员工列表', html, {showCancel:false, okText:'关闭', width:'800px'});
+    showAppModal('Store Staff', html, {showCancel:false, okText:'Close', width:'800px'});
 }
 
 // 编辑门店信息

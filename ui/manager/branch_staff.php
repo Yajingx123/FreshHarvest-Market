@@ -12,7 +12,7 @@ if (!$branchId) {
 // 获取门店信息
 $branch = getBranch($branchId); // 复用branch_edit.php中的函数
 if (!$branch) {
-    die("门店不存在");
+    die("Branch not found.");
 }
 
 // 处理添加员工
@@ -102,12 +102,12 @@ if (isset($_POST['add_staff'])) {
             $stmt->execute();
     
             if ($stmt->affected_rows > 0) {
-                $success = "员工分配成功";
+                $success = "Staff assigned successfully.";
             } else {
-                $error = "分配失败";
+                $error = "Assignment failed.";
             }
         } catch (Exception $e) {
-            $error = "添加失败: " . $e->getMessage();
+            $error = "Add failed: " . $e->getMessage();
         }
     }
 }
@@ -172,10 +172,10 @@ if (isset($_GET['remove_staff'])) {
             $checkOtherStmt->close();
         }
         
-        $success = "员工移除成功";
+        $success = "Staff removed successfully.";
         
     } catch (Exception $e) {
-        $error = "移除失败: " . $e->getMessage();
+        $error = "Remove failed: " . $e->getMessage();
     }
 }
 
@@ -184,9 +184,9 @@ $availableStaff = getAvailableStaff($branchId);
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title><?= $branch['branch_name'] ?> - 员工管理</title>
+    <title><?= $branch['branch_name'] ?> - Staff</title>
     <style>
         body {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -344,8 +344,8 @@ $availableStaff = getAvailableStaff($branchId);
     </style>
 </head>
 <body>
-    <h1><?= $branch['branch_name'] ?> - 员工管理</h1>
-    <a href="stores.php">返回门店列表</a>
+    <h1><?= $branch['branch_name'] ?> - Staff</h1>
+    <a href="stores.php">Back to stores</a>
     
     <?php if (isset($error)): ?>
         <div style="color:red;"><?= $error ?></div>
@@ -357,41 +357,53 @@ $availableStaff = getAvailableStaff($branchId);
         </div>
     <?php endif; ?>
 
-    <h3>当前员工</h3>
+    <h3>Current Staff</h3>
     <table border="1">
         <tr>
             <th>ID</th>
-            <th>姓名</th>
-            <th>职位</th>
-            <th>状态</th>
-            <th>邮箱</th>
-            <th>电话</th>
-            <th>操作</th>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>Actions</th>
         </tr>
         <?php foreach ($staffList as $s): ?>
         <tr>
             <td><?= $s['staff_ID'] ?></td>
             <td><?= $s['name'] ?></td>
             <td><?= $s['position'] ?></td>
-            <td><?= $s['status'] ?></td>
+            <td>
+                <?php
+                $statusMap = [
+                    'active' => 'Active',
+                    'on_leave' => 'On leave',
+                    'terminated' => 'Terminated',
+                    '在职' => 'Active',
+                    '休假' => 'On leave',
+                    '离职' => 'Terminated'
+                ];
+                echo htmlspecialchars($statusMap[$s['status']] ?? $s['status']);
+                ?>
+            </td>
             <td><?= $s['user_email'] ?></td>
             <td><?= $s['phone'] ?></td>
             <td>
                 <a href="?id=<?= $branchId ?>&remove_staff=<?= $s['staff_ID'] ?>" 
-                    onclick="return confirm('确定移除?')">移除</a>
+                    onclick="return confirm('Remove this staff member?')">Remove</a>
             </td>
         </tr>
         <?php endforeach; ?>
     </table>
 
-    <h3>添加员工到门店</h3>
+    <h3>Add Staff to Branch</h3>
     <form method="post">
         <select name="staff_id">
             <?php foreach ($availableStaff as $s): ?>
                 <option value="<?= $s['staff_ID'] ?>"><?= $s['name'] ?> (<?= $s['position'] ?>)</option>
             <?php endforeach; ?>
         </select>
-        <button type="submit" name="add_staff">添加</button>
+        <button type="submit" name="add_staff">Add</button>
     </form>
     <script>
 </script>

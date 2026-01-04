@@ -6,14 +6,14 @@ require_once __DIR__ . '/inc/data.php';
 // 验证登录状态
 if (!isset($_SESSION['supplier_id'])) {
     http_response_code(403);
-    echo json_encode(['error' => '未登录']);
+    echo json_encode(['error' => 'Not signed in']);
     exit;
 }
 
 // 验证参数
 if (!isset($_GET['branch_id']) || !is_numeric($_GET['branch_id'])) {
     http_response_code(400);
-    echo json_encode(['error' => '参数错误']);
+    echo json_encode(['error' => 'Invalid parameters']);
     exit;
 }
 
@@ -28,6 +28,6 @@ if ($branch) {
     echo json_encode($branch);
 } else {
     http_response_code(404);
-    echo json_encode(['error' => '门店不存在或无权限访问']);
+    echo json_encode(['error' => 'Branch not found or access denied']);
 }
 ?>

@@ -226,235 +226,61 @@ SELECT
 FROM products p
 LEFT JOIN Categories c ON p.category_id = c.category_id;
 
--- ============================================================
--- Permissions (staff users from newdata.sql)
--- ============================================================
 
--- NOTE: Run this section with a MySQL admin account (e.g. root).
--- If the DB users already exist, you can comment out the CREATE USER lines.
 
-CREATE USER IF NOT EXISTS 'm1@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 'm2@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 's1_b1@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 's2_b1@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 'd_b1@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 'm3@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 'm4@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 's1_b2@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 's2_b2@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 'd_b2@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 'm5@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 'm6@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 's1_b3@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 's2_b3@localhost'@'localhost' IDENTIFIED BY 'Test1234';
-CREATE USER IF NOT EXISTS 'd_b3@localhost'@'localhost' IDENTIFIED BY 'Test1234';
 
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 'm1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 'm1@localhost'@'localhost';
+-- 先删除已存在的用户
+DROP USER IF EXISTS 'staff_user'@'localhost';
+-- 1. 创建供应商用户
+CREATE USER 'staff_user'@'localhost' IDENTIFIED BY 'YourPassword123!';
+-- staff_user权限授予（员工端完整权限）
 
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 'm2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 'm2@localhost'@'localhost';
+-- staff_user权限授予（根据实际代码修正）
+GRANT LOCK TABLES ON *.* TO 'staff_user'@'localhost';
+-- 1. 基本表SELECT权限
+GRANT SELECT ON mydb.Branch TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.Staff TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.User TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.Customer TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.CustomerOrder TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.OrderItem TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.products TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.Inventory TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.StockItem TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.Supplier TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.PurchaseOrder TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.PurchaseItem TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.Categories TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.ProductAttribute TO 'staff_user'@'localhost';
 
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 's1_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 's1_b1@localhost'@'localhost';
+GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_employees TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_inventory_batches TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_product_category TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_supplier_pricing TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_restock_actor TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_order_overview TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_order_items_summary TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.v_staff_profile_detail TO 'staff_user'@'localhost';
 
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 's2_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 's2_b1@localhost'@'localhost';
 
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 'd_b1@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 'd_b1@localhost'@'localhost';
 
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 'm3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 'm3@localhost'@'localhost';
+GRANT EXECUTE ON PROCEDURE mydb.staff_adjust_inventory TO 'staff_user'@'localhost';
+GRANT EXECUTE ON PROCEDURE mydb.staff_restock TO 'staff_user'@'localhost';
+GRANT UPDATE ON mydb.Inventory TO 'staff_user'@'localhost';
+GRANT UPDATE ON mydb.StockItem TO 'staff_user'@'localhost';
+GRANT INSERT ON mydb.PurchaseOrder TO 'staff_user'@'localhost';
+GRANT INSERT ON mydb.PurchaseItem TO 'staff_user'@'localhost';
+GRANT INSERT, UPDATE ON mydb.CustomerOrder TO 'staff_user'@'localhost';
+GRANT INSERT, UPDATE ON mydb.OrderItem TO 'staff_user'@'localhost';
+GRANT UPDATE (user_telephone, user_email, password_hash) ON mydb.User TO 'staff_user'@'localhost';
+GRANT UPDATE (phone, hire_date, status) ON mydb.Staff TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.supplierproduct TO 'staff_user'@'localhost';
+GRANT TRIGGER ON mydb.* TO 'staff_user'@'localhost';
 
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 'm4@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 'm4@localhost'@'localhost';
-
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 's1_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 's1_b2@localhost'@'localhost';
-
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 's2_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 's2_b2@localhost'@'localhost';
-
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 'd_b2@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 'd_b2@localhost'@'localhost';
-
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 'm5@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 'm5@localhost'@'localhost';
-
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 'm6@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 'm6@localhost'@'localhost';
-
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 's1_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 's1_b3@localhost'@'localhost';
-
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 's2_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 's2_b3@localhost'@'localhost';
-
-GRANT SELECT ON mydb.v_staff_inventory_batches TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_unstocked_products TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_product_category TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_overview TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_items_summary TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_profile_detail TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_employees TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_stockitem_adjustment_actor TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_restock_actor TO 'd_b3@localhost'@'localhost';
-GRANT SELECT ON mydb.v_staff_supplier_pricing TO 'd_b3@localhost'@'localhost';
+-- 刷新权限
+FLUSH PRIVILEGES;

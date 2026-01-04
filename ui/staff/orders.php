@@ -1,24 +1,28 @@
 <?php
 header("Content-Type: text/html; charset=UTF-8");
 session_start();
-require_once __DIR__ . '/../config/db_connect.php';
 if (!isset($_SESSION['staff_logged_in']) || $_SESSION['staff_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
 }
+
+$servername = "localhost";
+$username = "staff_user";
+$password = "YourPassword123!";
+$dbname = "mydb";
 
 $ordersData = [];
 $error_message = '';
 $branchId = $_SESSION['staff_branch_id'] ?? null;
 
 /**
- * 为没有照片的商品生成一个颜色块头像
+ * Generate a badge image for products without photos.
  */
 function buildProductBadge($productId, $productName)
 {
     $palette = ['#ffb74d','#ffd180','#4dd0e1','#a5d6a7','#ce93d8','#ff8a80'];
     $color = $palette[$productId % count($palette)];
-    $label = $productName ?: '商品';
+    $label = $productName ?: 'Item';
     if (function_exists('mb_substr')) {
         $label = mb_substr($label, 0, 2, 'UTF-8');
     } else {
@@ -32,10 +36,14 @@ function buildProductBadge($productId, $productName)
     return 'data:image/svg+xml;charset=UTF-8,' . rawurlencode($svg);
 }
 
-$conn = getDBConnection();
-if ($branchId === null) {
-    $error_message = "无法确定当前门店，请重新登录。";
+$conn = new mysqli($servername, $username, $password, $dbname);
+if ($conn->connect_error) {
+    $error_message = "Database connection failed: " . $conn->connect_error;
+} elseif ($branchId === null) {
+    $error_message = "Unable to determine the current branch. Please sign in again.";
 } else {
+    $conn->set_charset("utf8mb4");
+
     $sql_orders = "SELECT order_ID, order_date, total_amount, status, shipping_address,
                           customer_ID, customer_phone, customer_email, loyalty_level,
                           first_name, last_name
@@ -51,7 +59,7 @@ if ($branchId === null) {
             while ($row = $result_orders->fetch_assoc()) {
                 $customerName = trim(($row['last_name'] ?? '') . ' ' . ($row['first_name'] ?? ''));
                 if ($customerName === '') {
-                    $customerName = '匿名顾客';
+                    $customerName = 'Anonymous Customer';
                 }
                 $orderId = (int)$row['order_ID'];
                 $ordersData[$orderId] = [
@@ -59,23 +67,23 @@ if ($branchId === null) {
                     'display_id' => 'ORD' . str_pad($orderId, 6, '0', STR_PAD_LEFT),
                     'order_time' => $row['order_date'] ? date('Y-m-d H:i', strtotime($row['order_date'])) : '--',
                     'status' => $row['status'] ?? 'Pending',
-                    'shipping_address' => $row['shipping_address'] ?: '暂无配送地址',
+                    'shipping_address' => $row['shipping_address'] ?: 'No shipping address',
                     'total_amount' => (float)$row['total_amount'],
                     'customer' => [
                         'name' => $customerName,
-                        'phone' => $row['customer_phone'] ?: '未提供',
-                        'email' => $row['customer_email'] ?: '未提供',
+                        'phone' => $row['customer_phone'] ?: 'Not provided',
+                        'email' => $row['customer_email'] ?: 'Not provided',
                         'loyalty' => $row['loyalty_level'] ?: 'Regular'
                     ],
                     'items' => []
                 ];
             }
         } else {
-            $error_message = "查询订单数据失败：" . $conn->error;
+            $error_message = "Failed to load orders: " . $conn->error;
         }
         $stmt_orders->close();
     } else {
-        $error_message = "准备订单查询失败：" . $conn->error;
+        $error_message = "Failed to prepare order query: " . $conn->error;
     }
 
     if (!$error_message && count($ordersData) > 0) {
@@ -105,11 +113,11 @@ if ($branchId === null) {
                     ];
                 }
             } else {
-                $error_message = "查询订单明细失败：" . $conn->error;
+                $error_message = "Failed to load order items: " . $conn->error;
             }
             $stmt_items->close();
         } else {
-            $error_message = "准备订单明细查询失败：" . $conn->error;
+            $error_message = "Failed to prepare order items query: " . $conn->error;
         }
     }
 }
@@ -126,7 +134,7 @@ if ($ordersJson === false) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <?php include 'header.php'; ?>
 <style>
 /* 卡片淡入动画 */
@@ -208,10 +216,10 @@ if ($ordersJson === false) {
 <body>
     <main class="main">
         <section class="section">
-            <h2 class="section-title">门店全部订单</h2>
+            <h2 class="section-title">All Branch Orders</h2>
             <div class="filter-bar">
-                <input type="text" class="filter-input" id="orderSearch" placeholder="搜索订单编号/顾客姓名">
-                <button class="btn btn-primary" onclick="filterOrders()">搜索</button>
+                <input type="text" class="filter-input" id="orderSearch" placeholder="Search order ID / customer name">
+                <button class="btn btn-primary" onclick="filterOrders()">Search</button>
             </div>
             <?php if ($error_message): ?>
             <div class="error-box"><?php echo htmlspecialchars($error_message); ?></div>
@@ -227,9 +235,9 @@ if ($ordersJson === false) {
 
     function getStatusMeta(status) {
         const normalized = (status || '').toLowerCase();
-        if (normalized === 'completed') return { label: '已完成', cls: 'status-completed' };
-        if (normalized === 'cancelled') return { label: '已取消', cls: 'status-cancelled' };
-        return { label: normalized === 'pending' ? '待处理' : (status || '待处理'), cls: 'status-pending' };
+        if (normalized === 'completed') return { label: 'Completed', cls: 'status-completed' };
+        if (normalized === 'cancelled') return { label: 'Cancelled', cls: 'status-cancelled' };
+        return { label: normalized === 'pending' ? 'Pending' : (status || 'Pending'), cls: 'status-pending' };
     }
 
     function formatCurrency(value) {
@@ -241,7 +249,7 @@ if ($ordersJson === false) {
         const wrap = document.getElementById('ordersList');
         wrap.innerHTML = '';
         if (!list || !list.length) {
-            wrap.innerHTML = '<div style="padding:32px;color:#888;text-align:center;width:100%;">暂无订单</div>';
+            wrap.innerHTML = '<div style="padding:32px;color:#888;text-align:center;width:100%;">No orders found</div>';
             return;
         }
         list.forEach(order => {
@@ -255,37 +263,37 @@ if ($ordersJson === false) {
             const detailHtml = (order.items && order.items.length)
                 ? order.items.map(item => `
                     <div class="order-item-card">
-                        <img class="product-thumb" src="${item.image}" alt="${item.name || '商品'}">
+                        <img class="product-thumb" src="${item.image}" alt="${item.name || 'Item'}">
                         <div style="flex:1;">
-                            <div style="font-size:14px;font-weight:500;color:#333;">${item.name || '商品'}</div>
+                            <div style="font-size:14px;font-weight:500;color:#333;">${item.name || 'Item'}</div>
                             <div style="font-size:13px;color:#888;">SKU：${item.sku || '--'}</div>
-                            <div style="font-size:13px;color:#888;">数量：<span style="color:#1976d2;">${item.quantity || 0}</span> × 单价 ¥${formatCurrency(item.unit_price)}</div>
+                            <div style="font-size:13px;color:#888;">Qty: <span style="color:#1976d2;">${item.quantity || 0}</span> × Unit ¥${formatCurrency(item.unit_price)}</div>
                         </div>
                         <div style="font-size:14px;color:#ff7043;font-weight:600;">¥${formatCurrency(item.total_price)}</div>
                     </div>
                 `).join('')
-                : '<div style="padding:8px 0;color:#999;">暂无商品明细</div>';
+                : '<div style="padding:8px 0;color:#999;">No item details</div>';
             card.innerHTML = `
                 <div class="order-header">
-                    <div style="font-size:15px;font-weight:600;color:#ff7043;">订单号：${order.display_id || ('#' + order.id)}</div>
+                    <div style="font-size:15px;font-weight:600;color:#ff7043;">Order: ${order.display_id || ('#' + order.id)}</div>
                     <span class="status-tag ${statusMeta.cls}">${statusMeta.label}</span>
                 </div>
-                <div style="font-size:13px;color:#666;margin-bottom:8px;">下单时间：${order.order_time || '--'}</div>
+                <div style="font-size:13px;color:#666;margin-bottom:8px;">Placed at: ${order.order_time || '--'}</div>
                 <div style="margin-bottom:8px;">
-                    <span style="font-size:13px;color:#888;">订单金额：</span><span style="color:#43a047;font-weight:600;">¥${formatCurrency(order.total_amount)}</span>
+                    <span style="font-size:13px;color:#888;">Order total:</span><span style="color:#43a047;font-weight:600;"> ¥${formatCurrency(order.total_amount)}</span>
                 </div>
                 <div style="margin-bottom:8px;">
-                    <span style="font-size:13px;color:#888;">配送地址：</span>${order.shipping_address || '暂无配送地址'}
+                    <span style="font-size:13px;color:#888;">Shipping address:</span> ${order.shipping_address || 'No shipping address'}
                 </div>
                 <div style="margin-bottom:8px;">
-                    <span style="font-size:13px;color:#888;">顾客：</span>
+                    <span style="font-size:13px;color:#888;">Customer:</span>
                     <a href="javascript:void(0)" style="color:#1976d2;text-decoration:underline;" onclick='showCustomer(${customerJson}, ${addressJson})'>
-                        ${customer.name || '匿名顾客'}
+                        ${customer.name || 'Anonymous Customer'}
                     </a>
                 </div>
-                <button class="btn btn-primary" style="margin-top:10px;width:100%;" onclick="toggleDetail(this)">展开详情</button>
+                <button class="btn btn-primary" style="margin-top:10px;width:100%;" onclick="toggleDetail(this)">View details</button>
                 <div class="order-detail" style="margin-top:12px;background:#f8f9fa;border-radius:8px;padding:12px;">
-                    <div style="font-size:13px;color:#888;margin-bottom:6px;">商品明细：</div>
+                    <div style="font-size:13px;color:#888;margin-bottom:6px;">Items:</div>
                     <div style="display:flex;flex-direction:column;gap:10px;">
                         ${detailHtml}
                     </div>
@@ -300,21 +308,21 @@ if ($ordersJson === false) {
         if (!detail) return;
         if (!detail.classList.contains('show')) {
             detail.classList.add('show');
-            btn.textContent = '收起详情';
+            btn.textContent = 'Hide details';
         } else {
             detail.classList.remove('show');
-            btn.textContent = '展开详情';
+            btn.textContent = 'View details';
         }
     }
 
     function showCustomer(cust, address) {
-        showPopupCard(`<h3 style='color:#1976d2;font-size:18px;margin-bottom:12px;'>顾客信息</h3>
-            <div style='font-size:15px;margin-bottom:8px;'><b>姓名：</b>${cust.name || '匿名顾客'}</div>
-            <div style='font-size:15px;margin-bottom:8px;'><b>电话：</b>${cust.phone || '未提供'}</div>
-            <div style='font-size:15px;margin-bottom:8px;'><b>邮箱：</b>${cust.email || '未提供'}</div>
-            <div style='font-size:15px;margin-bottom:8px;'><b>会员等级：</b>${cust.loyalty || 'Regular'}</div>
-            <div style='font-size:15px;margin-bottom:8px;'><b>配送地址：</b>${address || '暂无配送地址'}</div>
-            <button class='btn btn-primary' style='margin-top:16px;width:100%;' onclick='closePopup()'>关闭</button>
+        showPopupCard(`<h3 style='color:#1976d2;font-size:18px;margin-bottom:12px;'>Customer Details</h3>
+            <div style='font-size:15px;margin-bottom:8px;'><b>Name:</b> ${cust.name || 'Anonymous Customer'}</div>
+            <div style='font-size:15px;margin-bottom:8px;'><b>Phone:</b> ${cust.phone || 'Not provided'}</div>
+            <div style='font-size:15px;margin-bottom:8px;'><b>Email:</b> ${cust.email || 'Not provided'}</div>
+            <div style='font-size:15px;margin-bottom:8px;'><b>Loyalty:</b> ${cust.loyalty || 'Regular'}</div>
+            <div style='font-size:15px;margin-bottom:8px;'><b>Shipping address:</b> ${address || 'No shipping address'}</div>
+            <button class='btn btn-primary' style='margin-top:16px;width:100%;' onclick='closePopup()'>Close</button>
         `);
     }
 

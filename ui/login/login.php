@@ -1,6 +1,23 @@
 <?php
 session_start();
-require_once __DIR__ . '/../config/db_connect.php';
+$servername = "localhost";
+$username = "login_user";
+$password = "LoginP@ss123!"; // Your password
+$dbname = "mydb";
+// 数据库配置
+function getDBConnection() {
+    $servername = "localhost";
+    $username = "login_user";
+    $password = "LoginP@ss123!"; // Your password
+    $dbname = "mydb";
+    
+    $conn = new mysqli($servername, $username, $password, $dbname);
+    if ($conn->connect_error) {
+        die("Database connection failed: " . $conn->connect_error);
+    }
+    $conn->set_charset("utf8mb4");
+    return $conn;
+}
 
 
 function updateExpiredInventory() {
@@ -28,7 +45,7 @@ function updateExpiredInventory() {
     
     if (empty($expiredBatches)) {
         $conn->close();
-        return ['updated' => 0, 'message' => '没有找到过期库存'];
+        return ['updated' => 0, 'message' => 'No expired inventory found'];
     }
     
     // 2. 开始事务，更新过期库存
@@ -57,9 +74,9 @@ function updateExpiredInventory() {
             $itemResult = $itemStmt->get_result();
     
             while ($item = $itemResult->fetch_assoc()) {
-               $note = "批次过期清零：批次 " . $batch['batch_ID'] . 
-                  ",产品ID " . $batch['product_ID'] . 
-                  "，清零数量 " . $batch['quantity_on_hand'];
+               $note = "Expired batch cleared: batch " . $batch['batch_ID'] .
+                  ", product ID " . $batch['product_ID'] .
+                  ", cleared quantity " . $batch['quantity_on_hand'];
         
                $certificateStmt->bind_param("sis", 
                  $item['item_ID'], 
@@ -87,14 +104,6 @@ function updateExpiredInventory() {
     }
 }
 
-function rejectIfLoggedInElsewhere($dbSessionId) {
-    if (!empty($dbSessionId) && $dbSessionId !== session_id()) {
-        $_SESSION['login_error'] = '该账号已在其他设备登录，请先退出后再登录。';
-        header('Location: login.php');
-        exit();
-    }
-}
-
 // 处理顾客注册
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     $input_username = trim($_POST['username']);
@@ -107,7 +116,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
     $input_address = isset($_POST['address']) ? trim($_POST['address']) : '';
     
     try {
-        $conn = getDBConnection();
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        if ($conn->connect_error) {
+            throw new Exception("Database connection failed: " . $conn->connect_error);
+        }
         
         // 检查用户名是否已存在
         $checkUser = "SELECT user_ID FROM User WHERE user_name = ?";
@@ -117,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         $result = $stmt->get_result();
         
         if ($result->num_rows > 0) {
-            $_SESSION['register_error'] = '用户名已存在，请选择其他用户名';
+            $_SESSION['register_error'] = 'Username already exists. Please choose another one.';
             header('Location: login.php#register');
             exit();
         }
@@ -131,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         $result = $stmt->get_result();
         
         if ($result->num_rows > 0) {
-            $_SESSION['register_error'] = '邮箱已被注册，请使用其他邮箱';
+            $_SESSION['register_error'] = 'Email is already registered. Please use another email.';
             header('Location: login.php#register');
             exit();
         }
@@ -148,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         $stmt->bind_param("ssssss", $input_username, $hashed_password, $input_email, $input_phone, $input_first_name, $input_last_name);
         
         if (!$stmt->execute()) {
-            throw new Exception("用户注册失败: " . $stmt->error);
+            throw new Exception("User registration failed: " . $stmt->error);
         }
         $user_id = $stmt->insert_id;
         $stmt->close();
@@ -160,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         $stmt->bind_param("sssss", $input_username, $input_phone, $input_email, $input_gender, $input_address);
         
         if (!$stmt->execute()) {
-            throw new Exception("顾客信息创建失败: " . $stmt->error);
+            throw new Exception("Customer profile creation failed: " . $stmt->error);
         }
         $customer_id = $stmt->insert_id;
         $stmt->close();
@@ -169,7 +181,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         $conn->commit();
         
         // 不自动登录，只显示成功消息
-        $_SESSION['register_success'] = '注册成功！请使用您的密码登录';
+        $_SESSION['register_success'] = 'Registration successful. Please sign in with your password.';
         
         // 同时保存用户名到会话，以便自动填充登录表单
         $_SESSION['last_registered_username'] = $input_username;
@@ -184,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['register'])) {
         if (isset($conn) && $conn->autocommit === false) {
             $conn->rollback();
         }
-        $_SESSION['register_error'] = '注册失败: ' . $e->getMessage();
+        $_SESSION['register_error'] = 'Registration failed: ' . $e->getMessage();
         header('Location: login.php#register');
         exit();
     }
@@ -196,14 +208,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     
     try {
         // 使用PDO连接
-        $conn = new PDO(
-            "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
-            DB_USER,
-            DB_PASS
-        );
+        $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
         $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         
-        $sql = "SELECT user_ID, user_name, password_hash, login_session_id FROM User WHERE user_name = ? AND user_type = 'CEO'";
+        $sql = "SELECT user_ID, user_name, password_hash FROM User WHERE user_name = ? AND user_type = 'CEO'";
         $stmt = $conn->prepare($sql);
         $stmt->execute([$input_username]);
         
@@ -212,17 +220,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $hashed_password = md5($input_password);
             
             if ($hashed_password === $user['password_hash']) {
-                rejectIfLoggedInElsewhere($user['login_session_id'] ?? null);
-                session_regenerate_id(true);
-                $new_session_id = session_id();
-                $updateStmt = $conn->prepare("UPDATE User SET login_session_id = ?, last_login = NOW() WHERE user_ID = ?");
-                $updateStmt->execute([$new_session_id, $user['user_ID']]);
-
                 $_SESSION['manager_logged_in'] = true;
                 $_SESSION['manager_id'] = $user['user_ID'];
                 $_SESSION['manager_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'CEO';
-                $_SESSION['user_id'] = $user['user_ID'];
 
                 updateExpiredInventory();
                 
@@ -230,12 +231,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
                 exit();
             }
         }
-        $_SESSION['login_error'] = '经理账户验证失败，请检查用户名和密码！';
+        $_SESSION['login_error'] = 'Manager account verification failed. Please check your username and password.';
         header('Location: login.php');
         exit();
         
     } catch(PDOException $e) {
-        $_SESSION['login_error'] = '数据库连接失败: ' . $e->getMessage();
+        $_SESSION['login_error'] = 'Database connection failed: ' . $e->getMessage();
         header('Location: login.php');
         exit();
     }
@@ -248,7 +249,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     
     try {
         // 直接连接数据库（不要用函数）
-        $conn = getDBConnection();
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        if ($conn->connect_error) {
+            die("Database connection failed: " . $conn->connect_error);
+        }
         
         // 查询顾客账户
         $sql = "SELECT u.*, c.customer_ID 
@@ -266,20 +270,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $hashed_password = md5($input_password);
             
             if ($hashed_password === $user['password_hash']) {
-                rejectIfLoggedInElsewhere($user['login_session_id'] ?? null);
-                session_regenerate_id(true);
-                $new_session_id = session_id();
-                $updateSql = "UPDATE User SET login_session_id = ?, last_login = NOW() WHERE user_ID = ?";
-                $updateStmt = $conn->prepare($updateSql);
-                $updateStmt->bind_param("si", $new_session_id, $user['user_ID']);
-                $updateStmt->execute();
-                $updateStmt->close();
-
                 $_SESSION['customer_logged_in'] = true;
                 $_SESSION['customer_id'] = $user['customer_ID'];
                 $_SESSION['customer_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'customer';
-                $_SESSION['user_id'] = $user['user_ID'];
 
                 updateExpiredInventory();
                 
@@ -291,11 +285,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             }
         }
         
-        $_SESSION['login_error'] = '顾客账户验证失败，请检查用户名和密码！';
+        $_SESSION['login_error'] = 'Customer account verification failed. Please check your username and password.';
         $conn->close();
         
     } catch(Exception $e) {
-        $_SESSION['login_error'] = '登录出错: ' . $e->getMessage();
+        $_SESSION['login_error'] = 'Login error: ' . $e->getMessage();
     }
 }
 
@@ -305,18 +299,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     $input_password = trim($_POST['password']);
 
     try {
-        $conn = getDBConnection();
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        if ($conn->connect_error) {
+            throw new Exception("Database connection failed: " . $conn->connect_error);
+        }
 
-        // 查询员工账户（支持用户名/邮箱/手机号/员工编号）
-        $sql = "SELECT u.user_ID, u.user_name, u.password_hash, u.login_session_id, s.staff_ID, s.branch_ID 
+        // 查询员工账户
+        $sql = "SELECT u.user_ID, u.user_name, u.password_hash, s.staff_ID, s.branch_ID 
                 FROM User u 
                 JOIN Staff s ON u.user_name = s.user_name 
-                WHERE u.user_type = 'staff'
-                  AND (u.user_name = ? OR u.user_email = ? OR u.user_telephone = ? OR s.staff_ID = ?)";
+                WHERE u.user_name = ? AND u.user_type = 'staff'";
 
-        $staff_id_input = ctype_digit($input_username) ? (int)$input_username : 0;
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("sssi", $input_username, $input_username, $input_username, $staff_id_input);
+        $stmt->bind_param("s", $input_username);
         $stmt->execute();
         $result = $stmt->get_result();
 
@@ -325,21 +320,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $hashed_password = md5($input_password);
             
             if ($hashed_password === $user['password_hash']) {
-                rejectIfLoggedInElsewhere($user['login_session_id'] ?? null);
-                session_regenerate_id(true);
-                $new_session_id = session_id();
-                $updateSql = "UPDATE User SET login_session_id = ?, last_login = NOW() WHERE user_ID = ?";
-                $updateStmt = $conn->prepare($updateSql);
-                $updateStmt->bind_param("si", $new_session_id, $user['user_ID']);
-                $updateStmt->execute();
-                $updateStmt->close();
-
                 $_SESSION['staff_logged_in'] = true;
                 $_SESSION['staff_id'] = $user['staff_ID'];
                 $_SESSION['staff_branch_id'] = $user['branch_ID'];
                 $_SESSION['staff_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'staff';
-                $_SESSION['user_id'] = $user['user_ID'];
 
                 updateExpiredInventory();
 
@@ -351,14 +336,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             }
         }
 
-        $_SESSION['login_error'] = '员工账户验证失败，请检查用户名和密码！';
+        $_SESSION['login_error'] = 'Staff account verification failed. Please check your username and password.';
         $stmt->close();
         $conn->close();
         header('Location: login.php');
         exit();
 
     } catch (Exception $e) {
-        $_SESSION['login_error'] = '登录出错: ' . $e->getMessage();
+        $_SESSION['login_error'] = 'Login error: ' . $e->getMessage();
         header('Location: login.php');
         exit();
     }
@@ -370,10 +355,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
     $input_password = trim($_POST['password']);
     
     try {
-        $conn = getDBConnection();
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        if ($conn->connect_error) {
+            throw new Exception("Database connection failed: " . $conn->connect_error);
+        }
         
         // 修正查询语句，查询供应商类型用户
-        $sql = "SELECT u.user_ID, u.user_name, u.password_hash, u.login_session_id, s.supplier_ID 
+        $sql = "SELECT u.user_ID, u.user_name, u.password_hash, s.supplier_ID 
                 FROM User u 
                 JOIN Supplier s ON u.user_name = s.user_name 
                 WHERE u.user_name = ? AND u.user_type = 'supplier'";
@@ -388,20 +376,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             $hashed_password = md5($input_password);
             
             if ($hashed_password === $user['password_hash']) {
-                rejectIfLoggedInElsewhere($user['login_session_id'] ?? null);
-                session_regenerate_id(true);
-                $new_session_id = session_id();
-                $updateSql = "UPDATE User SET login_session_id = ?, last_login = NOW() WHERE user_ID = ?";
-                $updateStmt = $conn->prepare($updateSql);
-                $updateStmt->bind_param("si", $new_session_id, $user['user_ID']);
-                $updateStmt->execute();
-                $updateStmt->close();
-
                 $_SESSION['supplier_logged_in'] = true;
                 $_SESSION['supplier_id'] = $user['supplier_ID'];
                 $_SESSION['supplier_username'] = $user['user_name'];
                 $_SESSION['user_role'] = 'supplier';
-                $_SESSION['user_id'] = $user['user_ID'];
 
                 updateExpiredInventory();
                 
@@ -412,25 +390,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             }
         }
         
-        $_SESSION['login_error'] = '供应商账户验证失败，请检查用户名和密码！';
+        $_SESSION['login_error'] = 'Supplier account verification failed. Please check your username and password.';
         $stmt->close();
         $conn->close();
         header('Location: login.php');
         exit();
         
     } catch(Exception $e) {
-        $_SESSION['login_error'] = '登录出错: ' . $e->getMessage();
+        $_SESSION['login_error'] = 'Login error: ' . $e->getMessage();
         header('Location: login.php');
         exit();
     }
 }
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - 统一登录平台</title>
+    <title>FreshHarvest - Unified Login</title>
     <style>
         * {
             margin: 0;
@@ -859,17 +837,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
 <body>
     <!-- 左侧宣传图区域 -->
     <div class="banner-area">
-        <img src="background.jpg" alt="鲜选生鲜宣传图" class="banner-img">
+        <img src="background.jpg" alt="FreshHarvest banner" class="banner-img">
         <div class="banner-overlay">
-            <h1 class="banner-title">新鲜直达，品质生活</h1>
-            <p class="banner-desc">鲜选生鲜致力于为您提供最新鲜的食材，从产地到餐桌，全程冷链保鲜，让健康饮食成为日常。</p>
+            <h1 class="banner-title">Fresh to your door, quality in every bite</h1>
+            <p class="banner-desc">FreshHarvest delivers the freshest ingredients from farm to table with cold-chain quality, making healthy eating effortless.</p>
         </div>
     </div>
     
     <!-- 右侧登录表单区域 -->
     <div class="login-area">
         <div class="login-container">
-            <h2 class="login-title">鲜选生鲜</h2>
+            <h2 class="login-title">FreshHarvest</h2>
             
             <!-- 错误消息显示区域 -->
             <?php if (isset($_SESSION['login_error'])): ?>
@@ -892,8 +870,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
             
             <!-- 选项卡 -->
             <div class="tabs">
-                <div class="tab active" data-tab="login">登录</div>
-                <div class="tab" data-tab="register">注册</div>
+                <div class="tab active" data-tab="login">Sign in</div>
+                <div class="tab" data-tab="register">Register</div>
             </div>
             
             <!-- 表单容器 -->
@@ -901,15 +879,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
                 <!-- 登录表单 -->
                 <form class="login-form active" id="loginForm" method="POST">
                     <div class="form-group">
-                        <label class="form-label" for="login_username">用户名</label>
-                        <input type="text" class="form-control" id="login_username" name="username" placeholder="请输入用户名/手机号" value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>">
-                        <div class="error-tip" id="login_usernameTip">用户名不能为空</div>
+                        <label class="form-label" for="login_username">Username</label>
+                        <input type="text" class="form-control" id="login_username" name="username" placeholder="Enter username or phone" value="<?php echo isset($_POST['username']) ? htmlspecialchars($_POST['username']) : ''; ?>">
+                        <div class="error-tip" id="login_usernameTip">Username is required</div>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="login_password">密码</label>
-                        <input type="password" class="form-control" id="login_password" name="password" placeholder="请输入密码">
-                        <div class="error-tip" id="login_passwordTip">密码不能为空</div>
+                        <label class="form-label" for="login_password">Password</label>
+                        <input type="password" class="form-control" id="login_password" name="password" placeholder="Enter password">
+                        <div class="error-tip" id="login_passwordTip">Password is required</div>
                     </div>
                     
                     <!-- 隐藏的角色选择字段 -->
@@ -917,10 +895,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
                     
                     <!-- 角色登录按钮组 -->
                     <div class="role-btns">
-                        <button type="button" class="role-btn customer" data-role="customer">顾客登录</button>
-                        <button type="button" class="role-btn employee" data-role="employee">员工登录</button>
-                        <button type="submit" class="role-btn manager" data-role="manager">经理登录</button>
-                        <button type="button" class="role-btn supplier" data-role="supplier">供应商登录</button>
+                        <button type="button" class="role-btn customer" data-role="customer">Customer sign in</button>
+                        <button type="button" class="role-btn employee" data-role="employee">Staff sign in</button>
+                        <button type="submit" class="role-btn manager" data-role="manager">Manager sign in</button>
+                        <button type="button" class="role-btn supplier" data-role="supplier">Supplier sign in</button>
                     </div>
                 </form>
                 
@@ -929,59 +907,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
                     <input type="hidden" name="register" value="1">
                     
                     <div class="form-group">
-                        <label class="form-label" for="register_username">用户名 *</label>
-                        <input type="text" class="form-control" id="register_username" name="username" placeholder="请输入用户名（用于登录）">
-                        <div class="error-tip" id="register_usernameTip">用户名不能为空</div>
+                        <label class="form-label" for="register_username">Username *</label>
+                        <input type="text" class="form-control" id="register_username" name="username" placeholder="Enter a username (for sign-in)">
+                        <div class="error-tip" id="register_usernameTip">Username is required</div>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="register_password">密码 *</label>
-                        <input type="password" class="form-control" id="register_password" name="password" placeholder="请输入密码（至少6位）">
-                        <div class="error-tip" id="register_passwordTip">密码不能少于6位</div>
+                        <label class="form-label" for="register_password">Password *</label>
+                        <input type="password" class="form-control" id="register_password" name="password" placeholder="Enter a password (min 6 characters)">
+                        <div class="error-tip" id="register_passwordTip">Password must be at least 6 characters</div>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="register_email">邮箱 *</label>
-                        <input type="email" class="form-control" id="register_email" name="email" placeholder="请输入常用邮箱">
-                        <div class="error-tip" id="register_emailTip">请输入有效的邮箱地址</div>
+                        <label class="form-label" for="register_email">Email *</label>
+                        <input type="email" class="form-control" id="register_email" name="email" placeholder="Enter your email">
+                        <div class="error-tip" id="register_emailTip">Please enter a valid email address</div>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="register_phone">手机号 *</label>
-                        <input type="tel" class="form-control" id="register_phone" name="phone" placeholder="请输入手机号">
-                        <div class="error-tip" id="register_phoneTip">请输入有效的手机号</div>
+                        <label class="form-label" for="register_phone">Phone *</label>
+                        <input type="tel" class="form-control" id="register_phone" name="phone" placeholder="Enter phone number">
+                        <div class="error-tip" id="register_phoneTip">Please enter a valid phone number</div>
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="register_first_name">姓氏</label>
-                        <input type="text" class="form-control" id="register_first_name" name="first_name" placeholder="请输入姓氏">
+                        <label class="form-label" for="register_first_name">First name</label>
+                        <input type="text" class="form-control" id="register_first_name" name="first_name" placeholder="Enter first name">
                     </div>
                     
                     <div class="form-group">
-                        <label class="form-label" for="register_last_name">名字</label>
-                        <input type="text" class="form-control" id="register_last_name" name="last_name" placeholder="请输入名字">
+                        <label class="form-label" for="register_last_name">Last name</label>
+                        <input type="text" class="form-control" id="register_last_name" name="last_name" placeholder="Enter last name">
                     </div>
                         <div class="form-group">
-                          <label class="form-label" for="register_gender">性别 *</label>
+                          <label class="form-label" for="register_gender">Gender *</label>
                             <select class="form-control" id="register_gender" name="gender">
-                               <option value="">请选择性别</option>
+                               <option value="">Select gender</option>
                                   <option value="Male">Male</option>
                                   <option value="Female">Female</option>
                             </select>
-                        <div class="error-tip" id="register_genderTip">请选择性别</div>
+                        <div class="error-tip" id="register_genderTip">Please select a gender</div>
                     </div>
 
                     <div class="form-group">
-                         <label class="form-label" for="register_address">地址</label>
-                           <textarea class="form-control" id="register_address" name="address" placeholder="请输入详细地址" rows="2"></textarea>
+                         <label class="form-label" for="register_address">Address</label>
+                           <textarea class="form-control" id="register_address" name="address" placeholder="Enter full address" rows="2"></textarea>
                      </div>
 
-                    <button type="button" class="btn btn-primary" id="registerBtn">注册</button>
+                    <button type="button" class="btn btn-primary" id="registerBtn">Register</button>
                 </form>
             </div>
             <?php if (isset($_SESSION['logout_success'])): ?>
              <div class="success-message" style="background-color: #e8f5e9; color: #2e7d32; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #4CAF50;">
-            ✅ <?php echo $_SESSION['logout_success']; unset($_SESSION['logout_success']); ?>
+            Success: <?php echo $_SESSION['logout_success']; unset($_SESSION['logout_success']); ?>
             </div>
 <?php endif; ?>
         </div>
@@ -1056,7 +1034,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['role']) && $_POST['ro
                 if (validateLoginForm()) {
                     // 显示登录中状态
                     const originalText = this.innerHTML;
-                    this.innerHTML = '<span class="loading"></span> 登录中...';
+                    this.innerHTML = '<span class="loading"></span> Signing in...';
                     this.disabled = true;
                     
                     setTimeout(() => {
@@ -1085,7 +1063,7 @@ function validateRegisterForm() {
     // 用户名验证
     if (!registerUsername.value.trim()) {
         registerUsername.classList.add('error');
-        registerUsernameTip.textContent = '用户名不能为空';
+        registerUsernameTip.textContent = 'Username is required';
         registerUsernameTip.classList.add('show');
         isValid = false;
     } else {
@@ -1096,7 +1074,7 @@ function validateRegisterForm() {
     // 密码验证
     if (!registerPassword.value.trim() || registerPassword.value.length < 6) {
         registerPassword.classList.add('error');
-        registerPasswordTip.textContent = '密码不能少于6位';
+        registerPasswordTip.textContent = 'Password must be at least 6 characters';
         registerPasswordTip.classList.add('show');
         isValid = false;
     } else {
@@ -1108,7 +1086,7 @@ function validateRegisterForm() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!registerEmail.value.trim() || !emailRegex.test(registerEmail.value)) {
         registerEmail.classList.add('error');
-        registerEmailTip.textContent = '请输入有效的邮箱地址';
+        registerEmailTip.textContent = 'Please enter a valid email address';
         registerEmailTip.classList.add('show');
         isValid = false;
     } else {
@@ -1120,7 +1098,7 @@ function validateRegisterForm() {
     const phoneRegex = /^1[3-9]\d{9}$/;
     if (!registerPhone.value.trim() || !phoneRegex.test(registerPhone.value)) {
         registerPhone.classList.add('error');
-        registerPhoneTip.textContent = '请输入有效的11位手机号';
+        registerPhoneTip.textContent = 'Please enter a valid 11-digit phone number';
         registerPhoneTip.classList.add('show');
         isValid = false;
     } else {
@@ -1135,7 +1113,7 @@ registerBtn.addEventListener('click', function() {
     if (validateRegisterForm()) {
         // 显示注册中状态
         const originalText = this.innerHTML;
-        this.innerHTML = '<span class="loading"></span> 注册中...';
+        this.innerHTML = '<span class="loading"></span> Registering...';
         this.disabled = true;
         
         // 直接提交表单，后端会处理注册逻辑
@@ -1192,21 +1170,21 @@ registerBtn.addEventListener('click', function() {
          loginRoleBtns.forEach(btn => {
            btn.disabled = false;
            const roleText = btn.textContent.trim();
-           if(roleText.includes('登录中')) {
+           if (roleText.includes('Signing in')) {
               const role = btn.getAttribute('data-role');
               switch(role) {
-                case 'customer': btn.innerHTML = '顾客登录'; break;
-                case 'employee': btn.innerHTML = '员工登录'; break;
-                case 'manager': btn.innerHTML = '经理登录'; break;
-                case 'supplier': btn.innerHTML = '供应商登录'; break;
+                case 'customer': btn.innerHTML = 'Customer sign in'; break;
+                case 'employee': btn.innerHTML = 'Staff sign in'; break;
+                case 'manager': btn.innerHTML = 'Manager sign in'; break;
+                case 'supplier': btn.innerHTML = 'Supplier sign in'; break;
                }
             }
         });
     
        if (registerBtn) {
           registerBtn.disabled = false;
-          if(registerBtn.textContent.includes('注册中')) {
-            registerBtn.innerHTML = '注册';
+          if (registerBtn.textContent.includes('Registering')) {
+            registerBtn.innerHTML = 'Register';
           }
         }
     });

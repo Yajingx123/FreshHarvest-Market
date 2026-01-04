@@ -2,6 +2,11 @@
 session_start();
 require_once __DIR__ . '/inc/data.php';
 
+$servername = "localhost";
+$username = "root";
+$password = "NewRootPwd123!";
+$dbname = "mydb";
+
 if (!isset($_SESSION['supplier_logged_in']) || $_SESSION['supplier_logged_in'] !== true) {
     header('Location: ../login/login.php');
     exit();
@@ -25,10 +30,10 @@ $branches = getBranches();
 
 // 订单状态选项
 $statusOptions = [
-    'pending' => '待处理',
-    'ordered' => '已下单',
-    'received' => '已收货',
-    'cancelled' => '已取消'
+    'pending' => 'Pending',
+    'ordered' => 'Ordered',
+    'received' => 'Received',
+    'cancelled' => 'Cancelled'
 ];
 
 // 获取订单详细信息（用于模态框展示）
@@ -38,11 +43,11 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
 ?>
 
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - 供应商端-订单管理</title>
+    <title>FreshHarvest - Supplier Orders</title>
     <style>
         /* 保持你原来的CSS样式不变 */
         * {
@@ -405,7 +410,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
 
     <main class="main">
         <section class="section">
-            <h2 class="section-title">订单管理</h2>
+            <h2 class="section-title">Order Management</h2>
             
             <?php if (isset($message)): ?>
                 <div class="message" style="background-color: #e8f5e9; color: #4caf50; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
@@ -415,10 +420,10 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
             
             <div class="filter-bar">
                 <form method="get" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <input type="text" class="filter-input" name="search" placeholder="搜索订单编号/门店名称" value="<?php echo htmlspecialchars($searchTerm); ?>">
+                    <input type="text" class="filter-input" name="search" placeholder="Search order ID / store name" value="<?php echo htmlspecialchars($searchTerm); ?>">
                     
                     <select class="filter-select" name="branch">
-                        <option value="">所有分店</option>
+                        <option value="">All stores</option>
                         <?php foreach ($branches as $branch): ?>
                             <option value="<?php echo $branch['branch_ID']; ?>" 
                                 <?php echo $branchFilter == $branch['branch_ID'] ? 'selected' : ''; ?>>
@@ -428,7 +433,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                     </select>
                     
                     <select class="filter-select" name="status">
-                        <option value="">全部状态</option>
+                        <option value="">All statuses</option>
                         <?php foreach ($statusOptions as $value => $label): ?>
                             <option value="<?php echo $value; ?>" 
                                 <?php echo $statusFilter == $value ? 'selected' : ''; ?>>
@@ -437,8 +442,8 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                         <?php endforeach; ?>
                     </select>
                     
-                    <button type="submit" class="btn btn-primary">筛选</button>
-                    <a href="orders.php" class="btn" style="background-color: #f5f5f5; color: #333;">重置</a>
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="orders.php" class="btn" style="background-color: #f5f5f5; color: #333;">Reset</a>
                 </form>
             </div>
             
@@ -446,18 +451,18 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                 <table class="order-table">
                     <thead>
                         <tr>
-                            <th>订单编号</th>
-                            <th>分店</th>
-                            <th>下单日期</th>
-                            <th>总金额</th>
-                            <th>状态</th>
-                            <th>操作</th>
+                            <th>Order ID</th>
+                            <th>Store</th>
+                            <th>Order Date</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($orders)): ?>
                             <tr>
-                                <td colspan="6" style="text-align: center; padding: 30px;">暂无订单数据</td>
+                                <td colspan="6" style="text-align: center; padding: 30px;">No orders found</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($orders as $order): ?>
@@ -473,7 +478,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                                     </td>
                                     <td>
                                         <button class="action-btn detail-btn" onclick="viewOrderDetail(<?php echo $order['purchase_order_ID']; ?>)">
-                                            查看详情
+                                            View details
                                         </button>
                                     </td>
                                 </tr>
@@ -489,14 +494,14 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
     <div id="orderDetailModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title">订单详情</h2>
+                <h2 class="modal-title">Order Details</h2>
                 <span class="modal-close" onclick="closeModal()">&times;</span>
             </div>
             <div class="modal-body" id="orderDetailContent">
                 <!-- 订单详情内容将通过JavaScript动态加载 -->
             </div>
             <div class="modal-footer">
-                <button class="btn" onclick="closeModal()">关闭</button>
+                <button class="btn" onclick="closeModal()">Close</button>
             </div>
         </div>
     </div>
@@ -504,7 +509,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
     <script>
         function viewOrderDetail(orderId) {
             // 显示加载中
-            document.getElementById('orderDetailContent').innerHTML = '<div style="text-align: center; padding: 40px;">加载中...</div>';
+            document.getElementById('orderDetailContent').innerHTML = '<div style="text-align: center; padding: 40px;">Loading...</div>';
             document.getElementById('orderDetailModal').classList.add('show');
             
             // 使用AJAX获取订单详情
@@ -518,7 +523,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    document.getElementById('orderDetailContent').innerHTML = '<div style="color: red; text-align: center;">加载失败，请刷新页面重试</div>';
+                    document.getElementById('orderDetailContent').innerHTML = '<div style="color: red; text-align: center;">Load failed. Please refresh and try again.</div>';
                 });
         }
         
@@ -534,7 +539,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
             
             function showOrderDetail(order) {
                 if (!order) {
-                    document.getElementById('orderDetailContent').innerHTML = '<div style="text-align: center; color: red;">订单不存在或无权访问</div>';
+                    document.getElementById('orderDetailContent').innerHTML = '<div style="text-align: center; color: red;">Order not found or access denied</div>';
                     document.getElementById('orderDetailModal').classList.add('show');
                     return;
                 }
@@ -546,11 +551,11 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                         <table class="product-list">
                             <thead>
                                 <tr>
-                                    <th>商品名称</th>
+                                    <th>Item</th>
                                     <th>SKU</th>
-                                    <th>单价</th>
-                                    <th>单位</th>
-                                    <th>小计</th>
+                                    <th>Unit Price</th>
+                                    <th>Unit</th>
+                                    <th>Subtotal</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -559,7 +564,7 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                                         <td>${item.product_name}</td>
                                         <td>${item.sku}</td>
                                         <td>¥${(Number(item.supplier_price) || 0).toFixed(2)}</td>
-                                        <td>${item.unit || '件'}</td>
+                                        <td>${item.unit || 'pcs'}</td>
                                         <td>¥${(Number(item.supplier_price) || 0).toFixed(2)}</td>
                                     </tr>
                                 `).join('')}
@@ -567,27 +572,32 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                         </table>
                     `;
                 } else {
-                    itemsHtml = '<p>暂无商品信息</p>';
+                    itemsHtml = '<p>No item details</p>';
                 }
                 
-                // 计算总金额
-                const subtotal = order.items ? order.items.reduce((sum, item) => sum + parseFloat(item.total_cost), 0) : 0;
+                // 计算金额
+                const subtotal = order.items ? order.items.reduce((sum, item) => {
+                    const itemTotal = Number(item.total_cost);
+                    if (Number.isFinite(itemTotal)) return sum + itemTotal;
+                    const unitCost = Number(item.unit_cost || item.supplier_price) || 0;
+                    return sum + unitCost;
+                }, 0) : 0;
                 const refundTotal = Number(order.refund_total) || 0;
-                const orderTotal = parseFloat(order.total_amount);
-                const baseTotal = Number.isFinite(orderTotal) ? orderTotal + refundTotal : subtotal + refundTotal;
-                const finalAmount = Number(order.final_amount) || Math.max((Number.isFinite(orderTotal) ? orderTotal : subtotal) - refundTotal, 0);
+                const orderTotal = Number(order.total_amount);
+                const baseTotal = Number.isFinite(orderTotal) ? orderTotal : subtotal;
+                const finalAmount = Number.isFinite(order.final_amount) ? Number(order.final_amount) : Math.max(baseTotal - refundTotal, 0);
 
                 let returnsHtml = '';
                 if (order.returns && order.returns.length > 0) {
                     returnsHtml = `
-                        <h3 style="margin-top:18px;">退货明细</h3>
+                        <h3 style="margin-top:18px;">Returns</h3>
                         <table class="product-list">
                             <thead>
                                 <tr>
-                                    <th>商品名称</th>
+                                    <th>Item</th>
                                     <th>SKU</th>
-                                    <th>退货数量</th>
-                                    <th>退款金额</th>
+                                    <th>Return Qty</th>
+                                    <th>Refund</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -607,23 +617,23 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                 const modalContent = `
                     <div class="order-detail-header">
                         <div class="detail-row">
-                            <div class="detail-label">订单编号：</div>
+                            <div class="detail-label">Order ID:</div>
                             <div class="detail-value">PO-${String(order.purchase_order_ID).padStart(6, '0')}</div>
                         </div>
                         <div class="detail-row">
-                            <div class="detail-label">分店名称：</div>
+                            <div class="detail-label">Store:</div>
                             <div class="detail-value">${order.branch_name}</div>
                         </div>
                         <div class="detail-row">
-                            <div class="detail-label">分店地址：</div>
+                            <div class="detail-label">Address:</div>
                             <div class="detail-value">${order.branch_address}</div>
                         </div>
                         <div class="detail-row">
-                            <div class="detail-label">下单日期：</div>
+                            <div class="detail-label">Order Date:</div>
                             <div class="detail-value">${order.date}</div>
                         </div>
                         <div class="detail-row">
-                            <div class="detail-label">订单状态：</div>
+                            <div class="detail-label">Status:</div>
                             <div class="detail-value">
                                 <span class="status-tag status-${order.status}">
                                     ${<?php echo json_encode($statusOptions); ?>[order.status] || order.status}
@@ -632,22 +642,22 @@ if (isset($_GET['view']) && is_numeric($_GET['view'])) {
                         </div>
                     </div>
                     
-                    <h3>商品清单</h3>
+                    <h3>Items</h3>
                     ${itemsHtml}
 
                     ${returnsHtml}
                     
                     <div class="order-summary">
                         <div class="summary-item">
-                            <span class="summary-label">商品总价：</span>
+                            <span class="summary-label">Original total:</span>
                             <span class="summary-value">¥${baseTotal.toFixed(2)}</span>
                         </div>
                         <div class="summary-item">
-                            <span class="summary-label">退款金额：</span>
+                            <span class="summary-label">Refund:</span>
                             <span class="summary-value">${refundTotal > 0 ? '¥' + refundTotal.toFixed(2) : '¥0.00'}</span>
                         </div>
                         <div class="summary-item">
-                            <span class="summary-label">订单最终金额：</span>
+                            <span class="summary-label">Final total:</span>
                             <span class="summary-value total-amount">¥${finalAmount.toFixed(2)}</span>
                         </div>
                     </div>

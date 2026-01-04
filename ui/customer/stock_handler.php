@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             echo json_encode([
                 'success' => false,
-                'message' => '参数错误'
+                'message' => 'Invalid parameters.'
             ]);
         }
         exit;
@@ -29,6 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 echo json_encode([
     'success' => false,
-    'message' => '无效的请求'
+    'message' => 'Invalid request.'
 ]);
 ?>

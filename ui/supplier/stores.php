@@ -17,11 +17,11 @@ $branches = getSupplierBranches($search, $area);
 $stats = getBranchStatistics();
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>鲜选生鲜 - 供应商端-合作门店</title>
+    <title>FreshHarvest - Partner Stores</title>
     <style>
         /* 原有样式 + 交互相关样式 */
         * {
@@ -283,37 +283,37 @@ $stats = getBranchStatistics();
 <body>
     <main class="main">
     <section class="section">
-        <h2 class="section-title">合作门店管理</h2>
+        <h2 class="section-title">Partner Stores</h2>
         <div class="filter-bar">
             <input type="text" class="filter-input" id="storeSearch" 
-                   placeholder="搜索门店名称/编号" value="<?php echo htmlspecialchars($search); ?>">
-            <button class="btn btn-primary">导出数据</button>
+                   placeholder="Search store name / ID" value="<?php echo htmlspecialchars($search); ?>">
+            <button class="btn btn-primary">Export</button>
         </div>
 
         <div class="store-stat-card">
             <div class="stat-item">
                 <div class="stat-value"><?php echo $stats['total_branches']; ?></div>
-                <div class="stat-label">总合作门店数</div>
+                <div class="stat-label">Total partner stores</div>
             </div>
             <div class="stat-item">
                 <div class="stat-value"><?php echo $stats['today_order_branches']; ?></div>
-                <div class="stat-label">今日有订单门店</div>
+                <div class="stat-label">Stores with orders today</div>
             </div>
             <div class="stat-item">
                 <div class="stat-value"><?php echo $stats['completion_rate']; ?>%</div>
-                <div class="stat-label">订单完成率</div>
+                <div class="stat-label">Order completion rate</div>
             </div>
         </div>
 
         <table class="store-table">
             <thead>
                 <tr>
-                    <th>门店编号</th>
-                    <th>门店名称</th>
-                    <th>联系人</th>
-                    <th>联系电话</th>
-                    <th>合作状态</th>
-                    <th>操作</th>
+                    <th>Store ID</th>
+                    <th>Store Name</th>
+                    <th>Contact</th>
+                    <th>Phone</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -325,13 +325,13 @@ $stats = getBranchStatistics();
                     <td><?php echo htmlspecialchars($branch['phone']); ?></td>
                     <td>
                         <span style="color: <?php echo $branch['status'] === 'active' ? '#43a047' : '#f44336'; ?>">
-                            <?php echo $branch['status'] === 'active' ? '正常合作' : '已终止'; ?>
+                            <?php echo $branch['status'] === 'active' ? 'Active' : 'Terminated'; ?>
                         </span>
                     </td>
                     <td>
                         <button class="btn btn-primary" 
                                 onclick="showStoreDetail('<?php echo htmlspecialchars($branch['branch_ID']); ?>')">
-                            查看详情
+                            View details
                         </button>
                     </td>
                 </tr>
@@ -340,7 +340,7 @@ $stats = getBranchStatistics();
                 <?php if (empty($branches)): ?>
                 <tr>
                     <td colspan="6" style="text-align: center; padding: 20px;">
-                        暂无合作门店数据
+                        No partner stores found
                     </td>
                 </tr>
                 <?php endif; ?>
@@ -353,7 +353,7 @@ $stats = getBranchStatistics();
     <div class="modal" id="storeModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">门店详情</h3>
+                <h3 class="modal-title">Store Details</h3>
                 <span class="modal-close" onclick="closeModal()">&times;</span>
             </div>
             <div class="modal-body" id="storeDetailContent">
@@ -364,15 +364,15 @@ $stats = getBranchStatistics();
 
     <footer class="footer">
         <div class="footer-container">
-            <h3 class="logo" style="color: white; margin-bottom: 20px;">鲜选生鲜 - 供应商管理平台</h3>
+            <h3 class="logo" style="color: white; margin-bottom: 20px;">FreshHarvest - Supplier Portal</h3>
             <div style="display: flex; justify-content: center; gap: 30px; margin-bottom: 20px;">
-                <a href="#" style="color: #ccc; text-decoration: none;">供应商帮助中心</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">合作协议</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">结算规则</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">投诉反馈</a>
-                <a href="#" style="color: #ccc; text-decoration: none;">联系平台</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Supplier Help Center</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Partnership Agreement</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Settlement Rules</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Feedback</a>
+                <a href="#" style="color: #ccc; text-decoration: none;">Contact Platform</a>
             </div>
-            <div class="copyright">© 2024 鲜选生鲜 版权所有 | 平台客服电话：400-888-XXXX</div>
+            <div class="copyright">© 2024 FreshHarvest. All rights reserved | Support: 400-888-XXXX</div>
         </div>
     </footer>
 
@@ -405,41 +405,41 @@ $stats = getBranchStatistics();
                     if (branch) {
                         const detailContent = `
                             <div class="detail-info">
-                                <span class="detail-label">门店编号</span>
+                                <span class="detail-label">Store ID</span>
                                 <div>${htmlspecialchars(branch.branch_ID)}</div>
                             </div>
                             <div class="detail-info">
-                                <span class="detail-label">门店名称</span>
+                                <span class="detail-label">Store Name</span>
                                 <div>${htmlspecialchars(branch.branch_name)}</div>
                             </div>
                             <div class="detail-info">
-                                <span class="detail-label">详细地址</span>
+                                <span class="detail-label">Address</span>
                                 <div>${htmlspecialchars(branch.address)}</div>
                             </div>
                             <div class="detail-info">
-                                <span class="detail-label">联系人</span>
+                                <span class="detail-label">Contact</span>
                                 <div>${htmlspecialchars(branch.contact_person)}</div>
                             </div>
                             <div class="detail-info">
-                                <span class="detail-label">联系电话</span>
+                                <span class="detail-label">Phone</span>
                                 <div>${htmlspecialchars(branch.phone)}</div>
                             </div>
                             <div class="detail-info">
-                                <span class="detail-label">合作开始时间</span>
-                                <div>${htmlspecialchars(branch.first_cooperation_date ? new Date(branch.first_cooperation_date).toLocaleDateString() : '未知')}</div>
+                                <span class="detail-label">Partnership start</span>
+                                <div>${htmlspecialchars(branch.first_cooperation_date ? new Date(branch.first_cooperation_date).toLocaleDateString() : 'Unknown')}</div>
                             </div>
                             <div class="detail-info">
-                                <span class="detail-label">合作状态</span>
+                                <span class="detail-label">Status</span>
                                 <div style="color: ${branch.status === 'active' ? '#43a047' : '#f44336'}">
-                                    ${branch.status === 'active' ? '正常合作' : '已终止'}
+                                    ${branch.status === 'active' ? 'Active' : 'Terminated'}
                                 </div>
                             </div>
                             <div class="detail-info">
-                                <span class="detail-label">本月订单数</span>
-                                <div>${branch.monthly_orders || 0}单</div>
+                                <span class="detail-label">Orders this month</span>
+                                <div>${branch.monthly_orders || 0}</div>
                             </div>
                             <div class="detail-info">
-                                <span class="detail-label">本月交易额</span>
+                                <span class="detail-label">Sales this month</span>
                                 <div>¥${branch.monthly_amount ? parseFloat(branch.monthly_amount).toFixed(2) : '0.00'}</div>
                             </div>
                         `;
