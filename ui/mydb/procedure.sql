@@ -360,7 +360,7 @@ proc_label: BEGIN
     DECLARE v_done BOOLEAN DEFAULT FALSE;
     DECLARE v_debug_message VARCHAR(1000);
     
-    -- 游标变量
+
     DECLARE v_item_id VARCHAR(50);
     DECLARE v_batch_id VARCHAR(50);
     DECLARE v_product_id INT;
@@ -370,7 +370,7 @@ proc_label: BEGIN
     DECLARE v_order_item_count INT DEFAULT 0;
     DECLARE v_stock_item_count INT DEFAULT 0;
     
-    -- 定义游标：获取购物车中所有待处理的商品
+    
     DECLARE cur_cart_items CURSOR FOR 
         SELECT 
             oi.item_ID,
@@ -386,48 +386,47 @@ proc_label: BEGIN
           AND (si.status = 'pending' OR si.status = 'Pending')
           AND si.customer_order_ID = p_cart_id;
     
-    -- 错误处理器
+    
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_done = TRUE;
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
-        -- 获取错误信息
+     
         GET DIAGNOSTICS CONDITION 1
             @sqlstate = RETURNED_SQLSTATE,
             @errno = MYSQL_ERRNO,
             @text = MESSAGE_TEXT;
         
-        -- 回滚事务
+        
         ROLLBACK;
         SET p_success = FALSE;
-        SET p_message = CONCAT('数据库错误: ', @text, ' (错误码: ', @errno, ')');
+        SET p_message = CONCAT('Database error: ', @text, ' (error code: ', @errno, ')');
         SET p_order_id = NULL;
     END;
     
-    -- 初始化输出参数
+  
     SET p_success = FALSE;
     SET p_message = '';
     SET p_order_id = p_cart_id;
     SET v_debug_message = '';
     
-    -- 调试日志：记录输入参数
-    SET v_debug_message = CONCAT('输入参数: customer_id=', p_customer_id, 
+    SET v_debug_message = CONCAT('input parameter: customer_id=', p_customer_id, 
                                 ', cart_id=', p_cart_id);
     
-    -- 验证参数
+  
     IF p_customer_id IS NULL OR p_customer_id <= 0 THEN
-        SET p_message = '无效的客户ID';
+        SET p_message = 'Invalid customer ID';
         LEAVE proc_label;
     END IF;
     
     IF p_shipping_address IS NULL OR TRIM(p_shipping_address) = '' THEN
-        SET p_message = '请填写收货地址';
+        SET p_message = 'Please fill in the delivery address';
         LEAVE proc_label;
     END IF;
 
-    -- 开始事务
+
     START TRANSACTION;
     
-    -- 1. 验证订单是否存在且属于当前用户
+ 
     SELECT COUNT(*) INTO v_order_item_count
     FROM CustomerOrder 
     WHERE order_ID = p_cart_id 
@@ -435,40 +434,40 @@ proc_label: BEGIN
       AND (status = 'Pending' OR status = 'pending');
     
     IF v_order_item_count = 0 THEN
-        SET p_message = CONCAT('购物车不存在或不属于当前用户。cart_id=', p_cart_id, ', customer_id=', p_customer_id);
+        SET p_message = CONCAT('The shopping cart does not exist or does not belong to the current user. cart_id=', p_cart_id, ', customer_id=', p_customer_id);
         ROLLBACK;
         LEAVE proc_label;
     END IF;
     
-    -- 2. 获取购物车总金额
+    
     SELECT COALESCE(SUM(oi.quantity * oi.unit_price), 0) INTO v_total_amount
     FROM OrderItem oi
     WHERE oi.order_ID = p_cart_id 
       AND (oi.status = 'pending' OR oi.status = 'Pending');
     
-    SET v_debug_message = CONCAT(v_debug_message, ', 总金额=', v_total_amount);
+    SET v_debug_message = CONCAT(v_debug_message, ', TOTAL AMOUNT=', v_total_amount);
     
     IF v_total_amount <= 0 THEN
-        SET p_message = '购物车无有效商品或金额为零';
+        SET p_message = 'The shopping cart has no valid items or the amount is zero';
         ROLLBACK;
         LEAVE proc_label;
     END IF;
     
-    -- 3. 检查是否有待处理的OrderItem
+  
     SELECT COUNT(*) INTO v_order_item_count
     FROM OrderItem 
     WHERE order_ID = p_cart_id 
       AND (status = 'pending' OR status = 'Pending');
     
-    SET v_debug_message = CONCAT(v_debug_message, ', OrderItem数量=', v_order_item_count);
+    SET v_debug_message = CONCAT(v_debug_message, ', OrderItem_quantity=', v_order_item_count);
     
     IF v_order_item_count = 0 THEN
-        SET p_message = '购物车中没有待处理的商品';
+        SET p_message = 'There are no pending items in the shopping cart';
         ROLLBACK;
         LEAVE proc_label;
     END IF;
     
-    -- 4. 获取客户折扣率
+   
     SELECT 
         CASE 
             WHEN loyalty_level = 'VIP' THEN 0.05
@@ -478,10 +477,10 @@ proc_label: BEGIN
     FROM customer 
     WHERE customer_ID = p_customer_id;
     
-    -- 5. 计算最终金额（应用折扣）
+
     SET v_final_amount = v_total_amount * (1 - COALESCE(v_discount_rate, 0));
     
-    -- 6. 更新订单主表状态
+
     UPDATE CustomerOrder 
     SET status = 'Completed', 
         total_amount = v_total_amount, 
@@ -491,21 +490,21 @@ proc_label: BEGIN
     WHERE order_ID = p_cart_id;
     
     IF ROW_COUNT() <= 0 THEN
-        SET p_message = '订单状态更新失败';
+        SET p_message = 'The order status update failed';
         ROLLBACK;
         LEAVE proc_label;
     END IF;
     
-    -- 7. 更新OrderItem状态为completed
+
     UPDATE OrderItem 
     SET status = 'completed'
     WHERE order_ID = p_cart_id 
       AND (status = 'pending' OR status = 'Pending');
     
     SET v_stock_item_count = ROW_COUNT();
-    SET v_debug_message = CONCAT(v_debug_message, ', 更新的OrderItem数量=', v_stock_item_count);
+    SET v_debug_message = CONCAT(v_debug_message, ', Updated StockItem Quantity=', v_stock_item_count);
     
-    -- 8. 更新库存：释放锁定库存，减少实际库存
+ 
     UPDATE Inventory inv
     JOIN (
         SELECT 
@@ -525,18 +524,18 @@ proc_label: BEGIN
         inv.locked_inventory = inv.locked_inventory - sold_items.sold_count;
     
     SET v_stock_item_count = ROW_COUNT();
-    SET v_debug_message = CONCAT(v_debug_message, ', 更新的Inventory批次数量=', v_stock_item_count);
+    SET v_debug_message = CONCAT(v_debug_message, ', Updated inventory Quantity=', v_stock_item_count);
     
-    -- 9. 更新StockItem状态为sold
+  
     UPDATE StockItem 
     SET status = 'sold'
     WHERE customer_order_ID = p_cart_id 
       AND (status = 'pending' OR status = 'Pending');
     
     SET v_stock_item_count = ROW_COUNT();
-    SET v_debug_message = CONCAT(v_debug_message, ', 更新的StockItem数量=', v_stock_item_count);
+    SET v_debug_message = CONCAT(v_debug_message, ', Updated StockItem Quantity=', v_stock_item_count);
 
-    -- 10. 记录交易日志
+  
     INSERT INTO stockitemcertificate (
         item_ID,
         transaction_type, 
@@ -554,21 +553,20 @@ proc_label: BEGIN
     WHERE si.customer_order_ID = p_cart_id
       AND (si.status = 'sold');
     
-    -- 11. 更新客户累计消费
+
     UPDATE customer 
     SET accu_cost = accu_cost + v_final_amount 
     WHERE customer_ID = p_customer_id;
-    
-    -- 12. 提交事务
+
     COMMIT;
     
-    -- 设置成功响应
+ 
     SET p_success = TRUE;
-    SET p_message = CONCAT('订单提交成功！订单号: ', p_cart_id, 
-                          '，总金额: ', FORMAT(v_total_amount, 2), 
-                          '，折扣率: ', (COALESCE(v_discount_rate, 0) * 100), 
-                          '%，实付金额: ', FORMAT(v_final_amount, 2),
-                          '。调试信息: ', v_debug_message);
+    SET p_message = CONCAT('Order submitted successfully! Order ID: ', p_cart_id, 
+                          ', Total Amount: ', FORMAT(v_total_amount, 2), 
+                          ', Discount Rate: ', (COALESCE(v_discount_rate, 0) * 100), 
+                          '%, Final Amount: ', FORMAT(v_final_amount, 2),
+                          '. Debug Info: ', v_debug_message);
     
 END //
 

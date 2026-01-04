@@ -5,15 +5,16 @@ require_once __DIR__ . '/inc/header.php';
 
 $suppliersData = getSuppliersFromDB();
 ?>
+<div id="toast-container"></div>
 <section class="section">
     <h2 class="section-title">Suppliers</h2>
     <div class="filter-bar" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
         <input id="supplierSearch" class="filter-input" placeholder="Search by supplier name, contact, or phone" style="flex:1;max-width:350px;">
         <select id="supplierCategoryFilter" class="filter-select">
             <option value="">All categories</option>
-            <option value="果蔬">Produce</option>
-            <option value="肉禽蛋">Meat & Eggs</option>
-            <option value="水产">Seafood</option>
+            <option value="Fruit & Vegetable">Fruit & Vegetable</option>
+            <option value="Meat & Egg">Meat & Egg</option>
+            <option value="Aquatic product">Aquatic product</option>
         </select>
         <select id="supplierStatusFilter" class="filter-select">
             <option value="">All statuses</option>
@@ -115,9 +116,9 @@ function escapeHtml(text) {
 
 function mapSupplierCategory(category) {
     const map = {
-        '果蔬': 'Produce',
-        '肉禽蛋': 'Meat & Eggs',
-        '水产': 'Seafood'
+        'Fruit & Vegetable': 'Fruit & Vegetable',
+        'Meat & Egg': 'Meat & Egg',
+        'Aquatic product': 'Aquatic product'
     };
     return map[category] || category || 'Unknown';
 }
@@ -134,8 +135,8 @@ function renderSuppliersTable() {
     
     let html = '';
     suppliersData.forEach(supplier => {
-        const categoryClass = supplier.category === '果蔬' ? 'category-veg' : 
-                             supplier.category === '肉禽蛋' ? 'category-meat' : 'category-seafood';
+        const categoryClass = supplier.category === 'Fruit & Vegetable' ? 'category-veg' : 
+                             supplier.category === 'Meat & Egg' ? 'category-meat' : 'category-seafood';
         const statusClass = supplier.status === 'active' ? 'status-accepted' : 'status-rejected';
         const statusText = supplier.status === 'active' ? 'Active' : 'Inactive';
         const categoryLabel = mapSupplierCategory(supplier.category);
@@ -180,8 +181,8 @@ function showSupplierDetails(supplierId) {
     const supplier = suppliersData.find(s => s.id == supplierId);
     if (!supplier) return;
     
-    const categoryClass = supplier.category === '果蔬' ? 'category-veg' : 
-                         supplier.category === '肉禽蛋' ? 'category-meat' : 'category-seafood';
+    const categoryClass = supplier.category === 'Fruit & Vegetable' ? 'category-veg' : 
+                         supplier.category === 'Meat & Egg' ? 'category-meat' : 'category-seafood';
     const statusClass = supplier.status === 'active' ? 'status-accepted' : 'status-rejected';
     const statusText = supplier.status === 'active' ? 'Active' : 'Inactive';
     const categoryLabel = mapSupplierCategory(supplier.category);
@@ -338,7 +339,6 @@ function editSupplier(supplierId) {
     const isEdit = !!supplierId && supplier;
     const title = isEdit ? 'Edit Supplier' : 'Add Supplier';
     
-    // 生成表单HTML
     const formHtml = `
         <form id="supplierForm">
             <input type="hidden" id="supplier_id" name="supplier_id" value="${supplierId || ''}">
@@ -353,9 +353,9 @@ function editSupplier(supplierId) {
                 <label style="display:block;margin-bottom:6px;font-weight:500;color:#333;">Category <span style="color:red;">*</span></label>
                 <select id="supplier_category" name="category" class="form-control" required>
                     <option value="">Select a category</option>
-                    <option value="果蔬" ${supplier && supplier.category === '果蔬' ? 'selected' : ''}>Produce</option>
-                    <option value="肉禽蛋" ${supplier && supplier.category === '肉禽蛋' ? 'selected' : ''}>Meat & Eggs</option>
-                    <option value="水产" ${supplier && supplier.category === '水产' ? 'selected' : ''}>Seafood</option>
+                    <option value="Fruit & Vegetable" ${supplier && supplier.category === 'Fruit & Vegetable' ? 'selected' : ''}>Fruit & Vegetable</option>
+                    <option value="Meat & Egg" ${supplier && supplier.category === 'Meat & Egg' ? 'selected' : ''}>Meat & Egg</option>
+                    <option value="Aquatic product" ${supplier && supplier.category === 'Aquatic product' ? 'selected' : ''}>Aquatic product</option>
                 </select>
             </div>
             
@@ -413,7 +413,7 @@ function isValidEmail(email) {
 }
 
 // 保存供应商信息（AJAX版本）- 增强验证
-function saveSupplier() {
+async function saveSupplier() {
     const form = document.getElementById('supplierForm');
     if (!form) return;
     
@@ -431,7 +431,7 @@ function saveSupplier() {
     });
     
     if (!isValid) {
-        alert('Please fill in all required fields (*).');
+        showError('Please fill in all required fields (*).');
         return;
     }
     
@@ -439,21 +439,35 @@ function saveSupplier() {
     const phoneField = document.getElementById('supplier_phone');
     const phoneRegex = /^1[3-9]\d{9}$/;
     if (phoneField.value && !phoneRegex.test(phoneField.value)) {
-        alert('Please enter a valid phone number.');
+        showError('Please enter a valid phone number.');
         phoneField.style.borderColor = '#dc3545';
         phoneField.focus();
         return;
     }
     
-    // 邮箱验证
-    const emailField = document.getElementById('supplier_email');
-    if (emailField.value && !isValidEmail(emailField.value)) {
-        alert('Please enter a valid email address.');
-        emailField.style.borderColor = '#dc3545';
-        emailField.focus();
-        return;
+     const emailField = document.getElementById('supplier_email');
+     if (emailField.value && !isValidEmail(emailField.value)) {
+       showError('Please enter a valid email address.');
+       emailField.style.borderColor = '#dc3545';
+       emailField.focus();
+       return;
     }
-    
+    const supplierId = currentEditSupplierId
+    if (emailField.value && supplierId > 0) {
+      try {
+        const isDuplicate = await checkSupplierEmailDuplicate(emailField.value, supplierId);
+        if (isDuplicate) {
+            showError('This email is already in use by another supplier.');
+            emailField.style.borderColor = '#dc3545';
+            emailField.focus();
+            return;
+        }
+      } catch (error) {
+        console.error('Email duplicate check failed:', error);
+        showError('Email verification failed. Please try again.');
+        return;
+      }
+    }
     // 收集表单数据
     const formData = new FormData();
     formData.append('action', 'save_supplier');
@@ -475,16 +489,16 @@ function saveSupplier() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert(data.message);
+            showError(data.message);
             // 重新加载页面以获取最新数据
             window.location.reload();
         } else {
-            alert('Save failed: ' + data.error);
+            showError('Save failed: ' + data.error);
         }
     })
     .catch(error => {
         console.error('Failed to save supplier:', error);
-        alert('Save failed. Please check your network connection.');
+        showError('Save failed. Please check your network connection.');
     });
     
     closeSupplierModal();
@@ -513,6 +527,61 @@ function applyFilters() {
         
         row.style.display = (matchSearch && matchCategory && matchStatus) ? '' : 'none';
     });
+}
+function showError(message, type = 'error', duration = 3000) {
+    // 类型映射：error, success, warning
+    const typeConfig = {
+        'error': { title: '错误', icon: '❌', className: 'error-toast' },
+        'success': { title: '成功', icon: '✅', className: 'success-toast error-toast' },
+        'warning': { title: '警告', icon: '⚠️', className: 'warning-toast error-toast' }
+    };
+    
+    const config = typeConfig[type] || typeConfig.error;
+    
+    // 创建弹窗元素
+    const toast = document.createElement('div');
+    toast.className = config.className;
+    toast.innerHTML = `
+        <div class="error-icon">${config.icon}</div>
+        <div class="error-content">
+            <div class="error-title">${config.title}</div>
+            <div class="error-message">${message}</div>
+        </div>
+        <button class="error-close" onclick="this.parentElement.remove()">×</button>
+    `;
+    
+    // 添加到容器
+    const container = document.getElementById('toast-container');
+    if (!container) {
+        // 如果容器不存在，创建并添加到body
+        const newContainer = document.createElement('div');
+        newContainer.id = 'toast-container';
+        document.body.appendChild(newContainer);
+        newContainer.appendChild(toast);
+    } else {
+        container.appendChild(toast);
+    }
+    
+    // 显示动画
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    // 自动消失（如果设置了duration）
+    if (duration > 0) {
+        setTimeout(() => {
+            hideToast(toast);
+        }, duration);
+    }
+    
+    // 点击弹窗任何地方关闭（除了关闭按钮）
+    toast.addEventListener('click', function(e) {
+        if (!e.target.classList.contains('error-close')) {
+            hideToast(toast);
+        }
+    });
+    
+    return toast;
 }
 
 // 事件监听
@@ -607,6 +676,24 @@ function closeProductsModal() {
     document.getElementById('supplierProductsModal').style.display = 'none';
     document.getElementById('supplierProductsContent').innerHTML = '';
 }
+// 异步检查供应商邮箱是否重复
+async function checkSupplierEmailDuplicate(email, supplierId = 0) {
+    try {
+        const response = await fetch('supplier_handler.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `action=check_supplier_email_duplicate&email=${encodeURIComponent(email)}&supplier_id=${supplierId}`
+        });
+        
+        const data = await response.json();
+        return data.exists || false;
+    } catch (error) {
+        console.error('Supplier email duplicate check failed:', error);
+        throw error;
+    }
+}
 
 // 初始过滤
 setTimeout(applyFilters, 100);
@@ -668,5 +755,85 @@ setTimeout(applyFilters, 100);
     gap: 8px;
     align-items: center;
     flex-wrap: nowrap;
+}
+/* 错误提示弹窗样式 */
+.error-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #ff4444;
+    color: white;
+    padding: 16px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(255, 68, 68, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 10000;
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+    max-width: 400px;
+    min-width: 300px;
+}
+
+.error-toast.show {
+    transform: translateX(0);
+}
+
+.error-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.error-content {
+    flex: 1;
+}
+
+.error-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 16px;
+}
+
+.error-message {
+    font-size: 14px;
+    opacity: 0.9;
+    line-height: 1.4;
+}
+
+.error-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    padding: 0;
+    margin-left: 8px;
+}
+
+.error-close:hover {
+    opacity: 1;
+}
+
+/* 成功提示样式 */
+.success-toast {
+    background-color: #2d884d !important;
+    box-shadow: 0 4px 12px rgba(45, 136, 77, 0.3) !important;
+}
+
+.success-toast .error-icon {
+    color: #a8e6c1;
+}
+
+/* 警告提示样式 */
+.warning-toast {
+    background-color: #ff9900 !important;
+    box-shadow: 0 4px 12px rgba(255, 153, 0, 0.3) !important;
+}
+
+.warning-toast .error-icon {
+    color: #ffe0b3;
 }
 </style>

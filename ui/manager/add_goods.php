@@ -37,7 +37,7 @@ if ($sale_quantity <= 0) {
     $errors[] = 'Sales quantity must be greater than 0.';
 }
 // 验证单位是否在允许的范围内
-$allowed_units = ['g', 'kg', '只', '个', '枚', '斤', '公斤', '盒', '包', '袋'];
+$allowed_units = ['g', 'kg','piece','item',  'jin', 'kilogram', 'box', 'pack', 'bag'];
 if (!in_array($unit, $allowed_units)) {
     $errors[] = 'Please select a valid unit.';
 }

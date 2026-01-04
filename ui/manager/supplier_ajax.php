@@ -1,5 +1,4 @@
 <?php
-// supplier_ajax.php - 处理供应商的AJAX请求
 require_once __DIR__ . '/inc/db_connect.php';
 require_once __DIR__ . '/inc/data.php';
 
@@ -10,7 +9,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'];
         
         if ($action === 'save_supplier') {
-            // 保存供应商信息
             $supplierId = intval($_POST['supplier_id'] ?? 0);
             $companyName = trim($_POST['name'] ?? '');
             $category = trim($_POST['category'] ?? '');
@@ -23,7 +21,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             try {
                 if ($supplierId > 0) {
-                    // 更新供应商
                     $sql = "UPDATE Supplier SET 
                             company_name = ?, 
                             supplier_category = ?, 
@@ -42,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $status, $supplierId
                     );
                 } else {
-                    // 新增供应商
                     $sql = "INSERT INTO Supplier 
                             (company_name, supplier_category, contact_person, 
                              phone, email, address, tax_number, status) 
@@ -65,7 +61,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
         } elseif ($action === 'delete_supplier') {
-            // 删除供应商
             $supplierId = intval($_POST['supplier_id'] ?? 0);
             
             try {

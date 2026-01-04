@@ -1108,10 +1108,19 @@ function getProductBranches($productId) {
  */
 function getFavoriteProducts($customerId) {
     $conn = getDBConnection();
-    $query = "SELECT product_ID, product_name, total_spent 
-              FROM v_favorite_products 
-              WHERE customer_ID = ?
-              ORDER BY total_spent DESC";  // 保持排序
+    $query = "SELECT 
+                ctp.product_ID, 
+                ctp.product_name, 
+                ctp.total_quantity as purchase_count,
+                ctp.order_count as order_times,
+                ctp.total_spent,
+                p.unit_price,
+                p.description,
+                p.sku
+              FROM v_favorite_products ctp
+              LEFT JOIN products p ON ctp.product_ID = p.product_ID
+              WHERE ctp.customer_ID = ?
+              ORDER BY ctp.product_rank ASC";  // 按排名排序
     
     $stmt = $conn->prepare($query);
     $stmt->bind_param("i", $customerId);
@@ -1121,6 +1130,15 @@ function getFavoriteProducts($customerId) {
     $products = [];
     if ($result && $result->num_rows > 0) {
         while ($row = $result->fetch_assoc()) {
+            // 格式化数据
+            $row['purchase_count'] = intval($row['purchase_count']);
+            $row['order_times'] = intval($row['order_times']);
+            $row['total_spent'] = floatval($row['total_spent']);
+            $row['unit_price'] = floatval($row['unit_price']);
+            
+            // 添加排名信息
+            $row['rank'] = count($products) + 1;
+            
             $products[] = $row;
         }
     }

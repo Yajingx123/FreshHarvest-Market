@@ -833,9 +833,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     border-color: rgba(102, 102, 102, 0.3);
     border-top-color: #666;
 }
+/* 错误提示弹窗样式 */
+.error-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #ff4444;
+    color: white;
+    padding: 16px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(255, 68, 68, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 10000;
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+    max-width: 400px;
+    min-width: 300px;
+}
+
+.error-toast.show {
+    transform: translateX(0);
+}
+
+.error-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.error-content {
+    flex: 1;
+}
+
+.error-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 16px;
+}
+
+.error-message {
+    font-size: 14px;
+    opacity: 0.9;
+    line-height: 1.4;
+}
+
+.error-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    padding: 0;
+    margin-left: 8px;
+}
+
+.error-close:hover {
+    opacity: 1;
+}
+
+/* 成功提示样式 */
+.success-toast {
+    background-color: #2d884d !important;
+    box-shadow: 0 4px 12px rgba(45, 136, 77, 0.3) !important;
+}
+
+.success-toast .error-icon {
+    color: #a8e6c1;
+}
+
+/* 警告提示样式 */
+.warning-toast {
+    background-color: #ff9900 !important;
+    box-shadow: 0 4px 12px rgba(255, 153, 0, 0.3) !important;
+}
+
+.warning-toast .error-icon {
+    color: #ffe0b3;
+}
     
 </style>
-
+<div id="toast-container"></div>
 <!-- Cart -->
 <section id="cart" class="module">
     <div class="product-section">
@@ -1272,9 +1352,80 @@ document.addEventListener('submit', function(e) {
     }
     
     // === 错误提示函数 ===
-    function showError(message) {
-        alert(message); // 可以换成更美观的弹窗
+    function showError(message, type = 'error', duration = 5000) {
+    // 类型映射：error, success, warning
+    const typeConfig = {
+        'error': { title: '错误', icon: '❌', className: 'error-toast' },
+        'success': { title: '成功', icon: '✅', className: 'success-toast error-toast' },
+        'warning': { title: '警告', icon: '⚠️', className: 'warning-toast error-toast' }
+    };
+    
+    const config = typeConfig[type] || typeConfig.error;
+    
+    // 创建弹窗元素
+    const toast = document.createElement('div');
+    toast.className = config.className;
+    toast.innerHTML = `
+        <div class="error-icon">${config.icon}</div>
+        <div class="error-content">
+            <div class="error-title">${config.title}</div>
+            <div class="error-message">${message}</div>
+        </div>
+        <button class="error-close" onclick="this.parentElement.remove()">×</button>
+    `;
+    
+    // 添加到容器
+    const container = document.getElementById('toast-container');
+    if (!container) {
+        // 如果容器不存在，创建并添加到body
+        const newContainer = document.createElement('div');
+        newContainer.id = 'toast-container';
+        document.body.appendChild(newContainer);
+        newContainer.appendChild(toast);
+    } else {
+        container.appendChild(toast);
     }
+    
+    // 显示动画
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    // 自动消失（如果设置了duration）
+    if (duration > 0) {
+        setTimeout(() => {
+            hideToast(toast);
+        }, duration);
+    }
+    
+    // 点击弹窗任何地方关闭（除了关闭按钮）
+    toast.addEventListener('click', function(e) {
+        if (!e.target.classList.contains('error-close')) {
+            hideToast(toast);
+        }
+    });
+    
+    return toast;
+}
+
+// 隐藏并移除弹窗
+function hideToast(toast) {
+    toast.classList.remove('show');
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.remove();
+        }
+    }, 300);
+}
+
+// 快捷函数
+function showSuccess(message, duration = 3000) {
+    return showError(message, 'success', duration);
+}
+
+function showWarning(message, duration = 4000) {
+    return showError(message, 'warning', duration);
+}
     
     // 点击弹窗外部关闭
     window.addEventListener('click', function(event) {
