@@ -43,6 +43,7 @@ GRANT SELECT ON mydb.Supplier TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.Staff TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.PurchaseItem TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.supplierproduct TO 'supplier_user'@'localhost';
+GRANT SELECT ON mydb.stockitemcertificate TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.StockItem TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.StockItemCertificate TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.v_supplier_products TO 'supplier_user'@'localhost';
