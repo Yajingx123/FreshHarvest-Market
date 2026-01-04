@@ -309,10 +309,9 @@ $statusMap = [
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div class="empty-state">
-                        <img src="images/empty-orders.png" alt="There are no orders for the moment.">
-                        <p>You don't have any orders yet. Start shopping!</p>
-                        <a href="products.php" class="btn-primary">Browse products</a>
-                    </div>
+                      <p>You don't have any orders yet. Start shopping!</p>
+                       <a href="products.php" class="btn-primary">Browse products</a>
+                     </div>
                 <?php endif; ?>
             </div>
         </div>

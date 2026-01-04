@@ -34,9 +34,16 @@ if (!in_array($data['gender'], ['Male', 'Female'])) {
     $errors[] = 'Gender must be Male or Female.';
 }
 
-// 电话号码验证
-if (!preg_match('/^\d{11}$/', $data['phone'])) {
-    $errors[] = 'Phone number must be 11 digits.';
+if (empty($phone)) {
+    $errors[] = '电话号码不能为空';
+} 
+// 2. 检查是否全是数字
+elseif (!preg_match('/^\d+$/', $phone)) {
+    $errors[] = '电话号码只能包含数字，不能包含字母或其他字符';
+} 
+// 3. 检查是否为11位
+elseif (strlen($phone) !== 11) {
+    $errors[] = '电话号码必须是11位数字';
 }
 
 // 邮箱验证

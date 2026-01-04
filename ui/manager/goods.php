@@ -880,15 +880,14 @@ const html = `
                      <option value="">Select unit</option>
                      <option value="g">g</option>
                      <option value="kg">kg</option>
-                     <option value="只">piece</option>
-                     <option value="个">item</option>
-                     <option value="枚">piece</option>
-                     <option value="斤">jin</option>
-                     <option value="公斤">kilogram</option>
-                     <option value="盒">box</option>
-                     <option value="包">pack</option>
-                     <option value="袋">bag</option>
-                     <option value="份" selected>serving</option>
+                     <option value="piece">piece</option>
+                     <option value="item">item</option>
+                     <option value="jin">jin</option>
+                     <option value="kilogram">kilogram</option>
+                     <option value="box">box</option>
+                     <option value="pack">pack</option>
+                     <option value="bag">bag</option>
+                     <option value="Serving" selected>Serving</option>
                     </select>
                 </div>
 

@@ -49,11 +49,11 @@ function resolveRestockCategoryId(int $parentCategoryId, int $categoryId): int {
 function mapSupplierCategoryByParent(int $parentCategoryId): string {
     switch ($parentCategoryId) {
         case 2:
-            return '果蔬';
+            return 'Fruit & Vegetable';
         case 3:
-            return '肉禽蛋';
+            return 'Meat & Egg';
         case 4:
-            return '水产';
+            return 'Aquatic product';
         default:
             return '';
     }
@@ -812,9 +812,9 @@ if ($error_message !== '') {
     const supplierOptions = <?php echo $supplierOptionsJson ?: '[]'; ?>;
     const branchName = <?php echo $jsBranchName; ?> || '';
     const supplierCategoryMap = {
-        2: '果蔬',
-        3: '肉禽蛋',
-        4: '水产'
+        2: 'Fruit & Vegetable',
+        3: 'Meat & Egg',
+        4: 'Aquatic product'
     };
 
     function getRestockList() {

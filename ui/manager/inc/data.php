@@ -1235,7 +1235,6 @@ function getProductCategories() {
     $categories = [];
     
     try {
-        // 只获取果蔬、肉禽蛋、水产这几个父类
         $sql = "SELECT category_id, category_name FROM Categories 
                 WHERE category_id IN (5, 6, 7, 8, 9, 10, 11) 
                 ORDER BY category_id";
@@ -1314,7 +1313,63 @@ function buildCategoryTree() {
     
     return $hierarchy;
 }
+function isEmailExists($email, $excludeEmployeeId = 0) {
+    global $conn;
+    
+    $query = "SELECT COUNT(*) as count FROM user WHERE user_email = ?";
+    $params = [$email];
+    
+    if ($excludeEmployeeId > 0) {
+        $query .= " AND id != ?";
+        $params[] = $excludeEmployeeId;
+    }
+    
+    $stmt = $conn->prepare($query);
+    
+    if (count($params) > 1) {
+        $stmt->bind_param(str_repeat("s", count($params)), ...$params);
+    } else {
+        $stmt->bind_param("s", $params[0]);
+    }
+    
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    
+    $stmt->close();
+    $conn->close();
+    
+    return $row['count'] > 0;
+}
 
+function isSupplierEmailExists($email, $excludeSupplierId = 0) {
+    $conn = getDBConnection();
+    
+    $query = "SELECT COUNT(*) as count FROM supplier WHERE email = ?";
+    $params = [$email];
+    
+    if ($excludeSupplierId > 0) {
+        $query .= " AND supplier_id != ?";
+        $params[] = $excludeSupplierId;
+    }
+    
+    $stmt = $conn->prepare($query);
+    
+    if (count($params) > 1) {
+        $stmt->bind_param("si", ...$params);
+    } else {
+        $stmt->bind_param("s", $params[0]);
+    }
+    
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    
+    $stmt->close();
+    $conn->close();
+    
+    return $row['count'] > 0;
+}
 // 初始化数据
 $products = getProductsViewData();
 $transactions = getTransactionsData();
