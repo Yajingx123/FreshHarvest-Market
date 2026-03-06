@@ -24,9 +24,9 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- 1) Categories table
 INSERT INTO Categories (category_id, category_name, parent_category_id, description) VALUES
 (1,'Fresh',NULL,'FreshHarvest main category'),
-(2,'Fruits & Vegetables',1,'Parent category for vegetables and fruits'),
-(3,'Meat, Poultry & Eggs',1,'Parent category for meat and eggs'),
-(4,'Aquatic Products',1,'Parent category for aquatic products'),
+(2,'Fruit & Vegetable',1,'Parent category for vegetables and fruits'),
+(3,'Meat & Egg',1,'Parent category for meat and eggs'),
+(4,'Aquatic product',1,'Parent category for aquatic products'),
 (5,'Vegetables',2,'Seasonal vegetables, leafy greens, root vegetables'),
 (6,'Fruits',2,'Seasonal fruits, imported fruits'),
 (7,'Meat',3,'Pork, beef, lamb, poultry, etc.'),
@@ -91,7 +91,7 @@ INSERT INTO products (product_ID, sku, product_name, status, unit_price, unit, d
 (2,'VEG-TOMATO-500','Tomato 500g','active',17.90,'g','Sandy tomato, sweet and sour taste',5),
 (3,'FRU-STRAWBERRY-500','Strawberry 500g','active',39.90,'g','Fresh strawberry, direct cold chain',6),
 (4,'MEAT-PORK-500','Pork Belly 500g','active',38.90,'g','Selected pork belly',7),
-(5,'Fish-SALMON-300','Salmon 300g','active',69.90,'g','Fresh sliced salmon',9),
+(5,'FISH-SALMON-300','Salmon 300g','active',69.90,'g','Fresh sliced salmon',9),
 (6,'SHRIMP-SHRIMP-500','Large Shrimp 500g','active',55.90,'g','Frozen preservation',10);
 
 -- 3) ProductAttribute table
@@ -439,12 +439,6 @@ INSERT INTO OrderItem (order_ID, item_ID, unit_price, product_ID, quantity, stat
 -- Order 1: 1 Pork Belly (pending)
 (1,'SI-B1MEAT001-001',38.90,4,1,'pending'),
 
--- Order 2: 2 Organic Spinach (completed)
-(2,'SI-B1VEG001-001',13.50,1,1,'completed'),
-(2,'SI-B1VEG001-002',13.50,1,1,'completed'),
-
--- Order 3: 1 Organic Spinach (pending)
-(3,'SI-B2VEG001-001',13.50,1,1,'pending'),
 
 -- Order 4: 1 Salmon (completed)
 (3,'SI-B2FISH001-001',69.90,5,1,'completed'),

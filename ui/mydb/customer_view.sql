@@ -137,26 +137,24 @@ GROUP BY co.order_ID, co.customer_ID, co.order_date, co.total_amount,
          co.final_amount, co.status, co.shipping_address, b.branch_name
 ORDER BY co.order_date DESC;
 
--- 5. Favorite Products View - 单个客户的购买数量Top 3产品
+-- 5. Favorite Products View
 CREATE OR REPLACE VIEW v_favorite_products AS
 WITH customer_product_stats AS (
-    -- 计算每个客户对每个产品的总购买数量
     SELECT 
         co.customer_ID,
         p.product_ID,
         p.product_name,
         p.sku,
-        SUM(oi.quantity) AS total_quantity,  -- 总购买数量（关键指标）
-        COUNT(DISTINCT co.order_ID) AS order_count,  -- 购买次数（辅助指标）
-        SUM(oi.quantity * oi.unit_price) AS total_spent  -- 总花费（辅助指标）
+        SUM(oi.quantity) AS total_quantity,  
+        COUNT(DISTINCT co.order_ID) AS order_count,  
+        SUM(oi.quantity * oi.unit_price) AS total_spent 
     FROM OrderItem oi
     JOIN products p ON oi.product_ID = p.product_ID
     JOIN CustomerOrder co ON oi.order_ID = co.order_ID
-    WHERE co.status = 'Completed'  -- 只考虑已完成的订单
+    WHERE co.status = 'Completed'
     GROUP BY co.customer_ID, p.product_ID, p.product_name, p.sku
 ),
 ranked_products AS (
-    -- 为每个客户的产品按购买数量排名
     SELECT 
         customer_ID,
         product_ID,
@@ -167,12 +165,12 @@ ranked_products AS (
         total_spent,
         ROW_NUMBER() OVER (
             PARTITION BY customer_ID 
-            ORDER BY total_quantity DESC,  -- 主要按数量排序
-            order_count DESC,              -- 数量相同时按购买次数
-            total_spent DESC               -- 最后按花费
+            ORDER BY total_quantity DESC,
+            order_count DESC,              
+            total_spent DESC              
         ) AS product_rank
     FROM customer_product_stats
-    WHERE total_quantity > 0  -- 确保有购买记录
+    WHERE total_quantity > 0  
 )
 SELECT 
     customer_ID,
@@ -184,7 +182,7 @@ SELECT
     total_spent,
     product_rank
 FROM ranked_products
-WHERE product_rank <= 3; 
+WHERE product_rank = 1 ; 
 
 -- 6
 CREATE OR REPLACE VIEW v_wishlist_products AS
@@ -202,9 +200,9 @@ SELECT
     si.batch_ID,
     si.status as stock_item_status,
     CASE 
-        WHEN si.status = 'pending' THEN '已锁定'
-        WHEN si.status = 'in_stock' THEN '有货'
-        ELSE '不可用'
+        WHEN si.status = 'pending' THEN 'locked'
+        WHEN si.status = 'in_stock' THEN 'in stock'
+        ELSE 'not available'
     END AS stock_status,
     co.status as order_status,
     co.total_amount
@@ -239,36 +237,18 @@ ORDER BY b.branch_name;
 
  CREATE USER IF NOT EXISTS 'login_user'@'localhost' IDENTIFIED BY 'LoginP@ss123!';
 
--- 2. 授予登录验证所需的 SELECT 权限
+
 GRANT SELECT ON mydb.User TO 'login_user'@'localhost';
 GRANT SELECT ON mydb.Customer TO 'login_user'@'localhost';
 GRANT SELECT ON mydb.Supplier TO 'login_user'@'localhost';
 GRANT SELECT ON mydb.Staff TO 'login_user'@'localhost';
-
-
-
--- 3. 授予注册功能所需的 INSERT 权限
 GRANT INSERT ON mydb.User TO 'login_user'@'localhost';
 GRANT INSERT ON mydb.Customer TO 'login_user'@'localhost';
-
--- 4. 授予库存更新功能所需的权限
 GRANT SELECT, UPDATE ON mydb.Inventory TO 'login_user'@'localhost';
 GRANT SELECT ON mydb.StockItem TO 'login_user'@'localhost';
 GRANT INSERT ON mydb.StockItemCertificate TO 'login_user'@'localhost';
-
--- 5. 刷新权限
-FLUSH PRIVILEGES;
-
-
-
-
-
-
-
-
 DROP USER IF EXISTS 'customer_user'@'localhost';
 CREATE USER 'customer_user'@'localhost' IDENTIFIED BY 'YourPassword123!';
-
 GRANT SELECT ON mydb.v_customer_profile TO 'customer_user'@'localhost';
 GRANT SELECT ON mydb.v_order_history TO 'customer_user'@'localhost';
 GRANT SELECT ON mydb.v_wishlist_products TO 'customer_user'@'localhost';

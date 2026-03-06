@@ -1,8 +1,9 @@
--- 第一个触发器
+USE mydb;
+
 DROP TRIGGER IF EXISTS trg_customer_update_level;
 DELIMITER //
 CREATE TRIGGER trg_customer_update_level
-BEFORE UPDATE ON customer
+BEFORE UPDATE ON Customer
 FOR EACH ROW
 BEGIN
     IF NEW.accu_cost != OLD.accu_cost THEN
@@ -17,7 +18,7 @@ BEGIN
 END //
 DELIMITER ;
 
--- 第二个触发器
+
 DROP TRIGGER IF EXISTS trg_stockitem_after_insert_purchase;
 DELIMITER //
 CREATE TRIGGER trg_stockitem_after_insert_purchase
@@ -80,7 +81,7 @@ BEGIN
 END //
 DELIMITER ;
 
--- 第三个触发器
+
 DROP TRIGGER IF EXISTS trg_stockitem_after_update_adjustment;
 DELIMITER //
 CREATE TRIGGER trg_stockitem_after_update_adjustment

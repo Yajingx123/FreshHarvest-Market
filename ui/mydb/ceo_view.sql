@@ -289,11 +289,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.Staff TO 'ceo_user'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON mydb.products TO 'ceo_user'@'localhost';
 GRANT SELECT, INSERT, UPDATE, DELETE ON mydb.User TO 'ceo_user'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON mydb.ProductAttribute TO 'ceo_user'@'localhost';
+GRANT SELECT, INSERT, UPDATE ON mydb.SupplierProduct TO 'ceo_user'@'localhost';
 GRANT SELECT, INSERT, UPDATE ON mydb.Supplier TO 'ceo_user'@'localhost';
 GRANT INSERT, UPDATE, DELETE ON mydb.Supplier TO 'ceo_user'@'localhost';
 GRANT SELECT ON mydb.Customer TO 'ceo_user'@'localhost';
-GRANT SELECT ON mydb.CustomerOrder TO 'ceo_user'@'localhost';
-GRANT SELECT ON mydb.OrderItem TO 'ceo_user'@'localhost';
+GRANT SELECT, UPDATE ON mydb.CustomerOrder TO 'ceo_user'@'localhost';
+GRANT SELECT, UPDATE ON mydb.OrderItem TO 'ceo_user'@'localhost';
 GRANT SELECT ON mydb.Categories TO 'ceo_user'@'localhost';
 
 FLUSH PRIVILEGES;

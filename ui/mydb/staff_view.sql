@@ -228,16 +228,9 @@ LEFT JOIN Categories c ON p.category_id = c.category_id;
 
 
 
-
--- 先删除已存在的用户
 DROP USER IF EXISTS 'staff_user'@'localhost';
--- 1. 创建供应商用户
 CREATE USER 'staff_user'@'localhost' IDENTIFIED BY 'YourPassword123!';
--- staff_user权限授予（员工端完整权限）
-
--- staff_user权限授予（根据实际代码修正）
 GRANT LOCK TABLES ON *.* TO 'staff_user'@'localhost';
--- 1. 基本表SELECT权限
 GRANT SELECT ON mydb.Branch TO 'staff_user'@'localhost';
 GRANT SELECT ON mydb.Staff TO 'staff_user'@'localhost';
 GRANT SELECT ON mydb.User TO 'staff_user'@'localhost';
@@ -252,7 +245,6 @@ GRANT SELECT ON mydb.PurchaseOrder TO 'staff_user'@'localhost';
 GRANT SELECT ON mydb.PurchaseItem TO 'staff_user'@'localhost';
 GRANT SELECT ON mydb.Categories TO 'staff_user'@'localhost';
 GRANT SELECT ON mydb.ProductAttribute TO 'staff_user'@'localhost';
-
 GRANT SELECT ON mydb.v_staff_inventory_restock_stats TO 'staff_user'@'localhost';
 GRANT SELECT ON mydb.v_staff_order_daily_summary TO 'staff_user'@'localhost';
 GRANT SELECT ON mydb.v_staff_branch_active_staff_count TO 'staff_user'@'localhost';
@@ -279,8 +271,8 @@ GRANT INSERT, UPDATE ON mydb.CustomerOrder TO 'staff_user'@'localhost';
 GRANT INSERT, UPDATE ON mydb.OrderItem TO 'staff_user'@'localhost';
 GRANT UPDATE (user_telephone, user_email, password_hash) ON mydb.User TO 'staff_user'@'localhost';
 GRANT UPDATE (phone, hire_date, status) ON mydb.Staff TO 'staff_user'@'localhost';
-GRANT SELECT ON mydb.supplierproduct TO 'staff_user'@'localhost';
+GRANT SELECT ON mydb.SupplierProduct TO 'staff_user'@'localhost';
 GRANT TRIGGER ON mydb.* TO 'staff_user'@'localhost';
 
--- 刷新权限
+
 FLUSH PRIVILEGES;

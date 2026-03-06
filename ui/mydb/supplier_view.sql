@@ -29,12 +29,12 @@ WHERE p.status = 'active'
 ORDER BY s.company_name, p.product_name;
 
 
--- 先删除已存在的用户
+
 DROP USER IF EXISTS 'supplier_user'@'localhost';
--- 1. 创建供应商用户
+
 CREATE USER 'supplier_user'@'localhost' IDENTIFIED BY 'YourPassword123!';
 
--- 2. 授予基础权限（不需要第三步的复杂视图）
+
 GRANT SELECT ON mydb.PurchaseOrder TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.Branch TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.products TO 'supplier_user'@'localhost';
@@ -42,16 +42,16 @@ GRANT SELECT ON mydb.User TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.Supplier TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.Staff TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.PurchaseItem TO 'supplier_user'@'localhost';
-GRANT SELECT ON mydb.supplierproduct TO 'supplier_user'@'localhost';
+GRANT SELECT ON mydb.SupplierProduct TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.StockItem TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.StockItemCertificate TO 'supplier_user'@'localhost';
 GRANT SELECT ON mydb.v_supplier_products TO 'supplier_user'@'localhost';
 
--- 仅授予必要UPDATE权限
+
 GRANT UPDATE (status) ON mydb.PurchaseOrder TO 'supplier_user'@'localhost';
 GRANT UPDATE ON mydb.SupplierProduct TO 'supplier_user'@'localhost';
 GRANT UPDATE ON mydb.User TO 'supplier_user'@'localhost';
 GRANT UPDATE ON mydb.Supplier TO 'supplier_user'@'localhost';
 
--- 刷新权限
+
 FLUSH PRIVILEGES;

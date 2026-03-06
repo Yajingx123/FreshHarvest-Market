@@ -1,3 +1,5 @@
+USE mydb;
+
 DROP procedure IF EXISTS ProcessCustomerOrder;
 DROP PROCEDURE IF EXISTS staff_restock;
 DROP PROCEDURE IF EXISTS staff_adjust_inventory;
